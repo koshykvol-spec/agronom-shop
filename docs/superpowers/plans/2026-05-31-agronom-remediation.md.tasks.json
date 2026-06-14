@@ -1,0 +1,26 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-31-agronom-remediation.md",
+  "lastUpdated": "2026-05-31",
+  "tasks": [
+    { "id": 0, "subject": "Task 0: Ініціалізація git і бекап", "status": "completed", "description": "git baseline + remediation branch (commit 787bb81)." },
+    { "id": 1, "subject": "Task 1: Спільний footer + семантичні header/main", "status": "completed", "blockedBy": [0], "description": "site-config.js + footer.js + header/main (commit aecc... wave)." },
+    { "id": 2, "subject": "Task 2: Інфо-сторінки (доставка/оплата, контакти, повернення/оферта)", "status": "completed", "blockedBy": [1], "description": "delivery.html, contacts.html, returns.html." },
+    { "id": 3, "subject": "Task 3: Skeleton/спінер завантаження каталогу", "status": "completed", "blockedBy": [0], "description": "skeleton-картки + catch-фолбек." },
+    { "id": 4, "subject": "Task 4: robots.txt + sitemap.xml (Python-генератор)", "status": "completed", "blockedBy": [0], "description": "robots.txt + gen_sitemap.py + sitemap.xml (commit 9dc221a)." },
+    { "id": 5, "subject": "Task 5: Мета-теги, h1, описи, canonical, og:image, noindex", "status": "completed", "blockedBy": [0], "description": "h1, per-category desc/h1, canonical, og:image, noindex check_photos (commit ce2690e)." },
+    { "id": 6, "subject": "Task 6: Favicon + manifest + theme-color", "status": "completed", "blockedBy": [0], "description": "manifest.json + link rel=icon/apple-touch/manifest + theme-color. УВАГА: бінарні favicon/icon-192/512/apple-touch + assets/og-image.jpg додає власник." },
+    { "id": 7, "subject": "Task 7: JSON-LD LocalBusiness + Product", "status": "completed", "blockedBy": [1], "description": "seo-jsonld.js (LocalBusiness) + Product JSON-LD у render()." },
+    { "id": 8, "subject": "Task 8: Пререндер каталогу + noscript-фолбек", "status": "completed", "blockedBy": [0], "description": "prerender.py → noscript-каталог (2253 товари) у index.html." },
+    { "id": 9, "subject": "Task 9: Сортування, фільтри, стан out-of-stock", "status": "completed", "blockedBy": [0], "description": "setSort/sortProducts, #instock-only, бейдж .oos-badge." },
+    { "id": 10, "subject": "Task 10: Покращення пошуку (debounce + токенізація)", "status": "completed", "blockedBy": [0], "description": "debounce 250мс + matchTokens (AND)." },
+    { "id": 11, "subject": "Task 11: Розумний дефолт ваги + швидкі кнопки кг", "status": "completed", "blockedBy": [0], "description": "weightDefaults + .qty-quick кнопки 0.5/1/5/10." },
+    { "id": 12, "subject": "Task 12: Security headers / CSP (_headers)", "status": "completed", "blockedBy": [0], "description": "_headers: CSP + X-Frame-Options + nosniff + Referrer-Policy. УВАГА: у CSP лишається плейсхолдер домену Worker." },
+    { "id": 13, "subject": "Task 13: Дизайн-система — єдина палітра, дедуп CSS", "status": "completed", "blockedBy": [0], "description": "дедуп .card h3/.price/.btn, #27ae60/#2e7d32→var(--green), :root у protection_schemes." },
+    { "id": 14, "subject": "Task 14: Доступність — модалки + aria/label", "status": "completed", "blockedBy": [0], "description": "lockModal/unlockModal (Esc+lock), aria-label, sr-only label, alt=p.n." },
+    { "id": 15, "subject": "Task 15: XSS-hardening — escapeHTML", "status": "completed", "blockedBy": [0], "description": "window.escapeHTML + застосування; protection_schemes власний escapeHtml. Примітка: inline onclick через індекс НЕ перероблено повністю (p.b у subCat лишився) — див. концерн." },
+    { "id": 16, "subject": "Task 16: Локальний хостинг шрифтів і лого Telegram", "status": "pending", "blockedBy": [0], "description": "ВІДКЛАДЕНО: потребує бінарних woff2-шрифтів + telegram.svg (немає мережі в агента). Зробити, коли власник надасть/дозволить завантажити файли." },
+    { "id": 17, "subject": "Task 17: Уніфікація кошика + нескінченний скрол", "status": "completed", "blockedBy": [0], "description": "#cart-float→flex скрізь; IntersectionObserver(#scroll-sentinel)→showMore. Примітка: render() лишився повним ре-рендером (append-режим не робили)." },
+    { "id": 18, "subject": "Task 18: Полірування — console, confirm/alert, localeCompare, textarea", "status": "completed", "blockedBy": [0], "description": "console під DEBUG, localeCompare('uk'), textarea без пробілів. Примітка: confirm/alert у clearCart лишено (низький пріоритет)." },
+    { "id": 19, "subject": "Task 19: Сезонний помічник — прибрати CLS (setTimeout)", "status": "completed", "blockedBy": [0], "description": "прибрано setTimeout(300); #seasonal-helper-container min-height у CSS." }
+  ]
+}
