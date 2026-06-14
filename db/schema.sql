@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS product_content (
   group_id     TEXT,                         -- спільний ключ фасовок одного товару (NULL = одиночний); 1С НЕ оновлює
   variant_label TEXT,                        -- мітка фасовки для селектора («250 г»); 1С НЕ оновлює
   active_ingredient TEXT NOT NULL DEFAULT '', -- ПОХІДНИЙ нормалізований текст «a + b» діючих речовин (для «Аналогів» і пошуку); джерело істини — product_ingredients; rebuild у admin/_ingredients.js; 1С НЕ оновлює
-  dosage       TEXT DEFAULT ''                -- дозування (показ на /p/; формат «X на Y л» → авто-калькулятор розчину); 1С НЕ оновлює
+  dosage       TEXT DEFAULT '',               -- дозування (показ на /p/; формат «X на Y л» → авто-калькулятор розчину); 1С НЕ оновлює
+  divisible    INTEGER NOT NULL DEFAULT 0,    -- 1 = товар подільний (можна купити частину упаковки); 1С НЕ оновлює
+  divisor      REAL                           -- кратність поділу (напр. 0.5, 100); NULL якщо divisible=0
 );
 
 CREATE TABLE IF NOT EXISTS product_images (

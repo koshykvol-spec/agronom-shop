@@ -126,7 +126,7 @@ export async function onRequestGet(context) {
   if (pid) {
     const p = await db.prepare(
       `SELECT p.pid,p.sku,p.name,p.price,p.category,p.brand,p.in_stock,
-              c.slug,c.annotation,c.keywords,c.meta_title,c.meta_desc,c.visible,c.sale_price,c.sale_until,c.display_name,c.group_id,c.variant_label,c.active_ingredient,c.dosage
+              c.slug,c.annotation,c.keywords,c.meta_title,c.meta_desc,c.visible,c.sale_price,c.sale_until,c.display_name,c.group_id,c.variant_label,c.active_ingredient,c.dosage,c.divisible,c.divisor
          FROM products p JOIN product_content c ON c.pid=p.pid WHERE p.pid=?`).bind(pid).first();
     if (!p) return new Response('Не знайдено', { status: 404 });
     const dupCount = (((await db.prepare(`SELECT COUNT(*) n FROM products WHERE sku=? AND pid<>?`).bind(p.sku, p.pid).first()) || {}).n) | 0;
@@ -228,6 +228,23 @@ export async function onRequestGet(context) {
       </div>
       <label>🧪 Діючі речовини — обери з довідника (кілька; для блоку «Аналоги» й пошуку). <a href="/admin/ingredients" target="_blank">керувати довідником →</a></label>${ingredientPickerHTML('ingredient_ids', ingAll, ingSel)}
       <label>💧 Дозування — показується на сторінці товару; якщо у форматі «X на Y л» — авто-калькулятор розчину</label><input name="dosage" value="${esc(p.dosage || '')}" placeholder="напр. 20 мл на 10 л води   або   5 г на 10 л">
+      <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin:14px 0">
+        <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="divisible" value="1" id="divisible_cb" ${p.divisible ? 'checked' : ''} style="width:auto;margin:0">
+          <b>✂️ Подільність товару</b> <span class="muted" style="font-weight:400">(можна продати частину упаковки)</span>
+        </label>
+        <div id="divisor_wrap" style="margin-top:10px;${p.divisible ? '' : 'display:none'}">
+          <label style="margin:0 0 4px">Кратність поділу <span class="muted">(напр. 0.5 або 100 — мінімальна частина, якою ділиться товар)</span></label>
+          <input name="divisor" type="number" step="any" min="0" value="${p.divisor != null ? p.divisor : ''}" placeholder="напр. 0.5">
+        </div>
+      </div>
+      <script>
+      (function(){
+        var cb = document.getElementById('divisible_cb');
+        var wrap = document.getElementById('divisor_wrap');
+        if(cb && wrap) cb.addEventListener('change', function(){ wrap.style.display = this.checked ? '' : 'none'; });
+      })();
+      </script>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:120px"><label>Ціна, грн</label><input name="price" type="number" step="0.01" value="${p.price!=null?p.price:''}"></div>
         <div style="flex:1;min-width:120px"><label>Бренд</label><input name="brand" value="${esc(p.brand||'')}"></div>

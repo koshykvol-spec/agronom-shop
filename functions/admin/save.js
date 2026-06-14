@@ -23,7 +23,7 @@ export async function onRequestPost(context) {
 
   // Обогащення + акція + фасадна назва + група фасовок (порожні = NULL)
   await db.prepare(
-    `UPDATE product_content SET annotation=?, keywords=?, meta_title=?, meta_desc=?, visible=?, sale_price=?, sale_until=?, display_name=?, group_id=?, variant_label=?, active_ingredient=?, dosage=? WHERE pid=?`
+    `UPDATE product_content SET annotation=?, keywords=?, meta_title=?, meta_desc=?, visible=?, sale_price=?, sale_until=?, display_name=?, group_id=?, variant_label=?, active_ingredient=?, dosage=?, divisible=?, divisor=? WHERE pid=?`
   ).bind(
     f.get('annotation') || '', f.get('keywords') || '',
     f.get('meta_title') || '', f.get('meta_desc') || '',
@@ -31,7 +31,10 @@ export async function onRequestPost(context) {
     num(f.get('sale_price')), (f.get('sale_until') || '').trim() || null,
     (f.get('display_name') || '').trim() || null,
     gid || null, (f.get('variant_label') || '').trim() || null,
-    '', (f.get('dosage') || '').trim(), pid    // active_ingredient перезапишеться нижче з junction
+    '', (f.get('dosage') || '').trim(),        // active_ingredient перезапишеться нижче з junction
+    f.get('divisible') === '1' ? 1 : 0,
+    num(f.get('divisor')),
+    pid
   ).run();
 
   // Діючі речовини — реляційно: replaceProductIngredients пише звʼязку product_ingredients
