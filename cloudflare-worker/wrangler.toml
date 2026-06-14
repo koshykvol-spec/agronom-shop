@@ -1,0 +1,10 @@
+name = "agro-order"
+main = "order-worker.js"
+compatibility_date = "2024-11-01"
+
+# D1 — спільна база з сайтом (agronom-db). Потрібна, щоб воркер читав
+# turnstile_secret з таблиці secrets (керується через /admin → Ключі).
+[[d1_databases]]
+binding = "DB"
+database_name = "agronom-db"
+database_id = "b5d676d5-53a5-4b81-8888-4c77a967cf32"
