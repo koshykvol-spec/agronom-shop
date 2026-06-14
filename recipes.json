@@ -1,0 +1,123 @@
+[
+  {
+    "id": "apple",
+    "title": "🍎 Яблуня",
+    "keywords": ["яблуня", "яблунь", "яблік"],
+    "variant": null,
+    "type": "scheme"
+  },
+  {
+    "id": "cherry",
+    "title": "🍒 Черешня / Вишня",
+    "keywords": ["черешня", "вишня", "кісточкові"],
+    "type": "scheme"
+  },
+  {
+    "id": "tomato",
+    "title": "🍅 Томати (теплиця & грунт)",
+    "keywords": ["томат", "помідор", "томати"],
+    "type": "scheme"
+  },
+  {
+    "id": "cucumber",
+    "title": "🥒 Огірки (теплиця & грунт)",
+    "keywords": ["огірок", "огурец", "огірки"],
+    "type": "scheme"
+  },
+  {
+    "id": "pepper",
+    "title": "🌶️ Перець в теплиці",
+    "keywords": ["перець", "болгарський", "гострий"],
+    "type": "scheme"
+  },
+  {
+    "id": "cabbage",
+    "title": "🥬 Капуста",
+    "keywords": ["капуста", "білокочанна"],
+    "type": "scheme"
+  },
+  {
+    "id": "carrot",
+    "title": "🥕 Морква",
+    "keywords": ["морква"],
+    "type": "scheme"
+  },
+  {
+    "id": "grain_wheat",
+    "title": "🌾 Пшениця / Ячмінь",
+    "keywords": ["пшениця", "ячмінь", "зерновые"],
+    "type": "scheme"
+  },
+  {
+    "id": "grain_corn",
+    "title": "🌽 Кукурудза",
+    "keywords": ["кукурудза", "кукуруза"],
+    "type": "scheme"
+  },
+  {
+    "id": "grapes",
+    "title": "🍇 Виноград",
+    "keywords": ["виноград", "виноградник"],
+    "type": "scheme"
+  },
+  {
+    "id": "fungicide",
+    "title": "🧪 Фунгіциди (від хвороб)",
+    "keywords": ["фунгіцид", "мучнистая роса", "іржа"],
+    "type": "search"
+  },
+  {
+    "id": "insecticide",
+    "title": "🐛 Інсектициди (від комах)",
+    "keywords": ["інсектицид", "шкідники", "попелиця"],
+    "type": "search"
+  },
+  {
+    "id": "herbicide",
+    "title": "🌾 Гербіциди (від бур'янів)",
+    "keywords": ["гербіцид", "бур'ян"],
+    "type": "search"
+  },
+  {
+    "id": "rodenticide",
+    "title": "🐀 Родентициди (від гризунів)",
+    "keywords": ["родентицид", "щур", "миша", "гризун"],
+    "type": "search"
+  },
+  {
+    "id": "mollusc",
+    "title": "🐌 Від слимаків / жуків",
+    "keywords": ["слимак", "колорадський жук"],
+    "type": "search"
+  },
+  {
+    "id": "soil_beds",
+    "title": "🌱 Ґрунт для грядок",
+    "keywords": ["грунт", "субстрат", "торф"],
+    "type": "search"
+  },
+  {
+    "id": "seedling",
+    "title": "🪴 Розсада & матеріали",
+    "keywords": ["розсада", "горщик", "касета", "дренаж"],
+    "type": "search"
+  },
+  {
+    "id": "drip_watering",
+    "title": "💧 Крапельний полив",
+    "keywords": ["крапельне", "зрошування", "стрічка"],
+    "type": "search"
+  },
+  {
+    "id": "seeds",
+    "title": "🌸 Насіння (квіти, трави)",
+    "keywords": ["насіння", "квіти", "кріп", "петрушка", "базилік"],
+    "type": "search"
+  },
+  {
+    "id": "animals",
+    "title": "🐑 Для тварин",
+    "keywords": ["тварини", "корм", "вітаміни"],
+    "type": "search"
+  }
+]

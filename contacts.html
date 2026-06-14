@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Контакти — Агроном, м. Володимир</title>
+    <meta name="description" content="Контакти інтернет-магазину агротоварів Агроном: адреса, графік роботи, телефон, Viber, Telegram. м. Володимир.">
+    <link rel="canonical" href="https://agronom.pp.ua/contacts.html">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#2d6a2d">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="logo">АГРОНОМ</a>
+    <a href="tel:+380634625206" class="nav-phone" data-site-phone>м. Володимир<br><strong>063 462 52 06</strong></a>
+  </nav>
+</header>
+<main class="container article">
+  <h1>Контакти</h1>
+  <h2>Телефон і месенджери</h2>
+  <p id="contacts-phone-line">📞 <a href="tel:+380634625206">063 462 52 06</a> · 📲 <a href="viber://chat?number=380634625206">Viber</a></p>
+  <h2>Наші магазини</h2>
+  <div id="contacts-stores" class="stores-grid"></div>
+  <h2>Реквізити</h2>
+  <p id="contacts-legal" class="muted"></p>
+</main>
+<div id="site-footer"></div>
+<script src="/site-config"></script>
+<script>
+(function () {
+  var c = window.SITE_CONFIG || {};
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  var g = document.getElementById('contacts-stores');
+  if (g && c.stores) g.innerHTML = c.stores.map(function (s) {
+    var addr = s.map ? '<a href="' + esc(s.map) + '" target="_blank" rel="noopener">' + esc(s.address) + '</a>' : esc(s.address);
+    return '<div class="store-card"><h3>' + esc(s.name) + '</h3><p>📍 ' + addr + '</p><p>🕒 ' + esc(s.hours) + '</p></div>';
+  }).join('');
+  var l = document.getElementById('contacts-legal');
+  if (l) l.textContent = (c.network ? c.network + ' · ' : '') + (c.fop || '') + ' · ' + (c.city || '') + (c.region ? ', ' + c.region : '');
+  var ph = document.getElementById('contacts-phone-line');
+  if (ph) ph.innerHTML = '📞 <a href="tel:' + esc(c.phoneIntl || '') + '">' + esc(c.phoneDisplay || '') + '</a> · 📲 <a href="viber://chat?number=' + esc(c.viberPhone || '') + '">Viber</a>';
+})();
+</script>
+<script src="seo-jsonld.js"></script>
+<script src="footer.js"></script>
+</body>
+</html>

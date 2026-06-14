@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Доставка і оплата — Агроном, м. Володимир</title>
+    <meta name="description" content="Умови доставки Новою Поштою та самовивозу, способи оплати в інтернет-магазині агротоварів Агроном (м. Володимир).">
+    <link rel="canonical" href="https://agronom.pp.ua/delivery.html">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#2d6a2d">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="logo">АГРОНОМ</a>
+    <a href="tel:+380634625206" class="nav-phone" data-site-phone>м. Володимир<br><strong>063 462 52 06</strong></a>
+  </nav>
+</header>
+<main class="container article" id="cms-body">
+  <h1>Доставка і оплата</h1>
+  <h2>Доставка</h2>
+  <p>Нова Пошта (відділення / поштомат) за тарифами перевізника. Самовивіз: <span data-cfg="address">м. Володимир, вул. ___ (уточнюється)</span>.</p>
+  <h2>Оплата</h2>
+  <p>Передоплата на картку / накладений платіж при отриманні (уточнюється менеджером).</p>
+  <!-- Точний текст умов вписує власник -->
+</main>
+<div id="site-footer"></div>
+<script src="/site-config"></script>
+<script src="footer.js"></script>
+<script>
+/* Тіло сторінки — з БД (/admin/pages). Inline-вміст вище = fallback (працює без JS / для SEO). */
+(function(){
+  fetch('/api/page?slug=delivery').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (!d || !d.body_html) return;
+    var m = document.getElementById('cms-body'); if (m) m.innerHTML = d.body_html;
+    if (d.title) document.title = d.title;
+    if (d.meta_desc){ var md = document.querySelector('meta[name="description"]'); if (md) md.setAttribute('content', d.meta_desc); }
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

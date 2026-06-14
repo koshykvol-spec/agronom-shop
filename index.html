@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="DMv1_te-k4qp3_UWr6bj7XtmWiiBiK_6ZsdgBvP4upM" />
+    <meta name="google-site-verification" content="xX4KVk7iLdBOKxQlkZwuqWYp22ZovEeos4W3UGuWmtE" />
+    <title>Агроном — Інтернет-магазин агрохімікатів та насіння | м. Володимир</title>
+    <meta name="description" content="Агроном — магазин у м. Володимир. Агрохімікати, насіння, крапельний полив, ґрунти, горщики. Замовлення через Telegram або Viber.">
+    <meta property="og:title" content="Агроном — Агрохімікати та насіння | м. Володимир">
+    <meta property="og:description" content="Широкий асортимент: агрохімікати, імпортне та вітчизняне насіння, добрива, крапельний полив. Замовлення онлайн.">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="uk_UA">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/fonts.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="recipes.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="/fonts.css"><link rel="stylesheet" href="recipes.css"></noscript>
+    <link rel="canonical" href="https://agronom.pp.ua/">
+    <meta property="og:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Агроном — Агрохімікати та насіння | м. Володимир">
+    <meta name="twitter:description" content="Агрохімікати, насіння, крапельний полив, ґрунти. Замовлення онлайн.">
+    <meta name="twitter:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#2d6a2d">
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","url":"https://agronom.pp.ua/","name":"Агроном","potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https://agronom.pp.ua/?q={search_term_string}"},"query-input":"required name=search_term_string"}}</script>
+</head>
+<body class="home">
+<a href="#main" class="skip-link">Перейти до вмісту</a>
+
+<header>
+<nav>
+    <a href="index.html" class="logo">АГРОНОМ</a>
+    <a href="protection_schemes.html" class="nav-link">🌿 Порадник</a>
+    <div class="nav-right">
+        <a href="tel:+380634625206" data-site-phone class="nav-phone">м. Володимир<br><strong>063 462 52 06</strong></a>
+        <a href="tel:+380634625206" data-site-call class="nav-call" aria-label="Подзвонити в магазин">☎ Подзвонити</a>
+    </div>
+</nav>
+</header>
+
+<main id="main">
+<div class="container">
+    <h1 class="page-h1">Інтернет-магазин агротоварів у м. Володимир</h1>
+    <label for="search" class="sr-only">Пошук товарів</label>
+    <input type="text" id="search" class="search-box" placeholder="🔍 Назва препарату, культура, хвороба, бренд…" oninput="debouncedFilter()">
+    <!-- Навігація категорій вище (перший екран веде до покупки) -->
+    <div class="cat-scroll" id="main-nav"></div>
+    <!-- Сезонний помічник: компактний CTA для нових, персональний блок для повернених -->
+    <div id="seasonal-helper-container"></div>
+
+    <div id="recipes-container"></div>
+
+    <div class="catalog-controls"><label>Сортування: <select id="sort-select" onchange="setSort(this.value)"><option value="default">За популярністю</option><option value="price-asc">Спочатку дешевші</option><option value="price-desc">Спочатку дорожчі</option><option value="name">За назвою</option></select></label> <label><input type="checkbox" id="instock-only" onchange="setInstock()"> Тільки в наявності</label> <label>На сторінці: <select id="page-size" onchange="setPageSize(this.value)"><option value="24">24</option><option value="48">48</option><option value="96">96</option><option value="200">200</option></select></label></div>
+    <!--PRERENDER-START-->
+<noscript><ul class="seo-catalog"><li><a href="category.html?cat=chemicals">АГРОХІМІКАТИ</a></li><li><a href="category.html?cat=pots">ГОРЩИКИ</a></li><li><a href="category.html?cat=soil">ГРУНТ</a></li><li><a href="category.html?cat=animals">ДЛЯ ТВАРИН</a></li><li><a href="category.html?cat=drops">КРАПЕЛЬНЕ ЗРОШУВАННЯ</a></li><li><a href="category.html?cat=materials">МАТЕРІАЛИ</a></li><li><a href="category.html?cat=import">НАСІННЯ ІМПОРТНЕ</a></li><li><a href="category.html?cat=domestic">НАСІННЯ ВІТЧИЗНЯНЕ</a></li><li><a href="category.html?cat=weight">НАСІННЯ ВАГОВЕ</a></li><li><a href="category.html?cat=insects">ПРОТИ КОМАХ</a></li><li><a href="category.html?cat=sprouts">РОЗСАДА</a></li><li><a href="/katalog">Повний каталог товарів</a></li></ul></noscript>
+<!--PRERENDER-END-->
+<div id="grid" class="grid">
+  <!-- skeleton: прибирається першим render() -->
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+</div>
+    <div id="catalog-pager" class="catalog-pager"></div>
+</div>
+</main>
+
+<div id="cart-float" onclick="openCart()" aria-label="Відкрити кошик" style="display:none;">🛒 Кошик (<span id="cart-count">0</span>)</div>
+<div id="cart-modal-container"></div>
+
+<nav class="bottom-nav" aria-label="Швидка навігація">
+    <a href="#" class="bn-item" onclick="bnTop(event)"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
+    <a href="#" class="bn-item" onclick="bnSearch(event)"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
+    <a href="#" class="bn-item" onclick="bnCart(event)"><span class="bn-ico">🛒</span><span class="bn-lbl">Кошик</span><b class="bn-cart-count" id="bn-cart-count"></b></a>
+    <a href="/contacts.html" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
+</nav>
+
+<div id="site-footer"></div>
+<script defer src="/site-config"></script>
+<script defer src="cart.js"></script>
+<script defer src="app.js"></script>
+<script defer src="seasonal-helper.js"></script>
+<script defer src="seo-jsonld.js"></script>
+<script defer src="footer.js"></script>
+
+</body>
+</html>

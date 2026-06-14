@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Схеми захисту рослин</title>
+    <meta name="description" content="Схеми захисту рослин: 54 готові схеми для саду, городу й теплиці — препарати за культурою та стадією. Агроном, м. Володимир.">
+    <link rel="canonical" href="https://agronom.pp.ua/protection_schemes.html">
+    <meta property="og:title" content="Схеми захисту рослин — Агроном">
+    <meta property="og:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Nunito', sans-serif; background: #f5f5f5; }
+        
+        .schemes-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .schemes-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .schemes-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            color: var(--green);
+            margin-bottom: 10px;
+        }
+        
+        /* Категорії */
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .category-card {
+            background: var(--white);
+            border-radius: var(--r-md);
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 5px solid var(--green);
+            box-shadow: var(--sh-1);
+        }
+
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--sh-3);
+        }
+
+        .category-icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .category-name { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-bottom: 5px; }
+        .category-cultures { font-size: 0.85rem; color: var(--text-mute); }
+
+        .btn-back {
+            display: none;
+            background: var(--green);
+            color: var(--white);
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--r);
+            cursor: pointer;
+            font-weight: 600;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+            box-shadow: var(--sh-2);
+        }
+
+        .btn-back.active {
+            display: inline-block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-back:hover {
+            background: var(--green-d);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        }
+
+        .scheme-item {
+            background: var(--white);
+            border-radius: var(--r-md);
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: var(--sh-1);
+        }
+        
+        .scheme-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .scheme-title { font-size: 1.3rem; font-weight: 700; color: var(--green); }
+        .scheme-timing { display: inline-block; background: var(--gp); padding: 8px 16px; border-radius: var(--r-lg); font-size: 0.9rem; color: var(--green); font-weight: 600; margin-top: 10px; }
+
+        .treatments-list { display: flex; flex-direction: column; gap: 15px; }
+
+        .treatment {
+            background: linear-gradient(135deg, #f8f8f8 0%, #fff 100%);
+            border-left: 4px solid var(--green-l);
+            padding: 15px;
+            border-radius: var(--r);
+        }
+        
+        .treatment-stage { font-weight: 700; color: var(--green); margin-bottom: 8px; }
+        .treatment-date { display: inline-block; background: #d4edda; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; color: #155724; margin-bottom: 10px; font-weight: 600; }
+        
+        .treatment-problem {
+            background: #ffe8e8;
+            border-left: 3px solid #d9534f;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+        
+        .treatment-prep-type {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            color: #1976d2;
+        }
+        
+        .products-section {
+            background: #f0f8f0;
+            border: 2px solid var(--green-l);
+            border-radius: var(--r);
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .products-title { font-weight: 700; color: var(--green); margin-bottom: 12px; }
+        .products-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .product-item {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 10px 14px 10px 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            transition: box-shadow .15s, transform .15s, border-color .15s;
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            user-select: none;
+        }
+        .product-item:hover {
+            box-shadow: 0 4px 14px rgba(45,106,45,0.18);
+            transform: translateY(-2px);
+            border-color: var(--green-l);
+        }
+        .product-item:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+        }
+        .product-item.added {
+            border-color: var(--green);
+            background: #f0f8f0;
+        }
+
+        .product-photo {
+            width: 58px; height: 58px;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #f5f5f5;
+            flex-shrink: 0;
+            border: 1px solid #eee;
+        }
+        .product-photo-placeholder {
+            width: 58px; height: 58px;
+            border-radius: 8px;
+            background: #eef5ee;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            border: 1px solid #d5e8d5;
+        }
+
+        .product-info { flex: 1; min-width: 0; }
+        .product-name { font-weight: 600; color: #1a2e1a; font-size: 0.88rem; line-height: 1.3; }
+        .product-brand { font-size: 0.75rem; color: #aaa; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+        .product-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+        .product-item::after { content: "›"; font-size: 1.4rem; color: #b0ccb0; align-self: center; margin-left: 2px; flex-shrink: 0; transition: color .2s, transform .2s; }
+        .product-item:hover::after { color: var(--green); transform: translateX(3px); }
+        .product-price { font-weight: 700; color: var(--green); font-size: 1.05rem; white-space: nowrap; }
+
+        .product-stock {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .product-stock.in-stock { background: #d4edda; color: #155724; }
+        .product-stock.out-of-stock { background: #f8d7da; color: #721c24; }
+
+        .btn-add-to-cart {
+            background: var(--green);
+            color: var(--white);
+            border: none;
+            padding: 7px 14px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.8rem;
+            font-family: 'Nunito', sans-serif;
+            transition: background .15s;
+            white-space: nowrap;
+        }
+        .btn-add-to-cart:hover { background: var(--green-d); }
+
+        .no-products { color: #999; font-size: 0.85rem; font-style: italic; }
+
+        @media (max-width: 520px) {
+            .product-item { gap: 8px; padding: 8px 10px 8px 8px; }
+            .product-photo, .product-photo-placeholder { width: 44px; height: 44px; font-size: 1.1rem; }
+            .product-name { font-size: 0.82rem; }
+            .product-price { font-size: 0.95rem; }
+            .btn-add-to-cart { padding: 6px 10px; font-size: 0.75rem; }
+        }
+        
+        .additives-section {
+            background: #fff8e1;
+            border: 2px solid #f9a825;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 12px;
+        }
+        
+        .additives-title { font-weight: 700; color: #e65100; margin-bottom: 12px; }
+        
+        .additives-tip {
+            background: #fff3cd;
+            border-left: 3px solid #f9a825;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.82rem;
+            color: #856404;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        
+
+        /* Вибір культури (схеми) */
+        .scheme-tabs {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .scheme-tab {
+            background: var(--white);
+            border: 2px solid var(--green);
+            color: var(--green);
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1rem;
+            font-family: 'Nunito', sans-serif;
+            transition: all var(--t);
+        }
+
+        .scheme-tab:hover, .scheme-tab.active {
+            background: var(--green);
+            color: var(--white);
+        }
+
+        /* Вибір етапу */
+        .stage-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--white);
+            border-radius: var(--r-md);
+            box-shadow: var(--sh-1);
+        }
+
+        .stage-tab {
+            background: #f0f8f0;
+            border: 2px solid var(--green-l);
+            color: var(--green);
+            padding: 8px 16px;
+            border-radius: var(--r-lg);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: 'Nunito', sans-serif;
+            transition: all var(--t);
+            white-space: nowrap;
+        }
+
+        .stage-tab:hover, .stage-tab.active {
+            background: var(--green);
+            color: var(--white);
+            border-color: var(--green);
+        }
+
+        /* Деталі етапу */
+        .stage-detail {
+            animation: fadeIn 0.25s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .schemes-header h1 { font-size: 1.8rem; }
+            .category-grid { grid-template-columns: 1fr; }
+            .product-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+        }
+    </style>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#2d6a2d">
+</head>
+<body>
+    <div class="schemes-container">
+        <div class="schemes-header">
+            <h1>📋 Схеми захисту рослин</h1>
+        </div>
+        
+        <button class="btn-back" onclick="backToCategories()">← Повернутися до категорій</button>
+        
+        <div id="categories" class="category-grid"></div>
+        <div id="schemes-container"></div>
+    </div>
+    
+    <script>
+        const DEBUG = false;
+        function escapeHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+        let protectionSchemes = null;
+        let products = null;
+        const SITE_VERSION = '20260527';
+
+        async function loadData() {
+            try {
+                // Схеми з D1 (/api/protection-schemes, керується в /admin/schemes); fallback — статичний файл
+                let schemesResp = await fetch('/api/protection-schemes?v=' + SITE_VERSION);
+                if (!schemesResp.ok) schemesResp = await fetch('./protection_schemes.json?v=' + SITE_VERSION);
+                if (!schemesResp.ok) throw new Error('схеми захисту не знайдено');
+                protectionSchemes = await schemesResp.json();
+
+                const productsResp = await fetch('./products.json?v=' + SITE_VERSION);
+                if (!productsResp.ok) throw new Error('products.json не знайдено');
+                const rawProducts = await productsResp.json();
+
+                // img-map: кешуємо у sessionStorage
+                let imgs = {};
+                const cached = sessionStorage.getItem('agronom_img_map_v2');
+                if (cached) {
+                    imgs = JSON.parse(cached);
+                } else {
+                    const imgResp = await fetch('./img-map.json');
+                    if (imgResp.ok) {
+                        imgs = await imgResp.json();
+                        try { sessionStorage.setItem('agronom_img_map_v2', JSON.stringify(imgs)); } catch(e) {}
+                    }
+                }
+
+                products = rawProducts.map(function(p) {
+                    return Object.assign({}, p, { img: imgs[p.n] || p.img || '' });
+                });
+
+                if (DEBUG) console.log('✅ Схеми завантажені');
+                if (DEBUG) console.log('✅ Товари завантажені:', products.length, '| з фото:', products.filter(function(p){return p.img;}).length);
+                // renderCategories викликається ззовні після перевірки URL-параметрів
+            } catch(e) {
+                console.error('❌ Помилка:', e);
+                document.getElementById('categories').innerHTML = `
+                    <div style="grid-column: 1/-1; background: #ffe8e8; border: 2px solid #d9534f; 
+                                padding: 20px; border-radius: 8px; color: #d9534f;">
+                        <h3>❌ ${e.message}</h3>
+                        <p>Перевірте консоль (F12)</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderCategories() {
+            if (!protectionSchemes) return;
+            const container = document.getElementById('categories');
+            let html = '';
+            
+            for (const [key, category] of Object.entries(protectionSchemes.protection_schemes)) {
+                html += `
+                    <div class="category-card" onclick="showSchemes('${key}')" style="border-color: ${category.color}">
+                        <div class="category-icon">${category.icon}</div>
+                        <div class="category-name">${category.uk_name}</div>
+                        <div class="category-cultures">${category.cultures.join(', ')}</div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+        
+        function findProductsForTreatment(treatment) {
+            if (!products) return [];
+            const treatmentKeywords = treatment.products || [];
+            const foundProducts = [];
+            const seen = new Set();
+
+            // Шукаємо ТОЧНО по назві препарату зі списку products в схемі
+            for (const keyword of treatmentKeywords) {
+                const kwLower = keyword.toLowerCase();
+                for (const product of products) {
+                    const productName = product.n.toLowerCase();
+                    const productCategory = (product.c || '').toLowerCase();
+                    if (!productCategory.includes('агрохімік')) continue;
+                    if (productName.includes(kwLower) && !seen.has(product.n)) {
+                        foundProducts.push(product);
+                        seen.add(product.n);
+                    }
+                }
+            }
+
+            return foundProducts;
+        }
+
+        
+        function findAdditivesForTreatment(treatment) {
+            if (!products || !treatment.additives || !treatment.additives.length) return [];
+            const found = [];
+            const seen = new Set();
+            for (const keyword of treatment.additives) {
+                const kwLower = keyword.toLowerCase();
+                for (const product of products) {
+                    const name = product.n.toLowerCase();
+                    const cat = (product.c || '').toLowerCase();
+                    if (!cat.includes('агрохімік')) continue;
+                    // Точне співпадіння: назва препарату має починатись з ключового слова
+                const kwClean = kwLower.trim();
+                const nameStart = name.startsWith(kwClean + ',') || name.startsWith(kwClean + ' ') || name === kwClean;
+                if (nameStart && !seen.has(product.n)) {
+                        found.push(product);
+                        seen.add(product.n);
+                    }
+                }
+            }
+            return found;
+        }
+
+        // ── Автовибір етапу за поточним місяцем ───────────
+        const MONTH_NAMES = {
+            'січень':1,'лютого':1,'лютий':2,'березень':3,'берез':3,
+            'квітень':4,'квітн':4,'травень':5,'трав':5,'червень':6,'черв':6,
+            'липень':7,'лип':7,'серпень':8,'серп':8,'вересень':9,'верес':9,
+            'жовтень':10,'жовт':10,'листопад':11,'листопад':11,'грудень':12,'груд':12
+        };
+
+        function extractMonths(text) {
+            const t = text.toLowerCase();
+            const found = [];
+            for (const [name, m] of Object.entries(MONTH_NAMES)) {
+                if (t.includes(name)) found.push(m);
+            }
+            return [...new Set(found)].sort((a,b)=>a-b);
+        }
+
+        function bestStageIdx(treatments) {
+            const now = new Date().getMonth() + 1; // 1-12
+            let bestIdx = 0, bestScore = -1;
+
+            treatments.forEach(function(t, i) {
+                const months = extractMonths(t.stage + ' ' + (t.date||''));
+                if (!months.length) return;
+
+                // Знаходимо мінімальну відстань до поточного місяця
+                let minDist = 12;
+                months.forEach(function(m) {
+                    // Кільцева відстань (рік циклічний)
+                    const d = Math.min(Math.abs(m - now), 12 - Math.abs(m - now));
+                    if (d < minDist) minDist = d;
+                });
+
+                // Якщо місяць потрапляє у діапазон — відстань 0
+                if (months.length >= 2) {
+                    const lo = months[0], hi = months[months.length - 1];
+                    if (now >= lo && now <= hi) minDist = 0;
+                }
+
+                const score = 12 - minDist;
+                if (score > bestScore) { bestScore = score; bestIdx = i; }
+            });
+
+            return bestIdx;
+        }
+
+        // ── Стан ──────────────────────────────────────────
+        let currentCategoryKey = null;
+        let currentSchemeIdx   = 0;
+        let currentStageIdx    = 0;
+
+        function showSchemes(categoryKey, targetSchemeId = null) {
+            currentCategoryKey = categoryKey;
+            currentSchemeIdx   = 0;
+            // Авто-визначення актуального етапу
+            const cat0 = protectionSchemes.protection_schemes[categoryKey];
+            currentStageIdx = bestStageIdx(cat0.schemes[0].treatments || []);
+
+            const container      = document.getElementById('categories');
+            const schemesContainer = document.getElementById('schemes-container');
+            const btnBack        = document.querySelector('.btn-back');
+
+            container.style.display = 'none';
+            btnBack.classList.add('active');
+
+            // Якщо targetSchemeId — знайти індекс схеми
+            const cat = protectionSchemes.protection_schemes[categoryKey];
+            if (targetSchemeId) {
+                const idx = cat.schemes.findIndex(s => s.id === targetSchemeId);
+                if (idx !== -1) currentSchemeIdx = idx;
+            }
+
+            renderSchemePage();
+        }
+
+        function renderSchemePage() {
+            const cat    = protectionSchemes.protection_schemes[currentCategoryKey];
+            const scheme = cat.schemes[currentSchemeIdx];
+            const schemesContainer = document.getElementById('schemes-container');
+
+            // ── 1. Кнопки культур ──────────────────────────────
+            let html = '<div class="scheme-tabs">';
+            cat.schemes.forEach(function(s, i) {
+                const active = i === currentSchemeIdx ? ' active' : '';
+                const isSyn  = /syngenta/i.test(s.name);
+
+                // Коротка назва: якщо є " — ", берємо частину після тире
+                const parts = s.name.split(/\s*[—-]\s*/);
+                let label;
+                if (parts.length >= 2) {
+                    // "Яблуня — схема Syngenta" → "Яблуня · Syngenta"
+                    // "Яблуня — повна схема захисту" → "Яблуня · повна"
+                    const right = parts.slice(1).join(' ')
+                        .replace(/схема\s*/i, '')
+                        .replace(/Syngenta/i, '')
+                        .replace(/захисту?/i, '')
+                        .trim();
+                    label = parts[0].trim() + (right ? ' · ' + right : '');
+                } else {
+                    label = s.name;
+                }
+
+                const synBadge = isSyn
+                    ? ' <span style="font-size:0.65rem;font-weight:700;background:#e07b00;color:white;border-radius:3px;padding:1px 5px;margin-left:3px;vertical-align:middle;">SYN</span>'
+                    : '';
+                const synStyle = isSyn && active ? ' style="border-color:#e07b00;"' : (isSyn ? ' style="border-color:#e07b00;color:#b35f00;"' : '');
+
+                html += '<button class="scheme-tab' + active + '"' + synStyle + ' onclick="selectScheme(' + i + ')">' + label + synBadge + '</button>';
+            });
+            html += '</div>';
+
+            // ── 2. Кнопки етапів ───────────────────────────────
+            const autoStage = bestStageIdx(scheme.treatments);
+            html += '<div class="stage-tabs">';
+            scheme.treatments.forEach(function(t, i) {
+                const active = i === currentStageIdx ? ' active' : '';
+                const label = t.stage.replace(/^\d+\.\s*[^\s]*\s*/, '').split('—')[0].trim();
+                const isCurrent = (i === autoStage);
+                const badge = isCurrent ? ' <span style="font-size:0.65rem;background:rgba(255,255,255,0.3);border-radius:4px;padding:1px 5px;vertical-align:middle;">🗓️ зараз</span>' : '';
+                html += '<button class="stage-tab' + active + '" onclick="selectStage(' + i + ')">' + label + badge + '</button>';
+            });
+            html += '</div>';
+
+            // ── 3. Деталі поточного етапу ──────────────────────
+            html += renderTreatment(scheme.treatments[currentStageIdx]);
+
+            schemesContainer.innerHTML = html;
+        }
+
+        function selectScheme(idx) {
+            currentSchemeIdx = idx;
+            const scheme = protectionSchemes.protection_schemes[currentCategoryKey].schemes[idx];
+            currentStageIdx = bestStageIdx(scheme.treatments || []);
+            renderSchemePage();
+        }
+
+        function selectStage(idx) {
+            currentStageIdx = idx;
+            renderSchemePage();
+        }
+
+        function renderTreatment(treatment) {
+            // Скидаємо реєстр перед кожним рендером — індекси актуальні лише для поточної стадії
+            if (typeof productRegistry !== 'undefined') productRegistry = [];
+
+            const foundProducts = findProductsForTreatment(treatment);
+            const additives     = findAdditivesForTreatment(treatment);
+
+            let html = '<div class="treatment stage-detail">';
+            html += '<div class="treatment-stage">' + escapeHtml(treatment.stage) + '</div>';
+            html += '<div class="treatment-date">' + treatment.date + '</div>';
+            html += '<div class="treatment-problem"><strong>🚨 Проблема:</strong> ' + escapeHtml(treatment.problem) + '</div>';
+            html += '<div class="treatment-prep-type"><strong>💊 Препарат:</strong> ' + treatment.products.map(escapeHtml).join(', ') + '</div>';
+
+            // Препарати
+            html += '<div class="products-section"><div class="products-title">🛍️ Препарати:</div>';
+            if (foundProducts.length > 0) {
+                html += '<div class="products-list">';
+                foundProducts.forEach(function(product) {
+                    const inStock    = product.inStock !== false;
+                    const stockClass = inStock ? 'in-stock' : 'out-of-stock';
+                    const stockText  = inStock ? '✅ в наявності' : '❌ немає';
+                    const priceText  = product.p ? product.p + ' грн' : 'договір';
+                    const safeIdx    = productRegistry.length;
+                    productRegistry.push(product);
+                    const photoBlock = product.img
+                        ? '<img class="product-photo" src="' + product.img + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+                        : '<div class="product-photo-placeholder">🧪</div>';
+                    html += '<div class="product-item" onclick="openProductCard(' + safeIdx + ')">';
+                    html += photoBlock;
+                    html += '<div class="product-info"><div class="product-name">' + escapeHtml(product.n) + '</div><div class="product-brand">' + escapeHtml(product.b || product.c || '') + '</div></div>';
+                    html += '<div class="product-right">';
+                    html += '<div class="product-price">' + priceText + '</div>';
+                    html += '<div class="product-stock ' + stockClass + '">' + stockText + '</div>';
+                    html += '</div></div>';
+                });
+                html += '</div>';
+            } else {
+                html += '<div class="no-products">Препаратів не знайдено</div>';
+            }
+            html += '</div>';
+
+            // Бакова суміш
+            if (additives.length > 0) {
+                html += '<div class="additives-section">';
+                html += '<div class="additives-title">🧪 До бакової суміші додати:</div>';
+                html += '<div class="additives-tip">';
+                html += '💧 <strong>ПАР (прилипач)</strong> — Квантум або Мачо до кожної обробки: покращують змочування листа та поглинання препаратів.<br>';
+                html += '🌿 <strong>Хелатні — позакоренево по листу:</strong> засвоєння <strong>до 90%</strong>, дія через 24–48 год:<br>';
+                html += '&nbsp;&nbsp;• <b>Рання весна</b> — Залізо + Мікс: відновлення після зими, профілактика хлорозу<br>';
+                html += '&nbsp;&nbsp;• <b>Перед/після цвітіння</b> — Бор: покращення запилення, запобігання осипанню зав\'язі<br>';
+                html += '&nbsp;&nbsp;• <b>Налив плодів</b> — Кальцій + Калій: щільність плодів, профілактика розтріскування<br>';
+                html += '&nbsp;&nbsp;• <b>Після збору</b> — Фосфор+Калій: визрівання деревини, закладання бруньок на наступний рік';
+                html += '</div>';
+                html += '<div class="products-list">';
+                additives.forEach(function(product) {
+                    const inStock    = product.inStock !== false;
+                    const stockClass = inStock ? 'in-stock' : 'out-of-stock';
+                    const stockText  = inStock ? '✅ в наявності' : '❌ немає';
+                    const priceText  = product.p ? product.p + ' грн' : 'договір';
+                    const safeIdx    = productRegistry.length;
+                    productRegistry.push(product);
+                    const photoBlock = product.img
+                        ? '<img class="product-photo" src="' + product.img + '" alt="" loading="lazy">'
+                        : '<div class="product-photo-placeholder">🌿</div>';
+                    html += '<div class="product-item" onclick="openProductCard(' + safeIdx + ')">';
+                    html += photoBlock;
+                    html += '<div class="product-info"><div class="product-name">' + escapeHtml(product.n) + '</div><div class="product-brand">' + escapeHtml(product.b || product.c || '') + '</div></div>';
+                    html += '<div class="product-right">';
+                    html += '<div class="product-price">' + priceText + '</div>';
+                    html += '<div class="product-stock ' + stockClass + '">' + stockText + '</div>';
+                    html += '</div></div>';
+                });
+                html += '</div></div>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+                function backToCategories() {
+            document.getElementById('categories').style.display = 'grid';
+            document.getElementById('schemes-container').innerHTML = '';
+            document.querySelector('.btn-back').classList.remove('active');
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadData();
+
+            // Завжди рендеримо категорії — щоб кнопка "Повернутися" мала що показати
+            renderCategories();
+
+            // Зчитуємо URL-параметри: ?category=vegetables&scheme=tomato_greenhouse
+            const params = new URLSearchParams(window.location.search);
+            const catParam = params.get('category');
+            const schemeParam = params.get('scheme');
+
+            if (catParam && protectionSchemes?.protection_schemes?.[catParam]) {
+                showSchemes(catParam, schemeParam);
+            }
+        });
+    </script>
+
+    <!-- ═══ МІНІМАЛЬНИЙ КОШИК (сумісний з cart.js на інших сторінках) ═══ -->
+    <div id="cart-float" onclick="goToCart()" aria-label="Відкрити кошик"
+         style="position:fixed;bottom:20px;right:20px;color:white;
+                padding:12px 20px;border-radius:30px;cursor:pointer;font-family:'Nunito',sans-serif;
+                font-weight:700;font-size:0.95rem;box-shadow:0 4px 16px rgba(0,0,0,0.25);
+                z-index:999;display:none;transition:transform .15s;">
+        🛒 Кошик (<span id="cart-count">0</span>)
+    </div>
+
+    <script>
+    // ── Кошик: shared localStorage з іншими сторінками ──────────
+    (function () {
+        const CART_KEY = 'agronom_cart';
+
+        function loadCart() {
+            try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
+            catch(e) { return []; }
+        }
+        function saveCart(cart) {
+            localStorage.setItem(CART_KEY, JSON.stringify(cart));
+        }
+        function updateFloat(cart) {
+            const total = cart.reduce(function(s, i) { return s + i.q; }, 0);
+            const el    = document.getElementById('cart-count');
+            const flt   = document.getElementById('cart-float');
+            if (el) el.textContent = total;
+            if (flt) flt.style.display = total > 0 ? 'flex' : 'none';
+        }
+
+        // Глобальна функція — викликається кнопками в renderTreatment
+        window.addToCartScheme = function(name, price, btn) {
+            const cart = loadCart();
+            const item = cart.find(function(i) { return i.n === name; });
+            if (item) {
+                item.q++;
+            } else {
+                cart.push({ n: name, p: price, q: 1 });
+            }
+            saveCart(cart);
+            updateFloat(cart);
+            if (btn) {
+                const card = btn.closest ? btn.closest('.product-item') : null;
+                btn.textContent = '✓ Додано';
+                btn.style.background = '#1a3a1a';
+                if (card) card.classList.add('added');
+                setTimeout(function() {
+                    btn.textContent = '🛒 Додати';
+                    btn.style.background = '';
+                    if (card) card.classList.remove('added');
+                }, 900);
+            }
+        };
+
+        window.goToCart = function() {
+            window.location.href = 'index.html';
+        };
+
+        // Ініціалізація при завантаженні
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFloat(loadCart());
+        });
+    })();
+    </script>
+
+<script>
+// ── Реєстр товарів для модального вікна ──────────────────────
+var productRegistry = [];
+
+// Кількість цього товару вже в кошику (штучний "n" або ваговий "n (кг)")
+function schemeCartQty(name){
+    var arr; try { arr = JSON.parse(localStorage.getItem('agronom_cart')) || []; } catch(e){ arr = []; }
+    var w = name + ' (кг)';
+    return arr.filter(function(i){ return i.n === name || i.n === w; })
+              .reduce(function(s, i){ return s + (parseFloat(i.q) || 0); }, 0);
+}
+function schemeQtyBadgeText(name){
+    var q = schemeCartQty(name);
+    if (q <= 0) return '';
+    return '🛒 ' + (Number.isInteger(q) ? q : Math.round(q * 100) / 100) + ' у кошику';
+}
+
+window.openProductCard = function(idx) {
+    var p = productRegistry[idx];
+    if (!p) return;
+
+    var old = document.getElementById('scheme-product-modal');
+    if (old) old.remove();
+
+    var inStock   = p.inStock !== false;
+    var price     = p.p;
+    var priceText = price ? (typeof price === 'number' ? price.toFixed(2) : price) + ' грн' : 'договір';
+
+    var imgHtml = p.img
+        ? '<img src="' + p.img + '" alt="" style="width:100%;max-height:min(260px,38vh);object-fit:contain;border-radius:10px;margin-bottom:16px;display:block;">'
+        : '';
+
+    var annotHtml = p.annot
+        ? '<p style="font-size:.92rem;color:#444;line-height:1.65;margin:0 0 16px;border-left:3px solid var(--green-l);padding-left:10px;">' + p.annot + '</p>'
+        : '';
+
+    var brandHtml = (p.b || p.c)
+        ? '<div style="font-size:.78rem;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">' + (p.b || p.c) + '</div>'
+        : '';
+
+    var stockBadge = inStock
+        ? '<span style="background:#d4edda;color:#155724;padding:3px 10px;border-radius:10px;font-size:.78rem;font-weight:600;">✅ в наявності</span>'
+        : '<span style="background:#f8d7da;color:#721c24;padding:3px 10px;border-radius:10px;font-size:.78rem;font-weight:600;">❌ немає</span>';
+
+    var addBtnHtml = inStock
+        ? '<button id="scheme-modal-add-btn" onclick="addFromSchemeModal(' + idx + ')" style="flex:1;padding:13px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:pointer;">🛒 Додати в кошик</button>'
+        : '<button disabled style="flex:1;padding:13px;background:#ccc;color:#888;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:not-allowed;">❌ Немає в наявності</button>';
+
+    var qtyTxt = schemeQtyBadgeText(p.n);
+    var cartQtyHtml = '<span id="scheme-modal-qty" style="background:#ff7a00;color:#fff;border:2px solid #fff;border-radius:12px;padding:3px 10px;font-size:.8rem;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.25);' + (qtyTxt ? '' : 'display:none;') + '">' + qtyTxt + '</span>';
+
+    var modal = document.createElement('div');
+    modal.id = 'scheme-product-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:20000;padding:16px;box-sizing:border-box;';
+
+    modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);position:relative;box-sizing:border-box;">'
+        + '<button onclick="closeProductCard()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:1.6rem;cursor:pointer;color:#888;line-height:1;">✕</button>'
+        + '<h3 style="margin:0 0 4px;padding-right:28px;font-size:1.05rem;color:#1a2e1a;line-height:1.4;">' + escapeHtml(p.n) + '</h3>'
+        + brandHtml
+        + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'
+        +   '<span style="font-size:1.25rem;font-weight:800;color:var(--green);">' + priceText + '</span>'
+        +   stockBadge
+        +   cartQtyHtml
+        + '</div>'
+        + (p.slug ? '<a href="/p/' + p.slug + '" style="display:inline-block;margin:0 0 12px;color:var(--green);font-weight:700;text-decoration:none;border-bottom:1px solid var(--green);">🔗 Відкрити сторінку товару →</a>' : '')
+        + imgHtml
+        + annotHtml
+        + '<div style="display:flex;gap:10px;margin-top:4px;position:sticky;bottom:0;background:#fff;padding-top:12px;box-shadow:0 -8px 10px -8px rgba(0,0,0,0.15);">'
+        +   addBtnHtml
+        +   '<button onclick="closeProductCard()" style="padding:13px 18px;background:#f0f0f0;color:#555;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:pointer;">Закрити</button>'
+        + '</div>'
+        + '</div>';
+
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeProductCard(); });
+};
+
+window.addFromSchemeModal = function(idx) {
+    var p = productRegistry[idx];
+    if (!p || p.inStock === false) return;
+    var CART_KEY = 'agronom_cart';
+    var cart;
+    try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch(e) { cart = []; }
+    var item = cart.find(function(i) { return i.n === p.n; });
+    if (item) { item.q++; } else { cart.push({ n: p.n, p: p.p, q: 1 }); }
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+
+    // оновити лічильник плаваючої кнопки
+    var total = cart.reduce(function(s, i) { return s + i.q; }, 0);
+    var countEl = document.getElementById('cart-count');
+    var fltEl   = document.getElementById('cart-float');
+    if (countEl) countEl.textContent = total;
+    if (fltEl)   fltEl.style.display = total > 0 ? 'flex' : 'none';
+
+    // оновити бейдж "у кошику" в модалці
+    var qtyEl = document.getElementById('scheme-modal-qty');
+    if (qtyEl) { var t = schemeQtyBadgeText(p.n); qtyEl.textContent = t; qtyEl.style.display = t ? '' : 'none'; }
+
+    // фідбек на кнопці
+    var btn = document.getElementById('scheme-modal-add-btn');
+    if (btn) {
+        btn.textContent = '✓ Додано!';
+        btn.style.background = '#1a3a1a';
+        setTimeout(function() {
+            btn.textContent = '🛒 Додати в кошик';
+            btn.style.background = 'var(--green)';
+        }, 1000);
+    }
+};
+
+window.closeProductCard = function() {
+    var m = document.getElementById('scheme-product-modal');
+    if (m) m.remove();
+};
+</script>
+<div id="site-footer"></div>
+<script src="/site-config"></script>
+<script src="seo-jsonld.js"></script>
+<script src="footer.js"></script>
+</body>
+</html>

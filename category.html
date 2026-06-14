@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Агроном</title>
+    <meta name="description" id="page-desc" content="Агроном — магазин у м. Володимир. Агрохімікати, насіння, крапельний полив, ґрунти.">
+    <meta property="og:title" content="Агроном — Агрохімікати та насіння | м. Володимир">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="uk_UA">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/fonts.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="recipes.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="/fonts.css"><link rel="stylesheet" href="recipes.css"></noscript>
+    <link rel="canonical" href="https://agronom.pp.ua/category.html">
+    <meta property="og:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
+
+    <script>
+    // ── Конфіг категорій: FALLBACK для миттєвого title без миготіння ──
+    // Джерело істини — таблиця D1 categories; app.js applyCategoryPageSeo()
+    // перекриває ці значення даними з /api/categories (керується в /admin/categories).
+    const PAGE_CAT_CONFIG = {
+        chemicals: {
+            title:       'Агрохімікати — Агроном',
+            h1:          'Агрохімікати та ЗЗР',
+            desc:        'Агрохімікати, добрива та засоби захисту рослин у Володимирі. Широкий вибір препаратів від перевірених виробників.',
+            placeholder: 'Шукати препарати та добрива...'
+        },
+        import: {
+            title:       'Насіння Імпортне — Агроном',
+            h1:          'Імпортне насіння',
+            desc:        'Імпортне насіння овочів та квітів у магазині Агроном, м. Володимир. Якісні гібриди від провідних виробників.',
+            placeholder: 'Шукати імпортне насіння...'
+        },
+        domestic: {
+            title:       'Насіння Вітчизняне — Агроном',
+            h1:          'Вітчизняне насіння',
+            desc:        'Вітчизняне насіння овочів та квітів у м. Володимир. Перевірені сорти від українських виробників.',
+            placeholder: 'Шукати вітчизняне насіння...'
+        },
+        weight: {
+            title:       'Насіння Вагове — Агроном',
+            h1:          'Вагове насіння',
+            desc:        'Вагове насіння на розвіс у магазині Агроном, м. Володимир. Продаємо від 5 г до кілограмів.',
+            placeholder: 'Шукати вагове насіння...'
+        },
+        materials: {
+            title:       'Матеріали — Агроном',
+            h1:          'Агроматеріали (плівка, агроволокно)',
+            desc:        'Агроволокно, плівка, сітки та інші матеріали для городу та саду в магазині Агроном, м. Володимир.',
+            placeholder: 'Шукати матеріали (плівка, агроволокно...)'
+        },
+        drops: {
+            title:       'Крапельне зрошування — Агроном',
+            h1:          'Крапельне зрошування',
+            desc:        'Системи крапельного поливу: стрічки, фітинги, таймери у магазині Агроном, м. Володимир.',
+            placeholder: 'Шукати товари для поливу (стрічка, фітинг...)'
+        },
+        soil: {
+            title:       'Ґрунти та субстрати — Агроном',
+            h1:          'Ґрунти та субстрати',
+            desc:        'Ґрунти, субстрати, торф, дренаж для розсади та кімнатних рослин у магазині Агроном, м. Володимир.',
+            placeholder: 'Шукати ґрунт (субстрат, торф, дренаж...)'
+        },
+        pots: {
+            title:       'Горщики та касети — Агроном',
+            h1:          'Горщики, касети та піддони',
+            desc:        'Горщики, касети та піддони для вирощування розсади у магазині Агроном, м. Володимир.',
+            placeholder: 'Шукати горщики, касети, піддони...'
+        },
+        insects: {
+            title:       'Проти комах та гризунів — Агроном',
+            h1:          'Засоби від комах та гризунів',
+            desc:        'Засоби від комах, мурах, мишей та шкідників у магазині Агроном, м. Володимир. Ефективні інсектициди та родентициди.',
+            placeholder: 'Шукати засіб від комах, мурах, мишей...'
+        },
+        animals: {
+            title:       'Для тварин — Агроном',
+            h1:          'Товари для тварин',
+            desc:        'Ветеринарні препарати та товари для тварин у магазині Агроном, м. Володимир.',
+            placeholder: 'Шукати товари для тварин...'
+        },
+        sprouts: {
+            title:       'Розсада — Агроном',
+            h1:          'Розсада рослин',
+            desc:        'Розсада овочів, квітів та зелені у магазині Агроном, м. Володимир. Здорова розсада від перевірених виробників.',
+            placeholder: 'Шукати розсаду...'
+        }
+    };
+
+    // Встановлюємо title і placeholder ДО завантаження app.js (без flash)
+    (function () {
+        const cat = new URLSearchParams(location.search).get('cat') || '';
+        const cfg = PAGE_CAT_CONFIG[cat] || {};
+        document.getElementById('page-title').textContent = cfg.title || 'Агроном';
+        if (cfg.title) {
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) ogTitle.setAttribute('content', cfg.title);
+        }
+        document.getElementById('page-desc')?.setAttribute('content', cfg.desc || 'Агроном — агротовари, м. Володимир.');
+        var _canon = document.querySelector('link[rel="canonical"]');
+        if (_canon && cat) _canon.setAttribute('href', _canon.href.split('?')[0] + '?cat=' + encodeURIComponent(cat));
+        document.addEventListener('DOMContentLoaded', function () {
+            const s = document.getElementById('search');
+            if (s) s.placeholder = cfg.placeholder || 'Шукати товари...';
+            var h = document.getElementById('page-h1');
+            var catName = cfg.h1 || cfg.title || 'Каталог';
+            if (h) h.textContent = catName;
+            // Хлібні крихти + JSON-LD BreadcrumbList (SEO)
+            var bc = document.getElementById('bc-cat'); if (bc) bc.textContent = catName;
+            try {
+                var ld = document.createElement('script'); ld.type = 'application/ld+json';
+                ld.textContent = JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+                    {"@type":"ListItem","position":1,"name":"Каталог","item":"https://agronom.pp.ua/"},
+                    {"@type":"ListItem","position":2,"name":catName,"item":"https://agronom.pp.ua/category.html?cat="+encodeURIComponent(cat)}
+                ]}).replace(/</g,'\\u003c');
+                document.head.appendChild(ld);
+            } catch(e){}
+        });
+    })();
+    </script>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#2d6a2d">
+</head>
+<body>
+<a href="#main" class="skip-link">Перейти до вмісту</a>
+
+<header>
+<nav>
+    <a href="index.html" class="logo">АГРОНОМ</a>
+    <a href="protection_schemes.html" class="nav-link">🌿 Порадник</a>
+    <div class="nav-right">
+        <a href="tel:+380634625206" data-site-phone class="nav-phone">м. Володимир<br><strong>063 462 52 06</strong></a>
+        <a href="tel:+380634625206" data-site-call class="nav-call" aria-label="Подзвонити в магазин">☎ Подзвонити</a>
+    </div>
+</nav>
+</header>
+
+<main id="main">
+<div class="container">
+    <nav class="breadcrumb" aria-label="Навігаційний ланцюжок" style="font-size:.85rem;color:#777;margin:10px 0 4px;">
+        <a href="/index.html" style="color:var(--green);text-decoration:none;">Каталог</a> › <span id="bc-cat">Категорія</span>
+    </nav>
+    <h1 id="page-h1" class="page-h1"></h1>
+    <label for="search" class="sr-only">Пошук товарів</label>
+    <input type="text" id="search" class="search-box" placeholder="" oninput="debouncedFilter()">
+
+    <!-- Сезонний помічник "Що зараз робити?" -->
+    <div id="seasonal-helper-container"></div>
+
+    <div style="background: linear-gradient(135deg, var(--gp) 0%, #f0f8f0 100%);
+                border-radius: var(--r-md); padding: 20px; margin-bottom: 20px;">
+        <h3 style="text-align: center; color: var(--green); margin: 0 0 15px;">
+            🎯 Що вас цікавить?
+        </h3>
+        <div id="recipes-container"
+             style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+        </div>
+    </div>
+
+    <!-- Навігація генерується через renderMainNav() у app.js -->
+    <div class="cat-scroll" id="main-nav"></div>
+
+    <div id="sub-cat-container" class="cat-scroll" style="display:none; padding-top: 0;"></div>
+
+    <div class="catalog-controls"><label>Сортування: <select id="sort-select" onchange="setSort(this.value)"><option value="default">За популярністю</option><option value="price-asc">Спочатку дешевші</option><option value="price-desc">Спочатку дорожчі</option><option value="name">За назвою</option></select></label> <label><input type="checkbox" id="instock-only" onchange="setInstock()"> Тільки в наявності</label> <label>На сторінці: <select id="page-size" onchange="setPageSize(this.value)"><option value="24">24</option><option value="48">48</option><option value="96">96</option><option value="200">200</option></select></label></div>
+    <div id="grid" class="grid">
+  <!-- skeleton: прибирається першим render() -->
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+  <div class="card skeleton"></div><div class="card skeleton"></div>
+</div>
+    <div id="catalog-pager" class="catalog-pager"></div>
+</div>
+</main>
+
+<div id="cart-float" onclick="openCart()" aria-label="Відкрити кошик" style="display:none;">🛒 Кошик (<span id="cart-count">0</span>)</div>
+<div id="cart-modal-container"></div>
+
+<nav class="bottom-nav" aria-label="Швидка навігація">
+    <a href="#" class="bn-item" onclick="bnTop(event)"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
+    <a href="#" class="bn-item" onclick="bnSearch(event)"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
+    <a href="#" class="bn-item" onclick="bnCart(event)"><span class="bn-ico">🛒</span><span class="bn-lbl">Кошик</span><b class="bn-cart-count" id="bn-cart-count"></b></a>
+    <a href="/contacts.html" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
+</nav>
+
+<script src="cart.js"></script>
+<script src="app.js"></script>
+<script src="seasonal-helper.js"></script>
+<div id="site-footer"></div>
+<script src="/site-config"></script>
+<script src="seo-jsonld.js"></script>
+<script src="footer.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,97 @@
+/* admin-ui.css — єдиний стиль адмінки «Агроном». Підключається ПІСЛЯ inline-стилів
+   кожної сторінки, тому перекриває спільні класи; специфічні (.node/.ord/.en) лишає. */
+:root{
+  --a-green:#2d6a2d; --a-green-d:#1e4a1e; --a-green-l:#e8f3e6;
+  --a-bg:#eef1ec; --a-card:#fff; --a-line:#dde3da; --a-text:#27331f; --a-mute:#6b7a64;
+  --a-r:10px; --a-sh:0 1px 3px rgba(20,40,20,.08),0 1px 2px rgba(20,40,20,.04);
+}
+body{
+  font-family:'Nunito',system-ui,-apple-system,Segoe UI,Roboto,sans-serif !important;
+  background:var(--a-bg) !important; color:var(--a-text) !important;
+  max-width:1080px !important; margin:0 auto !important; padding:18px 16px 60px !important;
+  line-height:1.5;
+}
+a{color:var(--a-green); text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* «← до адмінки» / верхнє посилання → кнопка-таб */
+body>div:first-child>a[href="/admin"], body>a[href="/admin"]{
+  display:inline-block; background:#fff; border:1px solid var(--a-line); color:var(--a-green);
+  padding:6px 14px; border-radius:20px; font-weight:700; font-size:.85rem; box-shadow:var(--a-sh);
+}
+body>div:first-child{margin-bottom:14px}
+
+h2{color:var(--a-green) !important; font-weight:800; font-size:1.4rem; margin:6px 0 14px; letter-spacing:-.01em}
+h3{color:var(--a-green-d) !important; font-weight:700; font-size:1rem; margin:18px 0 8px}
+
+/* Кнопки */
+.btn{
+  background:var(--a-green) !important; color:#fff !important; border:0 !important;
+  padding:10px 18px !important; border-radius:var(--a-r) !important; cursor:pointer;
+  font-weight:700 !important; font-size:.92rem; box-shadow:var(--a-sh); transition:filter .15s,transform .05s;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(1px)}
+.btn.ok{background:var(--a-green) !important}
+.btn.gray,.btn.s{background:#f0f2ee !important; color:var(--a-green) !important; border:1px solid var(--a-line) !important}
+
+/* Картки/блоки */
+.box,.boxok,.boxerr,.okbox,.errbox{
+  background:var(--a-card) !important; border:1px solid var(--a-line) !important;
+  border-radius:var(--a-r) !important; padding:16px 18px !important; margin:12px 0 !important;
+  box-shadow:var(--a-sh) !important;
+}
+.boxok,.okbox{border-color:#bcdcb4 !important; background:#f3faf1 !important}
+.boxerr,.errbox{border-color:#e7b7b7 !important; background:#fdf3f3 !important}
+
+/* Поля вводу */
+input,select,textarea{
+  font:inherit !important; padding:9px 11px !important; border:1.5px solid #cfd6cb !important;
+  border-radius:8px !important; background:#fff; color:var(--a-text); box-sizing:border-box;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--a-green); outline-offset:0; border-color:var(--a-green) !important}
+input[type=checkbox]{width:19px;height:19px;accent-color:var(--a-green)}
+label{font-size:.9rem}
+.fl label,.fld label{font-size:.82rem !important; color:var(--a-mute) !important; font-weight:600}
+
+/* Чипи-категорії (головна адмінки) */
+.cats{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.cat{
+  background:#fff !important; border:1px solid var(--a-line) !important; color:var(--a-text) !important;
+  padding:8px 14px !important; border-radius:20px !important; font-weight:700 !important;
+  font-size:.84rem; box-shadow:var(--a-sh); transition:border-color .15s;
+}
+.cat:hover{border-color:var(--a-green) !important; text-decoration:none}
+.cat.active{background:var(--a-green) !important; color:#fff !important; border-color:var(--a-green) !important}
+.cat b{font-weight:800; opacity:.7; margin-left:3px}
+
+/* Бейджі/мітки */
+.muted{color:var(--a-mute) !important; font-size:.85rem}
+.tag{font-size:.72rem !important; background:var(--a-green-l) !important; color:var(--a-green-d) !important;
+  padding:2px 8px !important; border-radius:6px !important; font-weight:700; white-space:nowrap}
+.ok{color:var(--a-green) !important; font-weight:700}
+.warn{color:#b8740b !important; font-weight:700}
+.del,.no{color:#c0392b !important}
+
+/* Таблиці */
+table{border-collapse:collapse; width:100%; background:#fff; border-radius:var(--a-r); overflow:hidden; box-shadow:var(--a-sh); margin:10px 0}
+th,td{padding:9px 12px !important; text-align:left; border-bottom:1px solid var(--a-line)}
+th{background:#f4f7f2; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--a-mute)}
+tr:last-child td{border-bottom:0}
+
+/* Пошук на головній */
+.row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+
+/* Грід розділів на головній адмінки */
+.adm-sections{margin-top:26px;display:flex;flex-direction:column;gap:18px}
+.adm-sec-h{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--a-mute);margin-bottom:9px}
+.adm-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.adm-tile{
+  display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--a-line);
+  border-radius:var(--a-r);padding:13px 14px;color:var(--a-text);font-weight:700;font-size:.9rem;
+  box-shadow:var(--a-sh);transition:border-color .15s,transform .08s,box-shadow .15s;
+}
+.adm-tile:hover{border-color:var(--a-green);transform:translateY(-2px);box-shadow:0 4px 12px rgba(20,40,20,.12);text-decoration:none}
+.adm-tile-ico{font-size:1.3rem;line-height:1}
+
+@media (max-width:560px){ body{padding:12px 10px 60px !important} h2{font-size:1.2rem} .adm-tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))} }
