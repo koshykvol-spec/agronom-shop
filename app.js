@@ -903,16 +903,18 @@ function openCart() {
     document.getElementById('cart-list').innerHTML = cart.map((i, idx) => {
         total += i.p * i.q;
         const isW = /\(кг\)/.test(i.n);
-        const step = isW ? 0.5 : 1;
+        const step = isW ? 0.5 : (i.div && i.div > 0 ? i.div : 1);
+        const min  = isW ? 0.5 : (i.div && i.div > 0 ? i.div : 1);
+        const qDisplay = Number.isInteger(i.q) ? i.q : (Math.round(i.q * 1000) / 1000);
         return `
             <div class="cart-item" style="display:flex; justify-content:space-between; align-items:center; gap:8px; border-bottom:1px solid #eee; padding:10px 0;">
                 <div style="flex:1; min-width:0;">
                     <div style="font-size:.92rem; line-height:1.25;">${escapeHTML(i.n)}</div>
-                    <small style="color:#555;">${i.p} грн × ${i.q}${isW ? ' кг' : ''} = <b>${(i.p * i.q).toFixed(2)} грн</b></small>
+                    <small style="color:#555;">${i.p} грн × ${qDisplay}${isW ? ' кг' : ''} = <b>${(i.p * i.q).toFixed(2)} грн</b></small>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px;">
                     <button onclick="changeQty(${idx},-${step})" aria-label="Зменшити" style="${qbtn}">&#8722;</button>
-                    <span style="min-width:38px; text-align:center; font-weight:700;">${i.q}</span>
+                    <span style="min-width:38px; text-align:center; font-weight:700;">${qDisplay}</span>
                     <button onclick="changeQty(${idx},${step})" aria-label="Збільшити" style="${qbtn}">+</button>
                 </div>
                 <button onclick="removeItem(${idx})" aria-label="Видалити" style="background:none; border:none; color:#c0392b; cursor:pointer; font-size:1.2rem;">✕</button>
@@ -926,7 +928,7 @@ function openCart() {
 function changeQty(idx, delta) {
     if (!cart[idx]) return;
     const isW = /\(кг\)/.test(cart[idx].n);
-    const min = isW ? 0.5 : 1;
+    const min = isW ? 0.5 : (cart[idx].div && cart[idx].div > 0 ? cart[idx].div : 1);
     const q = Math.round((cart[idx].q + delta) * 1000) / 1000;
     if (q < min) { removeItem(idx); return; }
     cart[idx].q = q;
@@ -1165,11 +1167,12 @@ function renderOrderSummary() {
     const qbtn = 'width:26px;height:26px;border:1.5px solid var(--green);background:#e8f5e8;border-radius:6px;font-size:1rem;font-weight:bold;cursor:pointer;color:#2d6a2d;line-height:1;padding:0;';
     const rows = cart.map((i, idx) => {
         const isW = /\(\s*кг\s*\)/i.test(i.n);
-        const step = isW ? 0.5 : 1;
+        const step = isW ? 0.5 : (i.div && i.div > 0 ? i.div : 1);
+        const qDisplay = Number.isInteger(i.q) ? i.q : (Math.round(i.q * 1000) / 1000);
         return `<div style="display:flex; align-items:center; gap:6px; font-size:.86rem; padding:4px 0; border-bottom:1px solid #ebf2e6;">
             <span style="flex:1; min-width:0; line-height:1.25;">${escapeHTML(i.n)}</span>
             <button type="button" onclick="changeQtyOrder(${idx},-${step})" aria-label="Зменшити" style="${qbtn}">&#8722;</button>
-            <span style="min-width:34px; text-align:center; font-weight:700;">${i.q}</span>
+            <span style="min-width:34px; text-align:center; font-weight:700;">${qDisplay}</span>
             <button type="button" onclick="changeQtyOrder(${idx},${step})" aria-label="Збільшити" style="${qbtn}">+</button>
             <span style="white-space:nowrap; font-weight:700; min-width:62px; text-align:right;">${(i.p * i.q).toFixed(2)} грн</span>
         </div>`;
@@ -1182,7 +1185,7 @@ function renderOrderSummary() {
 function changeQtyOrder(idx, delta) {
     if (!cart[idx]) return;
     const isW = /\(\s*кг\s*\)/i.test(cart[idx].n);
-    const min = isW ? 0.5 : 1;
+    const min = isW ? 0.5 : (cart[idx].div && cart[idx].div > 0 ? cart[idx].div : 1);
     const q = Math.round((cart[idx].q + delta) * 1000) / 1000;
     if (q < min) {
         cart.splice(idx, 1);

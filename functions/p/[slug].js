@@ -408,7 +408,7 @@ function addToCart(){
   if(window.__P.w){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||1; if(q<=0)q=1; name=name+' (кг)'; }
   else if(window.__P.div){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||window.__P.div; if(q<=0)q=window.__P.div; }
   var it=cart.find(function(x){return x.n===name});
-  if(it){ it.q = (window.__P.w||window.__P.div) ? Math.round((it.q+q)*1000)/1000 : it.q+q; } else { cart.push({n:name,p:price,q:q,pid:window.__P.pid}); }
+  if(it){ it.q = (window.__P.w||window.__P.div) ? Math.round((it.q+q)*1000)/1000 : it.q+q; } else { cart.push({n:name,p:price,q:q,pid:window.__P.pid,div:window.__P.div||null}); }
   localStorage.setItem(KEY, JSON.stringify(cart));
   var b=document.getElementById('addbtn'); if(b){ b.textContent='✓ Додано!'; b.style.background='#1a3a1a'; }
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
