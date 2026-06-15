@@ -291,7 +291,7 @@ export async function onRequestGet(context) {
 
   // ── вибірка ──
   let where = '0', binds = [];
-  if (q) { where = 'p.name LIKE ? OR p.sku LIKE ?'; binds = ['%' + q + '%', '%' + q + '%']; }
+  if (q) { where = 'LOWER(p.name) LIKE LOWER(?) OR LOWER(p.sku) LIKE LOWER(?)'; binds = ['%' + q + '%', '%' + q + '%']; }
   else if (noa) { where = "c.annotation=''"; }
   else if (noimg) { where = "c.image_ok=0"; }
   else if (dup) { where = "p.sku IN (SELECT sku FROM products GROUP BY sku HAVING COUNT(*)>1)"; }
