@@ -17,7 +17,7 @@ export async function onRequest(context) {
 
   const p = await env.DB.prepare(
     `SELECT p.pid,p.sku,p.name,p.price,p.category,p.brand,p.in_stock,
-            c.slug,c.annotation,c.keywords,c.meta_title,c.meta_desc,c.sale_price,c.sale_until,c.display_name,c.group_id,c.variant_label,c.image_ok,c.active_ingredient,c.dosage
+            c.slug,c.annotation,c.keywords,c.meta_title,c.meta_desc,c.sale_price,c.sale_until,c.display_name,c.group_id,c.variant_label,c.image_ok,c.active_ingredient,c.dosage,c.divisible,c.divisor
        FROM products p JOIN product_content c ON c.pid=p.pid
       WHERE c.slug=? AND c.visible=1`
   ).bind(slug).first();
@@ -193,6 +193,20 @@ export async function onRequest(context) {
        ${thumbs}`
     : `<div style="aspect-ratio:4/3;background:#eef5ee;display:flex;align-items:center;justify-content:center;font-size:3rem;border-radius:12px;">🧪</div>`;
 
+  const divisible = p.divisible && Number(p.divisible) === 1;
+  const divisor = divisible && p.divisor ? Number(p.divisor) : null;
+
+  const divStep = divisor || 1;
+  const divBlock = divisible && divisor ? `
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 14px;flex-wrap:wrap;">
+      <span style="color:#555;font-size:.95rem;">Кількість (кратно ${divStep}):</span>
+      <div style="display:flex;align-items:center;border:2px solid var(--green);border-radius:8px;overflow:hidden;">
+        <button type="button" onclick="pqtyChange(-1)" style="width:36px;height:38px;background:#f0f7f0;border:none;font-size:1.3rem;cursor:pointer;font-weight:bold;color:var(--green)">&#8722;</button>
+        <input id="pqty" type="number" value="${divStep}" step="${divStep}" min="${divStep}" style="width:70px;padding:6px 4px;border:none;border-left:1px solid #cde8cd;border-right:1px solid #cde8cd;font-weight:bold;text-align:center;font-size:1rem;">
+        <button type="button" onclick="pqtyChange(1)" style="width:36px;height:38px;background:#f0f7f0;border:none;font-size:1.3rem;cursor:pointer;font-weight:bold;color:var(--green)">+</button>
+      </div>
+    </div>` : '';
+
   const addBlock = !inStock
     ? `<div class="oos-badge" style="max-width:320px;">Немає в наявності</div>`
     : (weight
@@ -201,7 +215,7 @@ export async function onRequest(context) {
            <input id="pqty" type="number" value="1" step="0.5" min="0.5" style="width:90px;padding:8px;border:2px solid var(--green);border-radius:8px;font-weight:bold;text-align:center;"> кг
          </div>
          <button class="btn" id="addbtn" onclick="addToCart()" style="max-width:320px;">🛒 Додати в кошик</button>`
-      : `<button class="btn" id="addbtn" onclick="addToCart()" style="max-width:320px;">🛒 Додати в кошик</button>`);
+      : `${divBlock}<button class="btn" id="addbtn" onclick="addToCart()" style="max-width:320px;">🛒 Додати в кошик</button>`);
 
   const stars = n => { var f = Math.round(n); return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(0, 5 - f); };
   const rq = new URL(request.url).searchParams.get('r');
@@ -371,7 +385,7 @@ function shareCopy(e){ e.preventDefault();
   var el=document.getElementById('share-copy'); if(el){ var o=el.textContent; el.textContent='✓ Скопійовано'; setTimeout(function(){el.textContent=o;},1500); }
 }
 document.addEventListener('click', function(e){ var m=document.getElementById('share-menu'); if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none'; });
-window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null }).replace(/</g, '\\u003c')};
+window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c')};
 var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
 (function(){
   if(!DC) return; var box=document.getElementById('dose-calc'); if(!box) return;
@@ -380,12 +394,21 @@ var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
   function calc(){ var v=parseFloat(String(inp.value).replace(',','.'))||0; out.textContent=Math.round(DC.amount*v/DC.per*100)/100; }
   if(inp&&out){ inp.addEventListener('input', calc); calc(); box.style.display='block'; }
 })();
+function pqtyChange(dir){
+  var step=window.__P.div||1;
+  var i=document.getElementById('pqty'); if(!i) return;
+  var v=Math.round((parseFloat(i.value)||step)*1000)/1000;
+  v=Math.round((v+dir*step)*1000)/1000;
+  if(v<step) v=step;
+  i.value=v;
+}
 function addToCart(){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=window.__P.n, price=window.__P.p, q=1;
   if(window.__P.w){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||1; if(q<=0)q=1; name=name+' (кг)'; }
+  else if(window.__P.div){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||window.__P.div; if(q<=0)q=window.__P.div; }
   var it=cart.find(function(x){return x.n===name});
-  if(it){ it.q = window.__P.w ? Math.round((it.q+q)*1000)/1000 : it.q+q; } else { cart.push({n:name,p:price,q:q,pid:window.__P.pid}); }
+  if(it){ it.q = (window.__P.w||window.__P.div) ? Math.round((it.q+q)*1000)/1000 : it.q+q; } else { cart.push({n:name,p:price,q:q,pid:window.__P.pid}); }
   localStorage.setItem(KEY, JSON.stringify(cart));
   var b=document.getElementById('addbtn'); if(b){ b.textContent='✓ Додано!'; b.style.background='#1a3a1a'; }
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
