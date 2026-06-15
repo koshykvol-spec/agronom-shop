@@ -1025,8 +1025,9 @@ function openOrderModal() {
     modal.setAttribute('aria-label', 'Оформлення замовлення');
     modal.style.cssText = `
         position:fixed; inset:0; background:rgba(0,0,0,0.6);
-        display:flex; align-items:center; justify-content:center;
+        display:flex; align-items:flex-start; justify-content:center;
         z-index:9999; padding:16px; box-sizing:border-box;
+        overflow-y:auto;
     `;
 
     modal.innerHTML = `
@@ -1034,6 +1035,7 @@ function openOrderModal() {
             background:#fff; border-radius:16px; padding:28px 24px;
             width:100%; max-width:440px; box-shadow:0 8px 32px rgba(0,0,0,0.25);
             font-family:sans-serif; position:relative; box-sizing:border-box;
+            margin:auto;
         ">
             <button onclick="closeOrderModal()" aria-label="Закрити" style="
                 position:absolute; top:14px; right:16px;

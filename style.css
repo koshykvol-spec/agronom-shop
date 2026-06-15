@@ -273,6 +273,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 480px) {
     .nav-link { display: none; }
     /* Checkout на весь екран на телефоні */
-    #order-modal { padding: 0 !important; align-items: stretch !important; }
-    #order-modal > div { max-width: 100% !important; min-height: 100vh; border-radius: 0 !important; }
+    #order-modal { padding: 0 !important; align-items: flex-start !important; overflow-y: auto !important; }
+    #order-modal > div { max-width: 100% !important; min-height: 100vh; border-radius: 0 !important; overflow-y: visible !important; }
 }
