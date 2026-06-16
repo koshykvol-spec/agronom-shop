@@ -291,7 +291,13 @@ export async function onRequestGet(context) {
 
   // ── вибірка ──
   let where = '0', binds = [];
-  if (q) { where = 'LOWER(p.name) LIKE LOWER(?) OR LOWER(p.sku) LIKE LOWER(?)'; binds = ['%' + q + '%', '%' + q + '%']; }
+  if (q) {
+    // SQLite LOWER() не працює з кирилицею — фільтруємо через JS після вибірки
+    const ql = q.toLowerCase();
+    where = '(LOWER(p.name) LIKE ? OR p.name LIKE ? OR LOWER(p.sku) LIKE ? OR p.sku LIKE ?)';
+    binds = ['%'+ql+'%', '%'+q+'%', '%'+ql+'%', '%'+q+'%'];
+    // Додаткова JS-фільтрація після вибірки — нижче
+  }
   else if (noa) { where = "c.annotation=''"; }
   else if (noimg) { where = "c.image_ok=0"; }
   else if (dup) { where = "p.sku IN (SELECT sku FROM products GROUP BY sku HAVING COUNT(*)>1)"; }
@@ -300,11 +306,26 @@ export async function onRequestGet(context) {
 
   let rows = [], total = 0;
   if (where !== '0') {
-    total = (await db.prepare(`SELECT COUNT(*) n FROM products p JOIN product_content c ON c.pid=p.pid WHERE ${where}`).bind(...binds).first()).n;
-    rows = (await db.prepare(
-      `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
-         FROM products p JOIN product_content c ON c.pid=p.pid
-        WHERE ${where} ORDER BY COALESCE(NULLIF(c.display_name,''), p.name) LIMIT ? OFFSET ?`).bind(...binds, ps, (page - 1) * ps).all()).results || [];
+    if (q) {
+      // SQLite LOWER() не розуміє кирилицю — витягуємо всі і фільтруємо в JS
+      const ql = q.toLowerCase();
+      const allRows = (await db.prepare(
+        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
+           FROM products p JOIN product_content c ON c.pid=p.pid
+          ORDER BY COALESCE(NULLIF(c.display_name,''), p.name)`).all()).results || [];
+      const filtered = allRows.filter(r =>
+        (r.name && r.name.toLowerCase().includes(ql)) ||
+        (r.sku && r.sku.toLowerCase().includes(ql))
+      );
+      total = filtered.length;
+      rows = filtered.slice((page - 1) * ps, page * ps);
+    } else {
+      total = (await db.prepare(`SELECT COUNT(*) n FROM products p JOIN product_content c ON c.pid=p.pid WHERE ${where}`).bind(...binds).first()).n;
+      rows = (await db.prepare(
+        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
+           FROM products p JOIN product_content c ON c.pid=p.pid
+          WHERE ${where} ORDER BY COALESCE(NULLIF(c.display_name,''), p.name) LIMIT ? OFFSET ?`).bind(...binds, ps, (page - 1) * ps).all()).results || [];
+    }
   }
 
   const editQ = fp ? '&' + fp : '';
