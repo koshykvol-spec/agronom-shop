@@ -37,7 +37,8 @@ function navGrid() {
     { h: '🛠 Каталог', items: [
       ['/admin/import', '⬆️', 'Імпорт 1С'], ['/admin/anno', '✍️', 'Анотації (масово)'],
       ['/admin/dedup', '🔀', 'Дублі SKU'], ['/admin/merge', '🔗', 'Злити товари (колізії)'],
-      ['/admin/groups', '📦', 'Групування фасовок'], ['/admin/ingredients', '🧪', 'Діючі речовини'] ] },
+      ['/admin/groups', '📦', 'Групування фасовок'], ['/admin/ingredients', '🧪', 'Діючі речовини'],
+      ['/admin/aifill', '🤖', 'AI: дозування / діючі'] ] },
   ];
   return '<div class="adm-sections">' + groups.map(g =>
     `<div class="adm-sec"><div class="adm-sec-h">${g.h}</div><div class="adm-tiles">` +
