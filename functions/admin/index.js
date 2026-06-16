@@ -301,11 +301,7 @@ export async function onRequestGet(context) {
   // ── вибірка ──
   let where = '0', binds = [];
   if (q) {
-    // SQLite LOWER() не працює з кирилицею — фільтруємо через JS після вибірки
-    const ql = q.toLowerCase();
-    where = '(LOWER(p.name) LIKE ? OR p.name LIKE ? OR LOWER(p.sku) LIKE ? OR p.sku LIKE ?)';
-    binds = ['%'+ql+'%', '%'+q+'%', '%'+ql+'%', '%'+q+'%'];
-    // Додаткова JS-фільтрація після вибірки — нижче
+    where = '1'; // витягуємо всі, фільтруємо smartScore нижче
   }
   else if (noa) { where = "c.annotation=''"; }
   else if (noimg) { where = "c.image_ok=0"; }
@@ -315,21 +311,59 @@ export async function onRequestGet(context) {
   else if (badsku) { where = "p.sku NOT LIKE '00-%' AND p.sku NOT LIKE 'РТ-%' AND p.sku NOT LIKE 'AN-%'"; }
   else if (cat) { where = 'p.category=?'; binds = [cat]; }
 
+  // ── smart-пошук (аналог app.js: normS + fuzzy + ранжування) ──
+  function normS(s) {
+    s = String(s == null ? '' : s).toLowerCase().replace(/[''`ʼ]/g, '');
+    const FOLD = [['ё','е'],['є','е'],['і','и'],['ї','и'],['ы','и'],['ґ','г']];
+    for (const [a,b] of FOLD) s = s.split(a).join(b);
+    return s.replace(/[^a-z0-9а-я]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function editLe1(a, b) {
+    if (a === b) return true;
+    let la = a.length, lb = b.length;
+    if (Math.abs(la - lb) > 1) return false;
+    if (la > lb) { [a, b] = [b, a]; [la, lb] = [lb, la]; }
+    let i = 0, j = 0, diff = 0;
+    while (i < la && j < lb) {
+      if (a[i] === b[j]) { i++; j++; }
+      else { if (++diff > 1) return false; if (la === lb) { i++; j++; } else j++; }
+    }
+    return true;
+  }
+  function smartScore(name, sku, qtokens) {
+    const sn = normS(name), snw = sn.split(' ').filter(Boolean), ss = normS(sku);
+    let sum = 0;
+    for (const tok of qtokens) {
+      let best = 0;
+      for (const w of snw) {
+        if (w === tok) { best = Math.max(best, 5); break; }
+        if ((w.startsWith(tok) || tok.startsWith(w)) && Math.min(w.length, tok.length) >= 3) best = Math.max(best, 4);
+      }
+      if (best < 3 && sn.includes(tok)) best = Math.max(best, 3);
+      if (best < 3 && ss.includes(tok)) best = Math.max(best, 3);
+      if (best < 2 && tok.length >= 4) {
+        for (const w of snw) { if (editLe1(w, tok)) { best = Math.max(best, 2); break; } }
+      }
+      if (best === 0) return 0;
+      sum += best;
+    }
+    return sum;
+  }
+
   let rows = [], total = 0;
   if (where !== '0') {
     if (q) {
-      // SQLite LOWER() не розуміє кирилицю — витягуємо всі і фільтруємо в JS
-      const ql = q.toLowerCase();
+      const qtokens = normS(q).split(' ').filter(Boolean);
       const allRows = (await db.prepare(
         `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
            FROM products p JOIN product_content c ON c.pid=p.pid
           ORDER BY COALESCE(NULLIF(c.display_name,''), p.name)`).all()).results || [];
-      const filtered = allRows.filter(r =>
-        (r.name && r.name.toLowerCase().includes(ql)) ||
-        (r.sku && r.sku.toLowerCase().includes(ql))
-      );
-      total = filtered.length;
-      rows = filtered.slice((page - 1) * ps, page * ps);
+      const scored = allRows
+        .map(r => ({ r, sc: smartScore(r.name || '', r.sku || '', qtokens) }))
+        .filter(x => x.sc > 0)
+        .sort((a, b) => b.sc - a.sc);
+      total = scored.length;
+      rows = scored.slice((page - 1) * ps, page * ps).map(x => x.r);
     } else {
       total = (await db.prepare(`SELECT COUNT(*) n FROM products p JOIN product_content c ON c.pid=p.pid WHERE ${where}`).bind(...binds).first()).n;
       rows = (await db.prepare(
