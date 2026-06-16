@@ -52,6 +52,8 @@ function fparams(o) {
   if (o.q) u.set('q', o.q);
   if (o.noa) u.set('noa', '1');
   if (o.noimg) u.set('noimg', '1');
+  if (o.nodosage) u.set('nodosage', '1');
+  if (o.noai) u.set('noai', '1');
   if (o.dup) u.set('dup', '1');
   if (o.badsku) u.set('badsku', '1');
   if (o.ps && o.ps !== DEFAULT_PAGE_SIZE) u.set('ps', o.ps);
@@ -79,18 +81,20 @@ export async function onRequestGet(context) {
   const q = (url.searchParams.get('q') || '').trim();
   const noa = url.searchParams.get('noa') === '1';
   const noimg = url.searchParams.get('noimg') === '1';
+  const nodosage = url.searchParams.get('nodosage') === '1';
+  const noai = url.searchParams.get('noai') === '1';
   const dup = url.searchParams.get('dup') === '1';
   const badsku = url.searchParams.get('badsku') === '1';
   let ps = parseInt(url.searchParams.get('ps') || '', 10);
   if (!PAGE_SIZES.includes(ps)) ps = DEFAULT_PAGE_SIZE;
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
-  const fp = fparams({ cat, q, noa, noimg, dup, badsku, ps, page });
+  const fp = fparams({ cat, q, noa, noimg, nodosage, noai, dup, badsku, ps, page });
 
   // ── швидкі дії зі списку (перемикання показу в каталозі / масове приховування) ──
   const toggle = url.searchParams.get('toggle');
   if (toggle) {
     await db.prepare(`UPDATE product_content SET visible = CASE WHEN visible=1 THEN 0 ELSE 1 END WHERE pid=?`).bind(toggle).run();
-    return Response.redirect(new URL(listUrl({ cat, q, noa, noimg, dup, badsku, ps, page }), request.url).toString(), 303);
+    return Response.redirect(new URL(listUrl({ cat, q, noa, noimg, nodosage, noai, dup, badsku, ps, page }), request.url).toString(), 303);
   }
   if (url.searchParams.get('bulk') === 'hide-nophoto') {
     await db.prepare(`UPDATE product_content SET visible=0 WHERE image_ok=0`).run();
@@ -135,7 +139,7 @@ export async function onRequestGet(context) {
     const grpList = await existingGroups(db);   // для випадайки «Група фасовок»
     const ingAll = await allIngredients(db);            // довідник діючих речовин
     const ingSel = await productIngredientIds(db, pid); // обрані для цього товару
-    const hid = ['cat', 'q', 'noa', 'noimg', 'dup', 'badsku', 'ps', 'page'].map(k => `<input type="hidden" name="${k}" value="${esc(url.searchParams.get(k) || '')}">`).join('');
+    const hid = ['cat', 'q', 'noa', 'noimg', 'nodosage', 'noai', 'dup', 'badsku', 'ps', 'page'].map(k => `<input type="hidden" name="${k}" value="${esc(url.searchParams.get(k) || '')}">`).join('');
     const gallery = `<div class="row" style="margin-top:12px">
       <b>📷 Фото товару (${imgs.length})</b>${imgs.length > 1 ? ' <span class="muted">🖐 перетягуйте для зміни порядку (перше = головне)</span> <span id="ph-status" style="font-size:.78rem"></span>' : ''}
       <div id="photo-grid" data-pid="${pid}" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0">
@@ -212,7 +216,7 @@ export async function onRequestGet(context) {
           grid.insertBefore(dragEl, before? c : c.nextSibling);});
       });
     })();</script>`;
-    const body = `<div class="nav"><a href="${esc(listUrl({ cat, q, noa, noimg, dup, badsku, ps, page }))}">← до списку</a></div>
+    const body = `<div class="nav"><a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, dup, badsku, ps, page }))}">← до списку</a></div>
     <h1>${esc(p.name)}</h1>
     <div class="muted">SKU ${esc(p.sku)} · ${esc(p.category||'')} · ${p.price} грн · ${p.in_stock?'<span class="ok">в наявності</span>':'<span class="no">немає</span>'} · <a href="/p/${esc(p.slug)}" target="_blank">/p/${esc(p.slug)} ↗</a></div>
     <form class="row" method="POST" action="/admin/save" style="margin-top:12px;">
@@ -274,7 +278,9 @@ export async function onRequestGet(context) {
   const catRows = await db.prepare(`SELECT category c, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC`).all();
   const totalC = await db.prepare(`SELECT COUNT(*) n,
                                      SUM(CASE WHEN c.annotation='' THEN 1 ELSE 0 END) noa,
-                                     SUM(CASE WHEN c.image_ok=0 THEN 1 ELSE 0 END) noimg
+                                     SUM(CASE WHEN c.image_ok=0 THEN 1 ELSE 0 END) noimg,
+                                     SUM(CASE WHEN (c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) nodosage,
+                                     SUM(CASE WHEN (c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) noai
                                      FROM products p JOIN product_content c ON c.pid=p.pid`).first();
   // дублі sku + некоректні sku (коректні починаються з 00- або РТ-)
   const dupRows = (await db.prepare(`SELECT sku, COUNT(*) c FROM products GROUP BY sku HAVING COUNT(*)>1`).all()).results || [];
@@ -285,6 +291,8 @@ export async function onRequestGet(context) {
     `<a class="cat${!cat&&!q&&!noa&&!noimg&&!dup&&!badsku?' active':''}" href="/admin">Усі <b>${totalC.n}</b></a>` +
     `<a class="cat${noa?' active':''}" href="/admin?noa=1">Без опису <b>${totalC.noa}</b></a>` +
     `<a class="cat${noimg?' active':''}" href="/admin?noimg=1">📷 Без фото <b>${totalC.noimg}</b></a>` +
+    `<a class="cat${nodosage?' active':''}" href="/admin?nodosage=1">💧 Без дозування <b>${totalC.nodosage}</b></a>` +
+    `<a class="cat${noai?' active':''}" href="/admin?noai=1">🧬 Без діючої речовини <b>${totalC.noai}</b></a>` +
     `<a class="cat${dup?' active':''}" href="/admin?dup=1" style="${dup?'':'border-color:#e57373;color:#c0392b'}">⚠️ Дублі SKU <b>${dupTotal}</b></a>` +
     `<a class="cat${badsku?' active':''}" href="/admin?badsku=1" style="${badsku?'':'border-color:#e57373;color:#c0392b'}">SKU ≠ 00-/РТ-/AN- <b>${badTotal}</b></a>` +
     (catRows.results||[]).map(r => `<a class="cat${cat===r.c?' active':''}" href="/admin?cat=${encodeURIComponent(r.c||'')}">${esc(r.c||'—')} <b>${r.n}</b></a>`).join('') +
@@ -301,6 +309,8 @@ export async function onRequestGet(context) {
   }
   else if (noa) { where = "c.annotation=''"; }
   else if (noimg) { where = "c.image_ok=0"; }
+  else if (nodosage) { where = "(c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ'"; }
+  else if (noai) { where = "(c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ'"; }
   else if (dup) { where = "p.sku IN (SELECT sku FROM products GROUP BY sku HAVING COUNT(*)>1)"; }
   else if (badsku) { where = "p.sku NOT LIKE '00-%' AND p.sku NOT LIKE 'РТ-%' AND p.sku NOT LIKE 'AN-%'"; }
   else if (cat) { where = 'p.category=?'; binds = [cat]; }
@@ -341,15 +351,15 @@ export async function onRequestGet(context) {
   }).join('');
   const pages = Math.ceil(total / ps);
   const pager = pages > 1 ? `<div class="pager">
-     ${page>1?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,dup,badsku,ps,page:page-1}))}">← Назад</a>`:''}
+     ${page>1?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,nodosage,noai,dup,badsku,ps,page:page-1}))}">← Назад</a>`:''}
      <span class="muted">Стор. ${page} / ${pages} (${total})</span>
-     ${page<pages?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,dup,badsku,ps,page:page+1}))}">Далі →</a>`:''}
+     ${page<pages?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,nodosage,noai,dup,badsku,ps,page:page+1}))}">Далі →</a>`:''}
    </div>` : (total ? `<div class="muted" style="margin:10px 0">Знайдено: ${total}</div>` : '');
 
   const psBar = (where !== '0' && total) ? `<div class="muted" style="margin:8px 0">На сторінці: ` +
      PAGE_SIZES.map(n => n === ps
        ? `<b style="color:#2d6a2d">${n}</b>`
-       : `<a href="${esc(listUrl({ cat, q, noa, noimg, dup, badsku, ps: n, page: 1 }))}">${n}</a>`).join(' · ') +
+       : `<a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, dup, badsku, ps: n, page: 1 }))}">${n}</a>`).join(' · ') +
      `</div>` : '';
 
   const bulkBar = (noimg && total) ? `<div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap">
@@ -357,11 +367,11 @@ export async function onRequestGet(context) {
       <a class="btn" style="background:#777" href="/admin?bulk=show-nophoto" onclick="return confirm('Знову показати в каталозі ВСІ товари без фото?')">👁 Показати всі</a>
     </div>` : '';
 
-  const heading = q ? `Пошук: «${esc(q)}»` : noa ? 'Товари без опису' : noimg ? 'Товари без фото (файл відсутній)' : dup ? 'Товари з дубльованим SKU (один SKU — різні товари)' : badsku ? 'Товари з некоректним SKU (не починається з 00-, РТ- або AN-)' : cat ? esc(cat) : 'Оберіть категорію або скористайтесь пошуком';
+  const heading = q ? `Пошук: «${esc(q)}»` : noa ? 'Товари без опису' : noimg ? 'Товари без фото (файл відсутній)' : nodosage ? 'Агрохімікати без дозування' : noai ? 'Агрохімікати без діючої речовини' : dup ? 'Товари з дубльованим SKU (один SKU — різні товари)' : badsku ? 'Товари з некоректним SKU (не починається з 00-, РТ- або AN-)' : cat ? esc(cat) : 'Оберіть категорію або скористайтесь пошуком';
 
   // Панель групування фасовок: познач кілька товарів → обери групу → «Згрупувати» (B)
   const grpListB = rows.length ? await existingGroups(db) : [];
-  const backUrl = listUrl({ cat, q, noa, noimg, dup, badsku, ps, page });
+  const backUrl = listUrl({ cat, q, noa, noimg, nodosage, noai, dup, badsku, ps, page });
   const grpBar = rows.length ? `<div style="margin:10px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#eef5ee;padding:8px 10px;border-radius:8px">
       📦 Познач фасовки галочками → у групу: ${groupComboHTML('gid', grpListB, '__new__')}
       <button class="btn" type="submit" style="padding:7px 12px">Згрупувати обрані</button>
