@@ -261,31 +261,56 @@
 
     /* Сітка культур */
     .sh-culture-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-        gap: 7px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
         margin-bottom: 14px;
         min-height: 52px;
     }
     .sh-culture-check {
         background: white;
-        border: 2px solid #c8e0c8;
-        color: var(--green);
-        padding: 9px 8px;
-        border-radius: 10px;
+        border: 1.5px solid #d4e8d4;
+        color: #333;
+        padding: 9px 14px;
+        border-radius: 8px;
         cursor: pointer;
         font-family: 'Nunito', sans-serif;
         font-weight: 600;
-        font-size: 0.85rem;
-        text-align: center;
-        transition: all 0.15s;
-        user-select: none;
-        line-height: 1.3;
+        font-size: 0.9rem;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background .12s, border-color .12s;
     }
-    .sh-culture-check:hover { border-color: var(--green-l); background: #f0f8f0; }
-    .sh-culture-check.selected { background: var(--green); color: white; border-color: var(--green); }
-    .sh-culture-check.selected::after { content: ' ✓'; }
-
+    .sh-culture-check::before {
+        content: '';
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        min-width: 18px;
+        border: 2px solid #b0ccb0;
+        border-radius: 4px;
+        background: white;
+        transition: background .12s, border-color .12s;
+    }
+    .sh-culture-check.selected {
+        background: #eef7ee;
+        border-color: var(--green);
+        color: var(--green);
+    }
+    .sh-culture-check.selected::before {
+        background: var(--green);
+        border-color: var(--green);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 11px;
+    }
+    .sh-culture-check:hover:not(.selected) {
+        background: #f4faf4;
+        border-color: var(--green-l);
+    }
     /* Підсумок вибраного + кнопка */
     .sh-summary {
         display: flex;
@@ -505,7 +530,7 @@
     }
 
     @media (max-width: 480px) {
-        .sh-culture-grid { grid-template-columns: repeat(2, 1fr); }
+
         .sh-main { padding: 12px 12px 12px; }
         .sh-tab  { font-size: 0.78rem; padding: 5px 10px; }
         .sh-btn-add, .sh-btn-scheme { font-size: 0.82rem; padding: 10px 11px; }
