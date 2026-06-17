@@ -464,25 +464,36 @@
     }
     .sh-chips {
         display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+        flex-direction: column;
+        gap: 5px;
         margin-bottom: 12px;
     }
     .sh-chip {
-        background: #f0f8f0;
-        border: 1.5px solid #b0d4b0;
+        background: #f8fdf8;
+        border: 1.5px solid #c8e0c8;
         color: #1a3a1a;
-        padding: 5px 11px;
+        padding: 9px 14px;
         border-radius: 8px;
-        font-size: 0.81rem;
+        font-size: 0.88rem;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.15s;
         font-family: 'Nunito', sans-serif;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    .sh-chip:hover   { background: var(--green); color: white; border-color: var(--green); }
-    .sh-chip.added   { background: #1a3a1a; color: white; border-color: #1a3a1a; }
+    .sh-chip::before {
+        content: '🛒';
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+    .sh-chip:hover   { background: #e8f5e9; border-color: var(--green); }
+    .sh-chip.added   { background: #e8f5e9; border-color: var(--green); color: var(--green); }
+    .sh-chip.added::before { content: '✓'; font-weight: 900; color: var(--green); }
     .sh-chip.unavail { opacity: 0.45; cursor: default; }
+    .sh-chip.unavail::before { content: '—'; }
     .sh-actions {
         display: flex;
         gap: 8px;
