@@ -39,7 +39,8 @@ function parseRecords(text) {
     if (!Array.isArray(arr)) arr = [arr];
     return arr.map(r => ({
       id: String((r.sku ?? r.id ?? r.n ?? r.name ?? '')).trim(),
-      annotation: String(r.keywords ?? r.keyword ?? r.kw ?? r.k ?? r.keys ?? r.annotation ?? r.ключові ?? r.ключові_слова ?? r.text ?? '').trim()
+      annotation: String(r.keywords ?? r.keyword ?? r.kw ?? r.k ?? r.keys ?? r.annotation ?? r.ключові ?? r.ключові_слова ?? r.text ?? '').trim(),
+      _rawKeys: Object.keys(r).join(', ')
     }));
   }
   const { rows, delim } = parseTable(text);
@@ -228,6 +229,14 @@ function render(d,dry){
     +(d.skipped?'🔒 лишено наявних: <b>'+d.skipped+'</b> &nbsp; ':'')
     +'❓ не знайдено: <b>'+d.unmatched+'</b> &nbsp; ⛔ без значення в рядку: <b>'+d.empty+'</b></div>'
     +(dry&&d.overwrite?'<div class=muted style="margin-bottom:6px">Конфлікти нижче можна вберегти індивідуально галочкою «🔒 лишити».</div>':'');
+  // Debug: показуємо перші 3 розпарсені записи якщо всі empty
+  if(dry && d.empty>0 && d._debug && d._debug.length){
+    h+='<details style="border:1px solid #f5c6a0;border-radius:8px;background:#fffaf5;padding:6px 10px;margin:6px 0">'
+      +'<summary style="cursor:pointer;color:#b8600a;font-weight:700">🔍 Діагностика: перші '+d._debug.length+' розпарсені записи</summary>'
+      +'<div style="font-size:.82rem;margin-top:6px;font-family:monospace">'
+      +d._debug.map(function(x){ return '<div><b>id:</b> "'+esc(x.id||'')+'" &nbsp; <b>val:</b> "'+esc(x.val||'')+(x.raw?' &nbsp; <b>raw keys:</b> '+esc(x.raw):'')+'</div>'; }).join('')
+      +'</div></details>';
+  }
   h+=sect('✅ Оновлення (поточний опис → новий)',d.matched,function(x){
     var badge = !x.had ? '<span style="color:#2d6a2d">новий</span>'
       : (x.weak ? '<span style="color:#c0392b">🔁 перезапис слабкого ('+x.curLen+' симв)</span>'
@@ -370,7 +379,7 @@ export async function onRequestPost(context) {
   const payload = {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
-    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60)}}),
+    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60),raw:r._rawKeys||''}}),
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
     ambiguous: cap(ambiguous, 30),
