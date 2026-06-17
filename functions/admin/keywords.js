@@ -37,11 +37,11 @@ function parseRecords(text) {
   if (t[0] === '[' || t[0] === '{') {
     let arr = JSON.parse(t);
     if (!Array.isArray(arr)) arr = [arr];
-    return arr.map(r => ({
-      id: String((r.sku ?? r.id ?? r.n ?? r.name ?? '')).trim(),
-      annotation: String(r.keywords ?? r.keyword ?? r.kw ?? r.k ?? r.keys ?? r.annotation ?? r.ключові ?? r.ключові_слова ?? r.text ?? '').trim(),
-      _rawKeys: Object.keys(r).join(', ')
-    }));
+    return arr.map(function(r) {
+      var id = String(r.sku || r.id || r.n || r.name || '').trim();
+      var val = r.keywords || r.keyword || r.kw || r.k || r.keys || r.annotation || r['ключові'] || r['ключові_слова'] || r.text || '';
+      return { id: id, annotation: String(val).trim(), _rawKeys: Object.keys(r).join(', ') };
+    });
   }
   const { rows, delim } = parseTable(text);
   if (!rows.length) return [];
