@@ -295,7 +295,12 @@ export async function onRequestPost(context) {
   const MAXLEN = 20000;
 
   let recs;
-  try { recs = parseRecords(await context.request.text()); }
+  try {
+    let raw = await context.request.text();
+    // strip markdown code fences від LLM
+    raw = raw.replace(/^```[\w]*[\r\n]+/m, '').replace(/[\r\n]+```\s*$/m, '').trim();
+    recs = parseRecords(raw);
+  }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
 

@@ -1,8 +1,8 @@
 // /admin/keywords — масова заливка ключових слів товарів.
 // Вхід: CSV/TSV (sku/назва ; опис — для копірайтера з Excel, з багаторядковими полями)
-// АБО JSON [{"sku":"...","annotation":"..."}]. Авто-визначення формату.
+// АБО JSON [{"sku":"...","keywords":"..."}]. Авто-визначення формату.
 // Матч по sku (точно), відкат на точну назву (name або display_name). Dry-run → залити.
-// Чіпає ЛИШЕ product_content.annotation; ціни/наявність/фото — не торкаємось.
+// Чіпає ЛИШЕ product_content.keywords; ціни/наявність/фото — не торкаємось.
 
 const json = (o, s = 200) => new Response(JSON.stringify(o, null, 2), { status: s, headers: { 'content-type': 'application/json; charset=utf-8' } });
 
@@ -39,7 +39,7 @@ function parseRecords(text) {
     if (!Array.isArray(arr)) arr = [arr];
     return arr.map(r => ({
       id: String((r.sku ?? r.id ?? r.n ?? r.name ?? '')).trim(),
-      annotation: String(r.keywords ?? r.keyword ?? r.kw ?? r.k ?? r.keys ?? r.ключові ?? r.ключові_слова ?? '')
+      annotation: String(r.keywords ?? r.keyword ?? r.kw ?? r.k ?? r.keys ?? r.annotation ?? r.ключові ?? r.ключові_слова ?? r.text ?? '').trim()
     }));
   }
   const { rows, delim } = parseTable(text);
@@ -135,7 +135,7 @@ label.ck{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;margin:6
 <p class=muted>Формат — на вибір (визначається автоматично):</p>
 <ul class=muted style="margin-top:0">
   <li><b>CSV/TSV</b> з Excel/Таблиць: 1-й стовпець — SKU (або назва), 2-й — опис. Багаторядкові описи — в лапках. Роздільник <code>,</code> <code>;</code> або таб.</li>
-  <li><b>JSON</b>: <code>[{"sku":"00-123","annotation":"текст…"}]</code></li>
+  <li><b>JSON</b>: <code>[{"sku":"00-123","keywords":"фунгіцид яблуня парша захист"}]</code></li>
 </ul>
 <div style="background:#fff;border:1px solid #e0e8e0;border-radius:10px;padding:12px;margin:12px 0">
   <b>Крок 1 · Експорт товарів без ключових слів</b><br>
@@ -226,7 +226,7 @@ function render(d,dry){
     +'✅ '+(dry?'буде оновлено':'оновлено')+': <b>'+d.willUpdate+'</b>'
     +(d.overwrite?' <span class=muted>(з них перезапис наявних: '+d.overwrite+')</span>':'')+' &nbsp; '
     +(d.skipped?'🔒 лишено наявних: <b>'+d.skipped+'</b> &nbsp; ':'')
-    +'❓ не знайдено: <b>'+d.unmatched+'</b> &nbsp; ⛔ без опису в рядку: <b>'+d.empty+'</b></div>'
+    +'❓ не знайдено: <b>'+d.unmatched+'</b> &nbsp; ⛔ без значення в рядку: <b>'+d.empty+'</b></div>'
     +(dry&&d.overwrite?'<div class=muted style="margin-bottom:6px">Конфлікти нижче можна вберегти індивідуально галочкою «🔒 лишити».</div>':'');
   h+=sect('✅ Оновлення (поточний опис → новий)',d.matched,function(x){
     var badge = !x.had ? '<span style="color:#2d6a2d">новий</span>'
@@ -294,7 +294,12 @@ export async function onRequestPost(context) {
   const MAXLEN = 20000;
 
   let recs;
-  try { recs = parseRecords(await context.request.text()); }
+  try {
+    let raw = await context.request.text();
+    // прибираємо markdown-огортку від LLM
+    raw = raw.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
+    recs = parseRecords(raw);
+  }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
 
@@ -365,6 +370,7 @@ export async function onRequestPost(context) {
   const payload = {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
+    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60)}}),
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
     ambiguous: cap(ambiguous, 30),
