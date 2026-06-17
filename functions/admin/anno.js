@@ -245,7 +245,7 @@ function render(d,dry){
 }
 async function verify(){ if(!body().trim()){alert('Вставте дані або оберіть файл');return;}
   $('s').textContent='перевірка…'; const {ok,data}=await post(true); $('s').textContent='';
-  $('o').innerHTML=render(data,true); $('imp').disabled=!(ok&&data.ok&&data.willUpdate>0);}
+  $('o').innerHTML=render(data,true); $('imp').disabled=!(ok&&data.ok&&(data.willUpdate>0||data.overwrite>0));}
 async function run(){ $('s').textContent='заливка…'; $('imp').disabled=true;
   const {ok,data}=await post(false); $('s').textContent=ok&&data.ok?'✅ Готово':'❌ Помилка';
   $('o').innerHTML=render(data,false);}
