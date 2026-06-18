@@ -324,7 +324,7 @@ export async function onRequestPost(context) {
             CASE WHEN c.pid IS NULL THEN NULL ELSE COALESCE(c.keywords,'') END anno
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid`).all()).results || [];
   const bySku = new Map(), byName = new Map(), info = new Map();
-  const nkey = s => String(s || '').trim().toLowerCase();
+  const nkey = function(s) { return String(s || '').trim().toLowerCase(); };
   for (const r of ex) {
     info.set(r.pid, r);
     if (r.sku) (bySku.get(r.sku.trim()) || bySku.set(r.sku.trim(), []).get(r.sku.trim())).push(r.pid);

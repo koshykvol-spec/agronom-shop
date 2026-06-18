@@ -37,10 +37,11 @@ function parseRecords(text) {
   if (t[0] === '[' || t[0] === '{') {
     let arr = JSON.parse(t);
     if (!Array.isArray(arr)) arr = [arr];
-    return arr.map(r => ({
-      id: String((r.sku ?? r.id ?? r.n ?? r.name ?? '')).trim(),
-      annotation: String(r.annotation ?? r.anno ?? r.a ?? r.text ?? r.опис ?? r.description ?? '')
-    }));
+    return arr.map(function(r) {
+      var id = String(r.sku || r.id || r.n || r.name || '').trim();
+      var val = r.annotation || r.anno || r.a || r.text || r['опис'] || r.description || '';
+      return { id: id, annotation: String(val).trim() };
+    });
   }
   const { rows, delim } = parseTable(text);
   if (!rows.length) return [];
@@ -310,7 +311,7 @@ export async function onRequestPost(context) {
             CASE WHEN c.pid IS NULL THEN NULL ELSE COALESCE(c.annotation,'') END anno
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid`).all()).results || [];
   const bySku = new Map(), byName = new Map(), info = new Map();
-  const nkey = s => String(s || '').trim().toLowerCase();
+  const nkey = function(s) { return String(s || '').trim().toLowerCase(); };
   for (const r of ex) {
     info.set(r.pid, r);
     if (r.sku) (bySku.get(r.sku.trim()) || bySku.set(r.sku.trim(), []).get(r.sku.trim())).push(r.pid);
