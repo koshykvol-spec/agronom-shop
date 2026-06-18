@@ -255,8 +255,8 @@ export async function onRequestGet(context) {
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:120px"><label>Ціна, грн</label><input name="price" type="number" step="0.01" value="${p.price!=null?p.price:''}"></div>
         <div style="flex:1;min-width:120px"><label>Бренд</label><input name="brand" value="${esc(p.brand||'')}"></div>
+        <div style="flex:1;min-width:140px"><label>Категорія</label><input name="category" value="${esc(p.category||'')}"></div>
       </div>
-      <label>Категорія</label><input name="category" value="${esc(p.category||'')}">
       <label><input type="checkbox" name="in_stock" value="1" ${p.in_stock?'checked':''} style="width:auto"> В наявності</label>
       <div style="background:#fff3cd;border:1px solid #f9a825;border-radius:8px;padding:10px;margin:14px 0">
         <b style="color:#e65100">🏷️ Акція</b>
