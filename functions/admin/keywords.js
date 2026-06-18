@@ -1,5 +1,5 @@
 // /admin/keywords — масова заливка ключових слів товарів.
-// Вхід: CSV/TSV (sku/назва ; опис — для копірайтера з Excel, з багаторядковими полями)
+// Вхід: CSV/TSV (sku/назва ; ключові слова)
 // АБО JSON [{"sku":"...","keywords":"..."}]. Авто-визначення формату.
 // Матч по sku (точно), відкат на точну назву (name або display_name). Dry-run → залити.
 // Чіпає ЛИШЕ product_content.keywords; ціни/наявність/фото — не торкаємось.
@@ -31,7 +31,7 @@ function parseTable(text) {
   return { rows, delim };
 }
 
-// Текст → масив {id, annotation=keywords}. Підтримує JSON-масив і CSV/TSV.
+// Текст → масив {id, annotation}. Підтримує JSON-масив і CSV/TSV.
 function parseRecords(text) {
   const t = text.trim();
   if (t[0] === '[' || t[0] === '{') {
@@ -39,8 +39,8 @@ function parseRecords(text) {
     if (!Array.isArray(arr)) arr = [arr];
     return arr.map(function(r) {
       var id = String(r.sku || r.id || r.n || r.name || '').trim();
-      var val = r.keywords || r.keyword || r.kw || r.k || r.keys || r.annotation || r['ключові'] || r['ключові_слова'] || r.text || '';
-      return { id: id, keywords: String(val).trim(), _rawKeys: Object.keys(r).join(', ') };
+      var val = r.annotation || r.anno || r.a || r.text || r['опис'] || r.description || '';
+      return { id: id, annotation: String(val).trim() };
     });
   }
   const { rows, delim } = parseTable(text);
@@ -49,16 +49,16 @@ function parseRecords(text) {
   const h0 = (rows[0][0] || '').trim().toLowerCase();
   const h1 = (rows[0][1] || '').trim().toLowerCase();
   const isHeader = ['sku', 'артикул', 'код', 'id', 'назва', 'name'].includes(h0)
-    || ['keywords', 'keyword', 'ключові', 'ключові слова', 'kw'].includes(h1);
+    || ['keywords', 'keyword', 'ключові', 'ключові слова', 'kw', 'annotation'].includes(h1);
   // id = 1-й стовпець; опис = усе після першого роздільника (склеюємо зайві колонки —
   // витривало до неквотованих ком усередині опису).
   return rows.slice(isHeader ? 1 : 0)
-    .map(r => ({ id: (r[0] || '').trim(), keywords: r.slice(1).join(delim) }));
+    .map(r => ({ id: (r[0] || '').trim(), annotation: r.slice(1).join(delim) }));
 }
 
 // Експорт товарів-кандидатів на (пере)опис у JSON — вхід для LLM.
 // ?export=1&limit=N&mode=empty|short|weak&maxlen=250
-//   empty — без опису; short — короткі «стуби» (1..maxlen); weak — порожні + короткі.
+//   empty — без ключових слів; short — короткі «стуби» (1..maxlen); weak — порожні + короткі.
 async function exportEmptyJson(db, url) {
   let limit = parseInt(url.searchParams.get('limit') || '50', 10);
   if (!(limit > 0)) limit = 50;
@@ -67,10 +67,11 @@ async function exportEmptyJson(db, url) {
   if (!(maxlen > 0)) maxlen = 250;
   maxlen = Math.min(maxlen, 5000);
   const mode = url.searchParams.get('mode') || 'empty';
-  const aln = `length(COALESCE(c.keywords,''))`;
+  const aln = `length(COALESCE(c.annotation,''))`;
+  // maxlen — розпарсене ціле (без інʼєкції)
   const cond = mode === 'short' ? `${aln} > 0 AND ${aln} < ${maxlen}`
              : mode === 'weak'  ? `${aln} < ${maxlen}`
-             : `(c.keywords IS NULL OR c.keywords='')`;
+             : `(c.annotation IS NULL OR c.annotation='')`;
   // Фільтри каталогу: розділ (category) + підрозділ (brand) — як на фронті
   const cat = (url.searchParams.get('cat') || '').trim();
   const sub = (url.searchParams.get('sub') || '').trim();
@@ -136,15 +137,15 @@ label.ck{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;margin:6
 <p class=muted>Формат — на вибір (визначається автоматично):</p>
 <ul class=muted style="margin-top:0">
   <li><b>CSV/TSV</b> з Excel/Таблиць: 1-й стовпець — SKU (або назва), 2-й — опис. Багаторядкові описи — в лапках. Роздільник <code>,</code> <code>;</code> або таб.</li>
-  <li><b>JSON</b>: <code>[{"sku":"00-123","keywords":"фунгіцид яблуня парша захист"}]</code></li>
+  <li><b>JSON</b>: <code>[{"sku":"00-123","annotation":"текст…"}]</code></li>
 </ul>
 <div style="background:#fff;border:1px solid #e0e8e0;border-radius:10px;padding:12px;margin:12px 0">
-  <b>Крок 1 · Експорт товарів без ключових слів</b><br>
-  <span class=muted>Віддає JSON-список товарів — готовий вхід для LLM. «Короткі» — ключові слова коротші за N символів.</span><br>
+  <b>Крок 1 · Експорт товарів на (пере)опис</b><br>
+  <span class=muted>Віддає JSON-список товарів — готовий вхід для LLM. Наступний експорт дає наступну порцію (оновлені зникають). «Короткі стуби» — це слабкі описи коротші за N символів.</span><br>
   <label class=muted style="display:inline-block;margin:8px 8px 0 0">які:
     <select id=exmode style="padding:5px;border:1px solid #c8e0c8;border-radius:6px">
       <option value=empty>без ключових слів</option>
-      <option value=short>короткі (&lt; N симв)</option>
+      <option value=short>короткі «стуби» (&lt; N)</option>
       <option value=weak>порожні + короткі</option>
     </select></label>
   <label class=muted style="display:inline-block;margin:8px 8px 0 0">N&nbsp;симв: <input type=number id=exmax value=250 min=20 max=5000 style="width:78px;padding:5px;border:1px solid #c8e0c8;border-radius:6px"></label>
@@ -157,19 +158,19 @@ label.ck{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;margin:6
   <div id=exs class=muted style="margin-top:6px"></div>
 </div>
 <details style="margin:10px 0;border:1px solid #e0e8e0;border-radius:10px;background:#fff;padding:8px 12px">
-  <summary style="cursor:pointer;font-weight:700">Крок 2 · 📋 Промпт для LLM</summary>
+  <summary style="cursor:pointer;font-weight:700">Крок 2 · 📋 Промпт для LLM (розгорнути / скопіювати)</summary>
   <p class=muted style="margin:8px 0 4px">Встав цей промпт у ChatGPT / Claude / Gemini, а в кінець — вміст файлу з Кроку 1. Відповідь LLM (JSON) встав у поле Кроку 3.</p>
   <button class=btn onclick="copyPrompt()" style="background:#555;padding:6px 12px">📋 Копіювати промпт</button> <span id=cps class=muted></span>
   <textarea id=prompt readonly style="min-height:240px;margin-top:8px;background:#fafafa">Ти — SEO-спеціаліст інтернет-магазину агротоварів «Агроном» (м. Володимир, Україна).
-Напиши ключові слова для пошуку по сайту для кожного товару зі списку.
+Напиши ключові слова для пошуку для кожного товару зі списку.
 
 ФОРМАТ ВІДПОВІДІ — лише валідний JSON-масив, без markdown і пояснень.
 Кожен елемент: {"sku":"…точно як у вході…","keywords":"…ключові слова…"}
 
 ПРАВИЛА:
-- Мова: українська. Лише звичайний текст — рядок слів і словосполучень через пробіл або кому.
-- Довжина: 5–15 ключових слів/фраз. Наприклад: «гербіцид кукурудза бур'яни мишій лобода дуал голд ґрунтовий».
-- Включай: назву препарату (або скорочення), тип (гербіцид/фунгіцид/інсектицид), культуру, проблему (хворобу/шкідника/бур'ян), діючу речовину якщо є.
+- Мова: українська. Рядок слів/фраз через пробіл або кому.
+- Довжина: 5–15 ключових слів/фраз. Напр.: «гербіцид кукурудза бур'яни мишій лобода ґрунтовий».
+- Включай: назву препарату (і скорочення), тип (гербіцид/фунгіцид/інсектицид), культуру, проблему (хвороба/шкідник/бур'ян), діючу речовину якщо є.
 - НЕ дублюй слова. НЕ вигадуй властивостей. Спирайся на назву, категорію, бренд, діючу речовину.
 - sku не змінюй. Один товар = один об'єкт.
 
@@ -179,7 +180,7 @@ label.ck{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;margin:6
 <p style="margin:12px 0 4px"><b>Крок 3 · Встав відповідь LLM</b> <span class=muted>(або обери файл)</span></p>
 <label class=btn style="background:#555;cursor:pointer;display:inline-block">📂 Файл (.csv/.tsv/.json/.txt)<input type=file id=f accept=".csv,.tsv,.json,.txt,text/csv" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"></label>
 <span id=fn class=muted style="margin-left:8px">або вставте нижче ↓</span>
-<p><textarea id=ta placeholder="00-12345,гербіцид захист кукурудза бур'яни&#10;00-22222,фунгіцид яблуня парша"\></textarea></p>
+<p><textarea id=ta placeholder='00-12345,гербіцид кукурудза бур&#39;яни мишій&#10;00-22222,фунгіцид яблуня парша'></textarea></p>
 <div style="margin:6px 0"><b>Якщо опис уже є в базі:</b>
   <select id=cpolicy style="padding:5px;border:1px solid #c8e0c8;border-radius:6px">
     <option value=weak>перезаписати лише короткі (&lt; N симв) — довгі лишити</option>
@@ -208,7 +209,7 @@ async function post(dry){
   var pol=$('cpolicy')?$('cpolicy').value:'all';
   var cm=$('cmax')?($('cmax').value||'200'):'200';
   var ex=dry?'':collectKeep().join(',');   // ручні винятки беремо з прев'ю при заливці
-  const u='/admin/anno?'+(dry?'dryrun=1&':'')+'policy='+pol+'&cmax='+encodeURIComponent(cm)+(ex?'&exclude='+encodeURIComponent(ex):'');
+  const u='/admin/keywords?'+(dry?'dryrun=1&':'')+'policy='+pol+'&cmax='+encodeURIComponent(cm)+(ex?'&exclude='+encodeURIComponent(ex):'');
   const r=await fetch(u,{method:'POST',headers:{'content-type':'text/plain'},body:body()});
   return {ok:r.ok, data:await r.json().catch(()=>({ok:false,error:'не JSON (HTTP '+r.status+')'}))};
 }
@@ -229,18 +230,6 @@ function render(d,dry){
     +(d.skipped?'🔒 лишено наявних: <b>'+d.skipped+'</b> &nbsp; ':'')
     +'❓ не знайдено: <b>'+d.unmatched+'</b> &nbsp; ⛔ без значення в рядку: <b>'+d.empty+'</b></div>'
     +(dry&&d.overwrite?'<div class=muted style="margin-bottom:6px">Конфлікти нижче можна вберегти індивідуально галочкою «🔒 лишити».</div>':'');
-  if(dry && d.empty>0){
-    var debugHtml='<details open style="border:1px solid #f5c6a0;border-radius:8px;background:#fffaf5;padding:6px 10px;margin:6px 0">'
-      +'<summary style="cursor:pointer;color:#b8600a;font-weight:700">🔍 Діагностика парсингу</summary>'
-      +'<div style="font-size:.82rem;margin-top:6px">'
-      +(d._rawPreview?'<b>Сирий текст:</b><br><code style="white-space:pre-wrap;word-break:break-all">'+esc(d._rawPreview)+'</code><br><br>':'')
-      +'<b>recs[0]:</b> <code>'+esc(d._first||'—')+'</code><br>'
-      +(d._debug&&d._debug.length
-        ? '<br><b>_debug:</b><br>'+d._debug.map(function(x){ return '<div>id:"'+esc(x.id)+'" val:"'+esc(x.val)+'" keys:'+esc(x.raw)+'</div>'; }).join('')
-        : '<br>_debug порожній (recs.slice(0,3) = [])')
-      +'</div></details>';
-    h+=debugHtml;
-  }
   h+=sect('✅ Оновлення (поточний опис → новий)',d.matched,function(x){
     var badge = !x.had ? '<span style="color:#2d6a2d">новий</span>'
       : (x.weak ? '<span style="color:#c0392b">🔁 перезапис слабкого ('+x.curLen+' симв)</span>'
@@ -283,7 +272,7 @@ async function exportEmpty(){
   var blob=new Blob([txt],{type:'application/json'});
   var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tovary-bez-klyuchsliv.json';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
-  $('exs').textContent='⬇️ завантажено '+cnt+' товарів (усього без ключових слів: '+remaining+').';;
+  $('exs').textContent='⬇️ завантажено '+cnt+' товарів (усього без ключових слів: '+remaining+'). Згенеруй у LLM → встав у Крок 3 → «Перевірити».';
 }
 function copyPrompt(){
   var t=$('prompt'); t.focus(); t.select();
@@ -309,15 +298,9 @@ export async function onRequestPost(context) {
   let recs;
   try {
     let raw = await context.request.text();
-    raw = raw.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
-    // Прибираємо BOM та невидимі символи на початку
-    raw = raw.replace(/^[\u200B\uFEFF\u00A0\u200C\u200D]+/, '').trim();
-    const _rawPreview = raw.slice(0, 300);
-    // Перевіряємо чи перший символ відповідає JSON
-    const firstChar = raw[0];
-    const parsed = (firstChar === '[' || firstChar === '{') ? parseRecords(raw) : parseRecords(raw);
-    recs = Array.from(parsed || []);
-    recs.__rawPreview = _rawPreview + ' | firstChar:' + JSON.stringify(firstChar) + ' | charCode:' + (raw.charCodeAt(0));
+    // strip markdown code fences від LLM
+    raw = raw.replace(/^```[\w]*[\r\n]+/m, '').replace(/[\r\n]+```\s*$/m, '').trim();
+    recs = parseRecords(raw);
   }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
@@ -344,7 +327,7 @@ export async function onRequestPost(context) {
 
   for (const rec of recs) {
     const id = (rec.id || '').trim();
-    const ann = String(rec.keywords == null ? '' : rec.keywords).trim().slice(0, MAXLEN);
+    const ann = String(rec.annotation == null ? '' : rec.annotation).trim().slice(0, MAXLEN);
     if (!ann) { empty++; continue; }
     if (!id) { unmatched++; unmatchedList.push('(порожній id)'); continue; }
 
@@ -389,9 +372,6 @@ export async function onRequestPost(context) {
   const payload = {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
-    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.keywords||'').slice(0,60),raw:r._rawKeys||''}}),
-    _first: recs.length > 0 ? JSON.stringify(recs[0]).slice(0,200) : 'empty',
-    _rawPreview: recs.__rawPreview || '',
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
     ambiguous: cap(ambiguous, 30),
