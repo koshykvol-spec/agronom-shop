@@ -40,7 +40,7 @@ function parseRecords(text) {
     return arr.map(function(r) {
       var id = String(r.sku || r.id || r.n || r.name || '').trim();
       var val = r.keywords || r.keyword || r.kw || r.k || r.keys || r.annotation || r['ключові'] || r['ключові_слова'] || r.text || '';
-      return { id: id, annotation: String(val).trim(), _rawKeys: Object.keys(r).join(', ') };
+      return { id: id, keywords: String(val).trim(), _rawKeys: Object.keys(r).join(', ') };
     });
   }
   const { rows, delim } = parseTable(text);
@@ -53,7 +53,7 @@ function parseRecords(text) {
   // id = 1-й стовпець; опис = усе після першого роздільника (склеюємо зайві колонки —
   // витривало до неквотованих ком усередині опису).
   return rows.slice(isHeader ? 1 : 0)
-    .map(r => ({ id: (r[0] || '').trim(), annotation: r.slice(1).join(delim) }));
+    .map(r => ({ id: (r[0] || '').trim(), keywords: r.slice(1).join(delim) }));
 }
 
 // Експорт товарів-кандидатів на (пере)опис у JSON — вхід для LLM.
@@ -340,7 +340,7 @@ export async function onRequestPost(context) {
 
   for (const rec of recs) {
     const id = (rec.id || '').trim();
-    const ann = String(rec.annotation == null ? '' : rec.annotation).trim().slice(0, MAXLEN);
+    const ann = String(rec.keywords == null ? '' : rec.keywords).trim().slice(0, MAXLEN);
     if (!ann) { empty++; continue; }
     if (!id) { unmatched++; unmatchedList.push('(порожній id)'); continue; }
 
@@ -385,7 +385,7 @@ export async function onRequestPost(context) {
   const payload = {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
-    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60),raw:r._rawKeys||''}}),
+    _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.keywords||'').slice(0,60),raw:r._rawKeys||''}}),
     _rawPreview: recs.__rawPreview || '',
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
