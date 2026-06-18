@@ -310,12 +310,10 @@ export async function onRequestPost(context) {
   let recs;
   try {
     let raw = await context.request.text();
-    // прибираємо markdown-огортку від LLM
     raw = raw.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
-    // debug: зберігаємо перші 200 символів сирого тексту
-    const _rawPreview = raw.slice(0, 200);
+    const _rawPreview = raw.slice(0, 300);
     recs = parseRecords(raw);
-    recs._rawPreview = _rawPreview; // тимчасово для діагностики
+    recs.__rawPreview = _rawPreview;
   }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
@@ -388,7 +386,7 @@ export async function onRequestPost(context) {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
     _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60),raw:r._rawKeys||''}}),
-    _rawPreview: recs._rawPreview || '',
+    _rawPreview: recs.__rawPreview || '',
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
     ambiguous: cap(ambiguous, 30),
