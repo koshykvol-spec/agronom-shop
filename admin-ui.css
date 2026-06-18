@@ -51,7 +51,9 @@ input,select,textarea{
 }
 input:focus,select:focus,textarea:focus{outline:2px solid var(--a-green); outline-offset:0; border-color:var(--a-green) !important}
 input[type=checkbox]{width:19px;height:19px;accent-color:var(--a-green)}
-label{font-size:.9rem}
+label{font-size:.9rem;display:block;margin-bottom:3px}
+label:has(input[type=checkbox]){display:inline-flex;align-items:center;gap:7px;margin-bottom:0}
+form>div>input,form>div>textarea,form>div>select{width:100%}
 .fl label,.fld label{font-size:.82rem !important; color:var(--a-mute) !important; font-weight:600}
 
 /* Чипи-категорії (головна адмінки) */
