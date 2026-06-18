@@ -265,10 +265,10 @@ export async function onRequestGet(context) {
           <div style="flex:1;min-width:140px"><label>Діє до (дата)</label><input name="sale_until" type="date" value="${esc(p.sale_until||'')}"></div>
         </div>
       </div>
-      <div style="clear:both"><label>Анотація</label><textarea name="annotation" rows="5" style="width:100%;box-sizing:border-box">${esc(p.annotation)}</textarea></div>
-      <div><label>Ключові слова (пошук)</label><input name="keywords" value="${esc(p.keywords)}" style="width:100%;box-sizing:border-box"></div>
-      <label>SEO title</label><input name="meta_title" value="${esc(p.meta_title)}">
-      <label>SEO description</label><input name="meta_desc" value="${esc(p.meta_desc)}">
+      <div><label>Анотація</label><textarea name="annotation" rows="5">${esc(p.annotation)}</textarea></div>
+      <div><label>Ключові слова (пошук)</label><input name="keywords" value="${esc(p.keywords)}"></div>
+      <div><label>SEO title</label><input name="meta_title" value="${esc(p.meta_title)}"></div>
+      <div><label>SEO description</label><input name="meta_desc" value="${esc(p.meta_desc)}"></div>
       <label><input type="checkbox" name="visible" value="1" ${p.visible?'checked':''} style="width:auto"> Показувати на сайті</label>
       <div style="margin-top:14px"><button class="btn">💾 Зберегти</button></div>
     </form>
