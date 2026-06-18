@@ -310,9 +310,14 @@ export async function onRequestPost(context) {
   try {
     let raw = await context.request.text();
     raw = raw.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
+    // Прибираємо BOM та невидимі символи на початку
+    raw = raw.replace(/^[\u200B\uFEFF\u00A0\u200C\u200D]+/, '').trim();
     const _rawPreview = raw.slice(0, 300);
-    recs = parseRecords(raw);
-    recs.__rawPreview = _rawPreview;
+    // Перевіряємо чи перший символ відповідає JSON
+    const firstChar = raw[0];
+    const parsed = (firstChar === '[' || firstChar === '{') ? parseRecords(raw) : parseRecords(raw);
+    recs = Array.from(parsed || []);
+    recs.__rawPreview = _rawPreview + ' | firstChar:' + JSON.stringify(firstChar) + ' | charCode:' + (raw.charCodeAt(0));
   }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
