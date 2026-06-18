@@ -257,7 +257,7 @@ export async function onRequestGet(context) {
         <div style="flex:1;min-width:120px"><label>Бренд</label><input name="brand" value="${esc(p.brand||'')}"></div>
         <div style="flex:1;min-width:140px"><label>Категорія</label><input name="category" value="${esc(p.category||'')}"></div>
       </div>
-      <label><input type="checkbox" name="in_stock" value="1" ${p.in_stock?'checked':''} style="width:auto"> В наявності</label>
+      <div><label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="in_stock" value="1" ${p.in_stock?'checked':''} style="width:auto"> В наявності</label></div>
       <div style="background:#fff3cd;border:1px solid #f9a825;border-radius:8px;padding:10px;margin:14px 0">
         <b style="color:#e65100">🏷️ Акція</b>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
@@ -265,7 +265,7 @@ export async function onRequestGet(context) {
           <div style="flex:1;min-width:140px"><label>Діє до (дата)</label><input name="sale_until" type="date" value="${esc(p.sale_until||'')}"></div>
         </div>
       </div>
-      <label>Анотація</label><textarea name="annotation" rows="5">${esc(p.annotation)}</textarea>
+      <div><label>Анотація</label><textarea name="annotation" rows="5">${esc(p.annotation)}</textarea></div>
       <label>Ключові слова (пошук)</label><input name="keywords" value="${esc(p.keywords)}">
       <label>SEO title</label><input name="meta_title" value="${esc(p.meta_title)}">
       <label>SEO description</label><input name="meta_desc" value="${esc(p.meta_desc)}">
