@@ -233,12 +233,11 @@ function render(d,dry){
     var debugHtml='<details open style="border:1px solid #f5c6a0;border-radius:8px;background:#fffaf5;padding:6px 10px;margin:6px 0">'
       +'<summary style="cursor:pointer;color:#b8600a;font-weight:700">🔍 Діагностика парсингу</summary>'
       +'<div style="font-size:.82rem;margin-top:6px">'
-      +(d._rawPreview?'<div><b>Сирий текст (перші 200 символів):</b><br><code style="white-space:pre-wrap;word-break:break-all">'+esc(d._rawPreview)+'</code></div><br>':'')
+      +(d._rawPreview?'<b>Сирий текст:</b><br><code style="white-space:pre-wrap;word-break:break-all">'+esc(d._rawPreview)+'</code><br><br>':'')
+      +'<b>recs[0]:</b> <code>'+esc(d._first||'—')+'</code><br>'
       +(d._debug&&d._debug.length
-        ? '<div><b>Перші розпарсені записи:</b><br>'
-          +d._debug.map(function(x){ return '<div>id: "'+esc(x.id||'')+'" | val: "'+esc(x.val||'')+'" | keys: '+esc(x.raw||'')+'</div>'; }).join('')
-          +'</div>'
-        : '<div>_debug порожній</div>')
+        ? '<br><b>_debug:</b><br>'+d._debug.map(function(x){ return '<div>id:"'+esc(x.id)+'" val:"'+esc(x.val)+'" keys:'+esc(x.raw)+'</div>'; }).join('')
+        : '<br>_debug порожній (recs.slice(0,3) = [])')
       +'</div></details>';
     h+=debugHtml;
   }
@@ -386,6 +385,7 @@ export async function onRequestPost(context) {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
     _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.keywords||'').slice(0,60),raw:r._rawKeys||''}}),
+    _first: recs.length > 0 ? JSON.stringify(recs[0]).slice(0,200) : 'empty',
     _rawPreview: recs.__rawPreview || '',
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
