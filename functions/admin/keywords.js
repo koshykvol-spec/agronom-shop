@@ -229,13 +229,18 @@ function render(d,dry){
     +(d.skipped?'🔒 лишено наявних: <b>'+d.skipped+'</b> &nbsp; ':'')
     +'❓ не знайдено: <b>'+d.unmatched+'</b> &nbsp; ⛔ без значення в рядку: <b>'+d.empty+'</b></div>'
     +(dry&&d.overwrite?'<div class=muted style="margin-bottom:6px">Конфлікти нижче можна вберегти індивідуально галочкою «🔒 лишити».</div>':'');
-  // Debug: показуємо перші 3 розпарсені записи якщо всі empty
-  if(dry && d.empty>0 && d._debug && d._debug.length){
-    h+='<details style="border:1px solid #f5c6a0;border-radius:8px;background:#fffaf5;padding:6px 10px;margin:6px 0">'
-      +'<summary style="cursor:pointer;color:#b8600a;font-weight:700">🔍 Діагностика: перші '+d._debug.length+' розпарсені записи</summary>'
-      +'<div style="font-size:.82rem;margin-top:6px;font-family:monospace">'
-      +d._debug.map(function(x){ return '<div><b>id:</b> "'+esc(x.id||'')+'" &nbsp; <b>val:</b> "'+esc(x.val||'')+(x.raw?' &nbsp; <b>raw keys:</b> '+esc(x.raw):'')+'</div>'; }).join('')
+  if(dry && d.empty>0){
+    var debugHtml='<details open style="border:1px solid #f5c6a0;border-radius:8px;background:#fffaf5;padding:6px 10px;margin:6px 0">'
+      +'<summary style="cursor:pointer;color:#b8600a;font-weight:700">🔍 Діагностика парсингу</summary>'
+      +'<div style="font-size:.82rem;margin-top:6px">'
+      +(d._rawPreview?'<div><b>Сирий текст (перші 200 символів):</b><br><code style="white-space:pre-wrap;word-break:break-all">'+esc(d._rawPreview)+'</code></div><br>':'')
+      +(d._debug&&d._debug.length
+        ? '<div><b>Перші розпарсені записи:</b><br>'
+          +d._debug.map(function(x){ return '<div>id: "'+esc(x.id||'')+'" | val: "'+esc(x.val||'')+'" | keys: '+esc(x.raw||'')+'</div>'; }).join('')
+          +'</div>'
+        : '<div>_debug порожній</div>')
       +'</div></details>';
+    h+=debugHtml;
   }
   h+=sect('✅ Оновлення (поточний опис → новий)',d.matched,function(x){
     var badge = !x.had ? '<span style="color:#2d6a2d">новий</span>'
@@ -307,7 +312,10 @@ export async function onRequestPost(context) {
     let raw = await context.request.text();
     // прибираємо markdown-огортку від LLM
     raw = raw.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
+    // debug: зберігаємо перші 200 символів сирого тексту
+    const _rawPreview = raw.slice(0, 200);
     recs = parseRecords(raw);
+    recs._rawPreview = _rawPreview; // тимчасово для діагностики
   }
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
@@ -380,6 +388,7 @@ export async function onRequestPost(context) {
     ok: true, dryrun: dry, total: recs.length,
     willUpdate, overwrite, skipped, unmatched, empty,
     _debug: recs.slice(0,3).map(function(r){return {id:r.id,val:(r.annotation||'').slice(0,60),raw:r._rawKeys||''}}),
+    _rawPreview: recs._rawPreview || '',
     matched: cap(matched, 50),
     unmatchedList: cap(unmatchedList, 30),
     ambiguous: cap(ambiguous, 30),
