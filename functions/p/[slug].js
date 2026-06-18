@@ -249,14 +249,14 @@ export async function onRequest(context) {
     const ri = r.img ? encodeURI('/' + String(r.img).replace(/^\//, '')) : '';
     const oos = r.in_stock === 0;
     const addBtn = oos
-      ? `<div style="margin-top:7px;font-size:.78rem;color:#999;text-align:center">Немає в наявності</div>`
-      : `<button type="button" class="rel-add" data-n="${esc(r.name)}" data-p="${Number(r.price) || 0}" data-pid="${r.pid != null ? r.pid : ''}" onclick="addRel(this)" style="width:100%;margin-top:7px;background:var(--green);color:#fff;border:0;padding:7px;border-radius:7px;font-weight:700;font-size:.82rem;cursor:pointer">🛒 У кошик</button>`;
-    return `<div class="rel-card" data-n="${esc(r.name)}" style="position:relative;border:1px solid #eee;border-radius:10px;padding:10px">
-      <span class="rel-badge" style="display:none;position:absolute;top:6px;left:6px;background:#ff7a00;color:#fff;border:2px solid #fff;border-radius:12px;padding:2px 9px;font-size:.85rem;font-weight:800;line-height:1.2;box-shadow:0 2px 6px rgba(0,0,0,.3);z-index:2;pointer-events:none"></span>
-      <a href="/p/${esc(r.slug)}" style="text-decoration:none;color:#222;display:block">
-        <div style="aspect-ratio:1;background:#f6f6f6;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.6rem">${ri ? `<img src="${esc(ri)}" alt="${esc(r.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain">` : fallbackIco}</div>
-        <div style="font-size:.85rem;margin-top:6px;line-height:1.25">${esc(r.name)}</div>
-        <div style="font-weight:700;color:var(--green);margin-top:3px">${r.price != null ? Number(r.price).toFixed(2) + ' грн' : ''}</div>
+      ? `<div class="rc-oos">Немає в наявності</div>`
+      : `<button type="button" class="rc-add" data-n="${esc(r.name)}" data-p="${Number(r.price) || 0}" data-pid="${r.pid != null ? r.pid : ''}" onclick="addRel(this)">🛒 У кошик</button>`;
+    return `<div class="rel-card" data-n="${esc(r.name)}">
+      <span class="rel-badge"></span>
+      <a href="/p/${esc(r.slug)}">
+        <div class="rc-img">${ri ? `<img src="${esc(ri)}" alt="${esc(r.name)}" loading="lazy">` : fallbackIco}</div>
+        <div class="rc-name">${esc(r.name)}</div>
+        <div class="rc-price">${r.price != null ? Number(r.price).toFixed(2) + ' грн' : ''}</div>
       </a>${addBtn}</div>`;
   };
   const analogsHtml = analogs.length ? `<section style="margin-top:34px"><h2 style="font-size:1.2rem">Аналоги <span style="font-weight:400;color:#777;font-size:.9rem">(${aing.indexOf(' + ') >= 0 ? 'діючі речовини' : 'діюча речовина'}: ${esc(aing)})</span></h2>
@@ -315,6 +315,104 @@ export async function onRequest(context) {
 <link rel="stylesheet" href="/style.css">
 <script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd).replace(/</g, '\\u003c')}</script>
+<style>
+/* ── Сторінка товару ───────────────────────────────── */
+.p-layout   { display:grid; grid-template-columns:1fr; gap:28px; align-items:start; margin-top:16px; }
+@media(min-width:600px){ .p-layout { grid-template-columns:minmax(260px,2fr) 3fr; } }
+
+.p-gallery img { width:100%; max-height:360px; object-fit:contain; border-radius:14px; background:#f6f6f6; display:block; }
+.p-gallery .no-img { aspect-ratio:4/3; background:#eef5ee; display:flex; align-items:center; justify-content:center; font-size:3rem; border-radius:14px; }
+.p-thumbs  { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.p-thumbs img { width:64px; height:64px; object-fit:contain; background:#f6f6f6; border:2px solid #ddd; border-radius:8px; cursor:pointer; transition:border-color .15s; }
+.p-thumbs img.active { border-color:var(--green); }
+
+.p-info    { display:flex; flex-direction:column; gap:0; }
+.p-brand   { text-transform:uppercase; color:#aaa; font-size:.75rem; letter-spacing:.08em; margin-bottom:4px; }
+.p-title   { font-size:1.45rem; font-weight:800; color:var(--text); line-height:1.25; margin:0 0 10px; }
+.p-price   { font-size:1.7rem; font-weight:800; color:var(--green); margin:0 0 6px; line-height:1.2; }
+.p-price .old { font-size:1rem; font-weight:400; color:#aaa; text-decoration:line-through; margin-right:6px; }
+.p-price .sale-val { color:#c0392b; }
+.sale-badge { display:inline-block; background:#ff7a00; color:#fff; border-radius:8px; padding:2px 10px; font-size:.7rem; font-weight:800; vertical-align:middle; white-space:nowrap; margin-left:6px; }
+.p-stock   { display:inline-flex; align-items:center; gap:5px; font-size:.82rem; font-weight:700; padding:4px 12px; border-radius:20px; margin-bottom:12px; }
+.p-stock.in  { background:#d4edda; color:#155724; }
+.p-stock.out { background:#f8d7da; color:#721c24; }
+
+.p-add-row { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+.p-qty     { display:flex; align-items:center; gap:0; border:2px solid var(--green); border-radius:10px; overflow:hidden; width:fit-content; }
+.p-qty button { width:38px; height:40px; background:#f0f7f0; border:none; font-size:1.25rem; cursor:pointer; color:var(--green); font-weight:700; }
+.p-qty input  { width:72px; height:40px; border:none; border-left:1px solid #cde8cd; border-right:1px solid #cde8cd; text-align:center; font-weight:700; font-size:1rem; font-family:inherit; }
+.p-qty-label  { font-size:.88rem; color:#555; }
+
+.p-cta     { display:flex; flex-direction:column; gap:10px; }
+.p-cta .btn { width:100%; max-width:320px; font-size:1rem; padding:13px 0; text-align:center; border-radius:10px; }
+.p-after   { display:none; flex-wrap:wrap; gap:10px; align-items:center; margin-top:4px; }
+.p-after .btn { max-width:220px; font-size:.9rem; padding:10px 0; text-decoration:none; text-align:center; }
+.p-after .go  { color:var(--green); font-weight:700; text-decoration:none; font-size:.9rem; }
+
+.p-delivery { background:#f1f7ee; border:1px solid #d4e8d4; border-radius:12px; padding:13px 15px; margin-top:16px; font-size:.86rem; line-height:1.85; color:#2c3e2c; }
+.p-delivery b { color:#1a3e1a; }
+.p-delivery a { color:var(--green); font-weight:700; text-decoration:none; }
+
+/* ── Поділитися ── */
+.share-wrap { position:relative; display:inline-block; margin-bottom:12px; }
+.share-btn  { display:inline-flex; align-items:center; gap:5px; background:#fff; border:1.5px solid #cfe3cf; color:var(--green); font-weight:700; font-size:.82rem; padding:5px 13px; border-radius:18px; cursor:pointer; }
+.share-menu { display:none; position:absolute; z-index:30; left:0; top:110%; background:#fff; border:1px solid #d4e8d4; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.13); padding:5px; min-width:200px; }
+.share-menu a { display:block; padding:8px 10px; text-decoration:none; border-radius:6px; font-size:.88rem; }
+
+/* ── Секції опису ── */
+.p-section  { margin-top:28px; max-width:760px; }
+.p-section h2 { font-size:1.05rem; font-weight:800; color:var(--text); border-bottom:2px solid #e6f0e6; padding-bottom:6px; margin:0 0 12px; }
+
+.p-desc     { font-size:.96rem; line-height:1.75; color:#333; white-space:pre-line; }
+.p-ai       { display:inline-flex; align-items:center; gap:8px; background:#eef5ee; border:1px solid #cde8cd; border-radius:8px; padding:7px 13px; font-size:.88rem; color:#1a3e1a; }
+.p-ai strong { color:var(--green); }
+
+.p-dosage   { background:#fff9e6; border:1px solid #f0e0b0; border-radius:12px; padding:14px 16px; font-size:.92rem; line-height:1.65; color:#5a4a1a; }
+.p-dosage .dose-text { margin-bottom:8px; }
+.p-dose-calc { display:none; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:.9rem; }
+.p-dose-calc input { width:64px; padding:5px 6px; border:1.5px solid #d4b96a; border-radius:6px; text-align:center; font-weight:700; font-size:.92rem; font-family:inherit; }
+.p-dose-calc .result { font-weight:700; color:var(--green); font-size:1.05rem; }
+
+/* ── Варіанти фасовок ── */
+.p-variants      { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 14px; }
+.p-variants a,
+.p-variants span { display:inline-flex; flex-direction:column; align-items:center; padding:7px 14px; border-radius:9px; border:2px solid #ccc; text-decoration:none; line-height:1.25; }
+.p-variants span { border-color:var(--green); background:var(--green); color:#fff; }
+.p-variants a    { color:var(--text); }
+.p-variants a:hover { border-color:var(--green); }
+.p-variants .v-price { font-size:.75rem; font-weight:700; color:var(--green); margin-top:2px; }
+.p-variants span .v-price { color:#dfeede; }
+.p-variants .oos { opacity:.5; }
+
+/* ── Картки аналогів/супутніх ── */
+.rel-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:12px; margin-top:12px; }
+.rel-card { position:relative; border:1px solid #eee; border-radius:10px; padding:10px; transition:box-shadow .15s; }
+.rel-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.1); }
+.rel-card a   { text-decoration:none; color:var(--text); display:block; }
+.rel-card .rc-img { aspect-ratio:1; background:#f6f6f6; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.6rem; }
+.rel-card .rc-img img { width:100%; height:100%; object-fit:contain; }
+.rel-card .rc-name  { font-size:.82rem; margin-top:6px; line-height:1.3; }
+.rel-card .rc-price { font-weight:700; color:var(--green); font-size:.88rem; margin-top:3px; }
+.rel-card .rc-add   { width:100%; margin-top:8px; background:var(--green); color:#fff; border:0; padding:7px; border-radius:7px; font-weight:700; font-size:.8rem; cursor:pointer; }
+.rel-card .rc-oos   { text-align:center; font-size:.77rem; color:#aaa; margin-top:7px; }
+.rel-badge { display:none; position:absolute; top:6px; left:6px; background:#ff7a00; color:#fff; border:2px solid #fff; border-radius:12px; padding:2px 8px; font-size:.78rem; font-weight:800; box-shadow:0 2px 6px rgba(0,0,0,.25); z-index:2; pointer-events:none; }
+
+/* ── Відгуки ── */
+.p-review-card { border-top:1px solid #eee; padding:12px 0; }
+.p-review-card .rc-author { font-weight:700; font-size:.92rem; }
+.p-review-card .rc-stars  { color:#f5a623; margin:0 4px; }
+.p-review-card .rc-date   { color:#aaa; font-size:.78rem; }
+.p-review-card .rc-text   { margin-top:6px; font-size:.9rem; line-height:1.6; color:#444; white-space:pre-wrap; }
+.p-review-cta  { display:flex; align-items:center; gap:12px; background:linear-gradient(135deg,#fff8e6,#fffdf7); border:1px solid #f0d98a; border-radius:10px; padding:12px 14px; text-decoration:none; color:#7a5b00; margin:14px 0 6px; }
+.p-review-cta .ico { font-size:1.5rem; flex-shrink:0; }
+.p-review-form { background:#fafcf8; border:1px solid #e3e9e0; border-radius:12px; padding:16px; scroll-margin-top:80px; }
+.p-review-form .rf-title { font-weight:700; margin-bottom:10px; }
+.p-review-form .rf-row   { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+.p-review-form input[type=text],
+.p-review-form select     { padding:9px 11px; border:1.5px solid #ccc; border-radius:8px; font-family:inherit; font-size:.9rem; }
+.p-review-form textarea   { width:100%; padding:9px 11px; border:1.5px solid #ccc; border-radius:8px; font-family:inherit; font-size:.9rem; box-sizing:border-box; resize:vertical; }
+.p-review-form .rf-submit { margin-top:10px; background:var(--green); color:#fff; border:0; padding:10px 20px; border-radius:8px; font-weight:700; font-size:.95rem; cursor:pointer; }
+</style>
 </head>
 <body>
 <a href="#main" class="skip-link">Перейти до вмісту</a>
@@ -326,47 +424,191 @@ export async function onRequest(context) {
     <a href="tel:+380634625206" data-site-call class="nav-call" aria-label="Подзвонити в магазин">☎ Подзвонити</a>
   </div>
 </nav></header>
-<main id="main" class="container" style="max-width:900px;">
-  <div class="breadcrumb" style="font-size:.85rem;color:#777;margin:12px 0;">
+
+<main id="main" class="container" style="max-width:920px;">
+
+  <!-- Хлібні крихти -->
+  <nav class="breadcrumb" aria-label="Навігація" style="font-size:.83rem;color:#999;margin:12px 0 0;">
     <a href="/index.html" style="color:var(--green);">Каталог</a> ›
-    <a href="${esc(catUrl)}" style="color:var(--green);">${esc(p.category || '')}</a> › <span>${esc(displayName)}</span>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;align-items:start;">
-    <div>${imgHtml}</div>
-    <div>
-      <h1 style="font-size:1.4rem;color:#1a2e1a;line-height:1.3;margin:0 0 6px;">${esc(displayName)}</h1>
-      ${p.brand ? `<div style="text-transform:uppercase;color:#999;font-size:.78rem;letter-spacing:.05em;margin-bottom:10px;">${esc(p.brand)}</div>` : ''}
-      ${shareBlock}
-      <div class="price" style="font-size:1.6rem;margin:8px 0;">${priceHtml}</div>
-      ${variantSelector}
-      <div style="margin:8px 0 14px;">
-        ${inStock ? '<span style="background:#d4edda;color:#155724;padding:3px 10px;border-radius:10px;font-size:.8rem;font-weight:600;">✅ в наявності</span>'
-                  : '<span style="background:#f8d7da;color:#721c24;padding:3px 10px;border-radius:10px;font-size:.8rem;font-weight:600;">❌ немає</span>'}
+    <a href="${esc(catUrl)}" style="color:var(--green);">${esc(p.category || '')}</a> ›
+    <span>${esc(displayName)}</span>
+  </nav>
+
+  <!-- Основний грід: фото | інфо -->
+  <div class="p-layout">
+
+    <!-- Галерея -->
+    <div class="p-gallery">
+      ${mainSrc
+        ? `<img id="pmain" src="${esc(mainSrc)}" alt="${esc(displayName)}" onerror="this.style.display='none';document.getElementById('pmain-fb').style.display='flex';">
+           <div id="pmain-fb" class="no-img" style="display:none;">🧪</div>
+           ${imgList.length > 1 ? `<div class="p-thumbs">${imgList.map((pth, i) => `<img src="${esc(toSrc(pth))}" alt="${esc(displayName)} — фото ${i+1}" loading="lazy" class="${i===0?'active':''}" onclick="setThumb(this,'${esc(toSrc(pth))}')">`).join('')}</div>` : ''}`
+        : `<div class="no-img">🧪</div>`}
+    </div>
+
+    <!-- Права колонка -->
+    <div class="p-info">
+      ${p.brand ? `<div class="p-brand">${esc(p.brand)}</div>` : ''}
+      <h1 class="p-title">${esc(displayName)}</h1>
+
+      <!-- Ціна -->
+      <div class="p-price">
+        ${onSale
+          ? `<span class="old">${Number(p.price).toFixed(2)} грн</span><span class="sale-val">${Number(p.sale_price).toFixed(2)} грн</span>${weight ? ' <small>/кг</small>' : ''}<span class="sale-badge">🏷️ Акція${p.sale_until ? ' до ' + fmtD(p.sale_until) : ''}</span>`
+          : `${price} грн${weight ? ' <small>/кг</small>' : ''}`}
       </div>
-      ${addBlock}
-      <div id="after-add" style="display:none; margin-top:12px; gap:10px; flex-wrap:wrap;">
-        <a href="/index.html#order" class="btn" style="display:inline-block; text-decoration:none; text-align:center; max-width:240px;">✅ Оформити замовлення</a>
-        <a id="tocart" href="/index.html#cart" style="display:inline-block; padding:11px 0; color:var(--green); font-weight:700; text-decoration:none;">🛒 Перейти в кошик →</a>
+
+      <!-- Фасовки -->
+      ${variantSelector ? `<div class="p-variants">${variantSelector}</div>` : ''}
+
+      <!-- Наявність -->
+      <div class="p-stock ${inStock ? 'in' : 'out'}">
+        ${inStock ? '✅ В наявності' : '❌ Немає в наявності'}
       </div>
-      <div style="background:#f1f7ee;border:1px solid #dbe8d2;border-radius:10px;padding:12px 14px;margin-top:16px;font-size:.88rem;line-height:1.75;color:#2c3e2c;">
+
+      <!-- Кнопка «Додати» / лічильник кількості -->
+      <div class="p-add-row">
+        ${!inStock ? ''
+          : weight
+            ? `<div class="p-qty-label">Кількість (кг):</div>
+               <div class="p-qty">
+                 <button type="button" onclick="pqtyChange(-1)">&#8722;</button>
+                 <input id="pqty" type="number" value="1" step="0.5" min="0.5" inputmode="decimal">
+                 <button type="button" onclick="pqtyChange(1)">+</button>
+               </div>`
+            : (divisible && divisor
+                ? `<div class="p-qty-label">Кількість (кратно ${divisor}):</div>
+                   <div class="p-qty">
+                     <button type="button" onclick="pqtyChange(-1)">&#8722;</button>
+                     <input id="pqty" type="number" value="${divisor}" step="${divisor}" min="${divisor}">
+                     <button type="button" onclick="pqtyChange(1)">+</button>
+                   </div>`
+                : '')}
+        <div class="p-cta">
+          ${inStock
+            ? `<button class="btn" id="addbtn" onclick="addToCart()">🛒 Додати в кошик</button>`
+            : `<div class="oos-badge">Немає в наявності</div>`}
+          <div class="p-after" id="after-add">
+            <a href="/index.html#order" class="btn" style="text-decoration:none;">✅ Оформити замовлення</a>
+            <a href="/index.html#cart" class="go">🛒 До кошика →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Поділитися -->
+      <div class="share-wrap">
+        <button type="button" class="share-btn" id="share-btn" onclick="shareProduct(event)" aria-haspopup="true">↗ Поділитися</button>
+        <div class="share-menu" id="share-menu">
+          <a href="${shTg}" target="_blank" rel="noopener" style="color:#0088cc;">✈️ Telegram</a>
+          <a href="${shVb}" style="color:#7360f2;">📲 Viber</a>
+          <a href="${shFb}" target="_blank" rel="noopener" style="color:#1877f2;">f&nbsp; Facebook</a>
+          <a href="#" id="share-copy" onclick="shareCopy(event)" style="color:#444;">🔗 Копіювати посилання</a>
+        </div>
+      </div>
+
+      <!-- Доставка / контакти -->
+      <div class="p-delivery">
         <div>🚚 <b>Доставка:</b> Нова Пошта, Укрпошта</div>
         ${s_addr ? `<div>🏪 <b>Самовивіз:</b> ${esc(s_addr)}</div>` : ''}
         <div>💳 <b>Оплата:</b> готівка або на картку</div>
-        <div>📞 <b>Консультація:</b> <a href="tel:+380634625206" data-site-call style="color:var(--green);font-weight:700;text-decoration:none;">${esc(s_phone)}</a>${s_viber ? ` · <a href="viber://chat?number=%2B${esc(s_viber)}" style="color:#7360f2;font-weight:700;text-decoration:none;">📲 Viber</a>` : ''} — питайте перед замовленням</div>
+        <div>📞 <b>Консультація:</b>
+          <a href="tel:+380634625206" data-site-call>${esc(s_phone)}</a>${s_viber ? ` · <a href="viber://chat?number=%2B${esc(s_viber)}" style="color:#7360f2;">📲 Viber</a>` : ''} — питайте перед замовленням</div>
       </div>
     </div>
-  </div>
-  ${aing ? `<div style="margin-top:18px;color:#333"><b>${aing.indexOf(' + ') >= 0 ? 'Діючі речовини' : 'Діюча речовина'}:</b> ${esc(aing)}</div>` : ''}
-  ${p.annotation ? `<div style="margin-top:14px;line-height:1.65;color:#444;border-left:3px solid var(--gl);padding-left:14px;max-width:760px;">${esc(p.annotation)}</div>` : ''}
-  ${p.dosage ? `<div style="background:#fff9e6;border:1px solid #f0e0b0;border-radius:10px;padding:12px 14px;margin-top:14px;max-width:760px;font-size:.92rem;line-height:1.6;color:#5a4a1a;">
-    <div>💧 <b>Дозування:</b> ${esc(p.dosage)}</div>
-    <div id="dose-calc" style="display:none;margin-top:8px;">🧮 На <input id="dose-vol" type="number" min="0" step="1" value="10" inputmode="decimal" style="width:66px;padding:5px 7px;border:1.5px solid #d4b96a;border-radius:6px;text-align:center;font-weight:700;font-size:.95rem;"> л води потрібно <b style="color:var(--green);"><span id="dose-out">—</span> <span id="dose-unit"></span></b></div>
+  </div><!-- /p-layout -->
+
+  <!-- Діюча речовина -->
+  ${aing ? `<div class="p-section">
+    <h2>🔬 Склад</h2>
+    <div class="p-ai">
+      <span>${aing.indexOf(' + ') >= 0 ? 'Діючі речовини' : 'Діюча речовина'}:</span>
+      <strong>${esc(aing)}</strong>
+    </div>
   </div>` : ''}
-  <div style="margin-top:28px;"><a href="${esc(catUrl)}" style="color:var(--green);">← Усі товари категорії «${esc(p.category || '')}»</a></div>
-  ${analogsHtml}
-  ${reviewsHtml}
-  ${relatedHtml}
+
+  <!-- Анотація / опис -->
+  ${p.annotation ? `<div class="p-section">
+    <h2>📋 Опис</h2>
+    <div class="p-desc">${esc(p.annotation)}</div>
+  </div>` : ''}
+
+  <!-- Дозування + калькулятор -->
+  ${p.dosage ? `<div class="p-section">
+    <h2>💧 Дозування</h2>
+    <div class="p-dosage">
+      <div class="dose-text">${esc(p.dosage)}</div>
+      <div class="p-dose-calc" id="dose-calc">
+        🧮 На <input id="dose-vol" type="number" min="0" step="1" value="10" inputmode="decimal"> л води —
+        <span class="result"><span id="dose-out">—</span> <span id="dose-unit"></span></span>
+      </div>
+    </div>
+  </div>` : ''}
+
+  <!-- Посилання назад -->
+  <div style="margin-top:28px;">
+    <a href="${esc(catUrl)}" style="color:var(--green);font-size:.9rem;">← Усі товари категорії «${esc(p.category || '')}»</a>
+  </div>
+
+  <!-- Аналоги -->
+  ${analogs.length ? `<div class="p-section" style="max-width:none;">
+    <h2>🔄 Аналоги <span style="font-weight:400;color:#888;font-size:.88rem;">(${aing.indexOf(' + ') >= 0 ? 'діючі речовини' : 'діюча речовина'}: ${esc(aing)})</span></h2>
+    <div class="rel-grid">${analogs.map(r => relCard(r, '🧪')).join('')}</div>
+  </div>` : ''}
+
+  <!-- Відгуки -->
+  <div class="p-section" style="max-width:760px;">
+    <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} · ${revCount}` : ''}</h2>
+
+    ${thanks ? '<div style="background:#eef6ee;border:1px solid #cfe3c0;border-radius:8px;padding:10px;margin-bottom:10px;color:var(--green);">✅ Дякуємо! Відгук з\'явиться після перевірки.</div>' : ''}
+    ${robot  ? '<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px;margin-bottom:10px;color:#922;">⚠️ Не вдалося підтвердити, що ви не робот. Спробуйте ще раз.</div>' : ''}
+
+    ${revCount ? reviews.map(r => `<div class="p-review-card">
+      <div>
+        <span class="rc-author">${esc(r.name || 'Покупець')}</span>
+        <span class="rc-stars">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5-(r.rating||5))}</span>
+        <span class="rc-date">${esc(r.created_at || '')}</span>
+      </div>
+      <div class="rc-text">${esc(r.text)}</div>
+    </div>`).join('') : ''}
+
+    <a href="#leave-review" class="p-review-cta">
+      <span class="ico">⭐</span>
+      <span><b>${revCount ? 'Купували цей товар?' : 'Будьте першим!'}</b> Поділіться враженням — це 20 секунд і допоможе іншим.
+      <b style="color:var(--green);">✍️ Написати відгук →</b></span>
+    </a>
+
+    <form id="leave-review" class="p-review-form" method="POST" action="/api/review">
+      <input type="hidden" name="pid" value="${p.pid}">
+      <input type="hidden" name="slug" value="${esc(p.slug)}">
+      <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+      <div class="rf-title">Залишити відгук</div>
+      <div class="rf-row">
+        <input type="text" name="name" placeholder="Ваше ім'я" maxlength="80">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.9rem;">Оцінка:
+          <select name="rating">
+            <option value="5">★★★★★</option>
+            <option value="4">★★★★☆</option>
+            <option value="3">★★★☆☆</option>
+            <option value="2">★★☆☆☆</option>
+            <option value="1">★☆☆☆☆</option>
+          </select>
+        </label>
+      </div>
+      <textarea name="text" required placeholder="Ваш відгук про товар" maxlength="2000" rows="4"></textarea>
+      ${s_tskey ? `<div class="cf-turnstile" data-sitekey="${esc(s_tskey)}" style="margin-top:10px;"></div>` : ''}
+      <button type="submit" class="rf-submit">Надіслати відгук</button>
+    </form>
+    ${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
+  </div>
+
+  <!-- Схожі товари -->
+  ${related.length ? `<div class="p-section" style="max-width:none;">
+    <h2>🛒 Схожі товари</h2>
+    <div class="rel-grid">${related.map(r => relCard(r, '🛒')).join('')}</div>
+  </div>` : ''}
+
 </main>
+
 <nav class="bottom-nav" aria-label="Швидка навігація">
   <a href="/index.html" class="bn-item"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
   <a href="/index.html" class="bn-item"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
@@ -374,66 +616,92 @@ export async function onRequest(context) {
   <a href="/contacts.html" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
 </nav>
 <div id="site-footer"></div>
+
 <script>
-// Поділитися: на мобільному — рідне меню (navigator.share), інакше — фолбек-меню
+// ── Мініатюри галереї ──
+function setThumb(el, src){
+  var m=document.getElementById('pmain'); if(m){ m.src=src; m.style.display=''; }
+  var fb=document.getElementById('pmain-fb'); if(fb) fb.style.display='none';
+  document.querySelectorAll('.p-thumbs img').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+}
+
+// ── Поділитися ──
 function shareProduct(e){ e.preventDefault();
   if(navigator.share){ navigator.share({title:document.title, url:location.href}).catch(function(){}); return; }
   var m=document.getElementById('share-menu'); if(m) m.style.display=(m.style.display==='block')?'none':'block';
 }
 function shareCopy(e){ e.preventDefault();
-  try{ navigator.clipboard.writeText(location.href); }catch(_){ try{var t=document.createElement('textarea');t.value=location.href;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}catch(__){} }
+  try{ navigator.clipboard.writeText(location.href); }catch(_){
+    try{ var t=document.createElement('textarea'); t.value=location.href; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }catch(__){} }
   var el=document.getElementById('share-copy'); if(el){ var o=el.textContent; el.textContent='✓ Скопійовано'; setTimeout(function(){el.textContent=o;},1500); }
 }
-document.addEventListener('click', function(e){ var m=document.getElementById('share-menu'); if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none'; });
+document.addEventListener('click', function(e){
+  var m=document.getElementById('share-menu');
+  if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none';
+});
+
+// ── Дані товару ──
 window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c')};
 var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
+
+// ── Калькулятор дозування ──
 (function(){
-  if(!DC) return; var box=document.getElementById('dose-calc'); if(!box) return;
-  var u=document.getElementById('dose-unit'), inp=document.getElementById('dose-vol'), out=document.getElementById('dose-out');
+  if(!DC) return;
+  var box=document.getElementById('dose-calc'); if(!box) return;
+  var inp=document.getElementById('dose-vol'), out=document.getElementById('dose-out'), u=document.getElementById('dose-unit');
   if(u) u.textContent=DC.unit;
-  function calc(){ var v=parseFloat(String(inp.value).replace(',','.'))||0; out.textContent=Math.round(DC.amount*v/DC.per*100)/100; }
-  if(inp&&out){ inp.addEventListener('input', calc); calc(); box.style.display='block'; }
+  function calc(){ var v=parseFloat(String(inp.value).replace(',','.'))||0; out.textContent=v?Math.round(DC.amount*v/DC.per*100)/100:'—'; }
+  if(inp&&out){ inp.addEventListener('input',calc); calc(); box.style.display='flex'; }
 })();
+
+// ── Лічильник кількості ──
 function pqtyChange(dir){
-  var step=window.__P.div||1;
+  var step=window.__P.div||( window.__P.w ? 0.5 : 1 );
   var i=document.getElementById('pqty'); if(!i) return;
   var v=Math.round((parseFloat(i.value)||step)*1000)/1000;
   v=Math.round((v+dir*step)*1000)/1000;
   if(v<step) v=step;
   i.value=v;
 }
+
+// ── Додати в кошик ──
 function addToCart(){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=window.__P.n, price=window.__P.p, q=1;
-  if(window.__P.w){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||1; if(q<=0)q=1; name=name+' (кг)'; }
-  else if(window.__P.div){ var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||window.__P.div; if(q<=0)q=window.__P.div; }
-  var it=cart.find(function(x){return x.n===name});
-  if(it){ it.q = (window.__P.w||window.__P.div) ? Math.round((it.q+q)*1000)/1000 : it.q+q; } else { cart.push({n:name,p:price,q:q,pid:window.__P.pid,div:window.__P.div||null}); }
-  localStorage.setItem(KEY, JSON.stringify(cart));
+  if(window.__P.w){
+    var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||1; if(q<=0)q=1; name=name+' (кг)';
+  } else if(window.__P.div){
+    var i=document.getElementById('pqty'); q=parseFloat(i&&i.value)||window.__P.div; if(q<=0)q=window.__P.div;
+  }
+  var it=cart.find(function(x){return x.n===name;});
+  if(it){ it.q=(window.__P.w||window.__P.div)?Math.round((it.q+q)*1000)/1000:it.q+1; }
+  else   { cart.push({n:name,p:price,q:q,pid:window.__P.pid,div:window.__P.div||null}); }
+  localStorage.setItem(KEY,JSON.stringify(cart));
   var b=document.getElementById('addbtn'); if(b){ b.textContent='✓ Додано!'; b.style.background='#1a3a1a'; }
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
 }
-// Додати супутній/аналог у кошик напряму (дані з data-атрибутів кнопки)
+
+// ── Картки аналогів/супутніх ──
 function addRel(btn){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=btn.getAttribute('data-n'), price=parseFloat(btn.getAttribute('data-p'))||0;
-  var pidRaw=btn.getAttribute('data-pid'), pid=pidRaw?parseInt(pidRaw,10):null;
-  var it=cart.find(function(x){return x.n===name});
+  var pid=btn.getAttribute('data-pid'); pid=pid?parseInt(pid,10):null;
+  var it=cart.find(function(x){return x.n===name;});
   if(it){ it.q+=1; } else { cart.push({n:name,p:price,q:1,pid:pid}); }
-  localStorage.setItem(KEY, JSON.stringify(cart));
+  localStorage.setItem(KEY,JSON.stringify(cart));
   btn.textContent='✓ Додано'; btn.style.background='#1a3a1a';
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
   markRelInCart();
 }
-// Бейдж «вже в кошику» на картках аналогів/супутніх (як у каталозі)
 function markRelInCart(){
   var cart; try{cart=JSON.parse(localStorage.getItem('agronom_cart'))||[]}catch(e){cart=[]}
   document.querySelectorAll('.rel-card').forEach(function(card){
     var n=card.getAttribute('data-n');
-    var it=cart.find(function(x){return x.n===n});
+    var it=cart.find(function(x){return x.n===n;});
     var badge=card.querySelector('.rel-badge');
     if(it){
-      if(badge){ var q=it.q; badge.textContent='🛒 '+(q%1===0?q:q.toFixed(2))+' у кошику'; badge.style.display='block'; }
+      if(badge){ badge.textContent='🛒 '+(it.q%1===0?it.q:it.q.toFixed(2))+' у кошику'; badge.style.display='block'; }
       card.style.boxShadow='0 0 0 2px #ff7a00';
     } else {
       if(badge) badge.style.display='none';
