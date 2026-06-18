@@ -221,7 +221,7 @@ export async function onRequestGet(context) {
     const body = `<div class="nav"><a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, dup, badsku, ps, page }))}">← до списку</a></div>
     <h1>${esc(p.name)}</h1>
     <div class="muted">SKU ${esc(p.sku)} · ${esc(p.category||'')} · ${p.price} грн · ${p.in_stock?'<span class="ok">в наявності</span>':'<span class="no">немає</span>'} · <a href="/p/${esc(p.slug)}" target="_blank">/p/${esc(p.slug)} ↗</a></div>
-    <form class="row" method="POST" action="/admin/save" style="margin-top:12px;">
+    <form class="box" method="POST" action="/admin/save" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
       <input type="hidden" name="pid" value="${p.pid}">${hid}
       <div style="background:#fff8e1;border:1px solid #f0d98a;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:.82rem;color:#7a5d00">⚠️ Поля з 1С (назва, ціна, категорія, бренд, наявність) <b>перезапишуться при наступному імпорті 1С</b>. Для постійної знижки користуйтесь блоком «Акція».</div>
       ${dupCount > 0 ? `<div style="background:#fde8e8;border:1px solid #e57373;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:.82rem;color:#922">⚠️ Цей SKU мають ще <b>${dupCount}</b> товар(и) — це дубль. Дайте унікальний SKU, щоб розвести їх.</div>` : ''}
