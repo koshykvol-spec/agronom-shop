@@ -1,8 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /check_photos.html
+Disallow: /admin
+Disallow: /admin/
 
 Sitemap: https://agronom.pp.ua/sitemap.xml
-Sitemap: https://agronom.pp.ua/sitemap-v2.xml
-Sitemap: https://agronom.pp.ua/sitemap-main.xml
-Sitemap: https://agronom.pp.ua/sitemap-products.xml
