@@ -3,5 +3,6 @@ Allow: /
 Disallow: /check_photos.html
 Disallow: /admin
 Disallow: /admin/
+Disallow: /*?q=
 
 Sitemap: https://agronom.pp.ua/sitemap.xml
