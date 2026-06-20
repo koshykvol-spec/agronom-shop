@@ -89,7 +89,7 @@ export async function onRequestPost(context){
     const names = raw
       .split(/[\n,]+/)
       .map(s => s.trim())
-      .filter(Boolean);
+      .filter(s => s && !s.includes('"') && !s.includes(':') && !s.startsWith('{') && !s.startsWith('[') && s.length <= 120);
     if (!names.length) return new Response(JSON.stringify({ ok: false, error: 'Порожньо' }), { headers: { 'content-type': 'application/json' } });
     let added = 0, skipped = 0;
     for (const name of names) {
