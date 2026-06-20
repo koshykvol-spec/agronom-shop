@@ -724,24 +724,57 @@ function render(arr) {
     grid.innerHTML = cards.join('');
     updateCartBadges();
 
-    // Product JSON-LD для видимих карток — rich snippets (Task 7)
+    // Product JSON-LD для видимих карток — rich snippets
     var ldOld = document.getElementById('products-ldjson');
     if (ldOld) ldOld.remove();
     var ld = document.createElement('script');
     ld.type = 'application/ld+json';
     ld.id = 'products-ldjson';
+    var cfg = window.SITE_CONFIG || {};
+    var returnDays = (cfg.seo_return_days && parseInt(cfg.seo_return_days,10) > 0) ? parseInt(cfg.seo_return_days,10) : 14;
+    var shipCost   = (cfg.seo_ship_cost !== undefined && cfg.seo_ship_cost !== '') ? parseFloat(String(cfg.seo_ship_cost).replace(',','.')) : 0;
+    if (isNaN(shipCost) || shipCost < 0) shipCost = 0;
+    var origin = location.origin;
+    var canon  = origin + location.pathname + location.search;
     ld.textContent = JSON.stringify(slice.map(function (p) {
+        var effPrice = (typeof p.sale === 'number' && p.sale > 0 && p.sale < p.p) ? p.sale : p.p;
+        var imgAbs = p.img ? (p.img.startsWith('http') ? p.img : origin + '/' + p.img.replace(/^\//, '')) : undefined;
+        var desc = p.annot || p.n;
         return {
             "@context": "https://schema.org", "@type": "Product",
             "name": p.n,
-            "image": p.img || undefined,
+            "mpn": p.slug || undefined,
+            "description": desc,
+            "image": imgAbs || undefined,
+            "brand": p.b ? {"@type": "Brand", "name": p.b} : undefined,
             "offers": {
-                "@type": "Offer", "price": (typeof p.sale === 'number' && p.sale > 0 && p.sale < p.p) ? p.sale : p.p, "priceCurrency": "UAH",
-                "availability": p.inStock !== false
-                    ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+                "@type": "Offer",
+                "price": effPrice,
+                "priceCurrency": "UAH",
+                "url": p.slug ? (origin + '/p/' + p.slug) : canon,
+                "availability": p.inStock !== false ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                "hasMerchantReturnPolicy": {
+                    "@type": "MerchantReturnPolicy",
+                    "applicableCountry": "UA",
+                    "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                    "merchantReturnDays": returnDays,
+                    "returnMethod": "https://schema.org/ReturnByMail",
+                    "returnFees": "https://schema.org/ReturnShippingFees",
+                    "returnShippingFeesAmount": {"@type": "MonetaryAmount", "value": 0, "currency": "UAH"}
+                },
+                "shippingDetails": {
+                    "@type": "OfferShippingDetails",
+                    "shippingRate": {"@type": "MonetaryAmount", "value": shipCost, "currency": "UAH"},
+                    "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
+                    "deliveryTime": {
+                        "@type": "ShippingDeliveryTime",
+                        "handlingTime": {"@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY"},
+                        "transitTime": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 3, "unitCode": "DAY"}
+                    }
+                }
             }
         };
-    }));
+    })).replace(/</g, '\\u003c');
     document.head.appendChild(ld);
 
     renderCatalogPager(arr.length);
