@@ -69,7 +69,7 @@ async function recomputeImageOk(env, db, pid) {
   const prim = await db.prepare(`SELECT path FROM product_images WHERE pid=? ORDER BY sort, id LIMIT 1`).bind(pid).first();
   let ok = 0;
   if (prim && prim.path) {
-    try { ok = (await env.IMAGES.head(prim.path)) ? 1 : 0; } catch (e) { ok = 1; }
+    try { ok = (await env.IMAGES.head(prim.path)) ? 1 : 0; } catch (e) { ok = 0; }
   }
   await db.prepare(`UPDATE product_content SET image_ok=? WHERE pid=?`).bind(ok, pid).run();
 }
@@ -281,7 +281,7 @@ export async function onRequestGet(context) {
   const catRows = await db.prepare(`SELECT category c, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC`).all();
   const totalC = await db.prepare(`SELECT COUNT(*) n,
                                      SUM(CASE WHEN c.annotation='' THEN 1 ELSE 0 END) noa,
-                                     SUM(CASE WHEN c.image_ok=0 THEN 1 ELSE 0 END) noimg,
+                                     SUM(CASE WHEN COALESCE(c.image_ok, 0)=0 THEN 1 ELSE 0 END) noimg,
                                      SUM(CASE WHEN (c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) nodosage,
                                      SUM(CASE WHEN (c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) noai,
                                      SUM(CASE WHEN c.keywords IS NULL OR c.keywords='' THEN 1 ELSE 0 END) nokw
@@ -309,7 +309,7 @@ export async function onRequestGet(context) {
     where = '1'; // витягуємо всі, фільтруємо smartScore нижче
   }
   else if (noa) { where = "c.annotation=''"; }
-  else if (noimg) { where = "c.image_ok=0"; }
+  else if (noimg) { where = "COALESCE(c.image_ok,0)=0"; }
   else if (nodosage) { where = "(c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ'"; }
   else if (noai) { where = "(c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ'"; }
   else if (nokw) { where = "(c.keywords IS NULL OR c.keywords='')"; }
