@@ -49,12 +49,59 @@ export async function onRequestGet(context){
       <input name="name" placeholder="нова діюча речовина (напр. гліфосат)" style="flex:1" required>
       <button class="btn" type="submit">➕ Додати</button>
     </form>
+
+    <details style="margin:12px 0;border:1px solid #d4e8d4;border-radius:10px;background:#fafcf8;padding:10px 14px">
+      <summary style="cursor:pointer;font-weight:700;color:#2d6a2d">📥 Масове додавання речовин</summary>
+      <p class="muted" style="margin:8px 0 6px">Одна речовина на рядок (або через кому). Дублікати ігноруються.</p>
+      <textarea id="bulk-ta" style="min-height:100px;width:100%;box-sizing:border-box;border:1.5px solid #c8e0c8;border-radius:8px;padding:8px;font:inherit;font-size:.9rem" placeholder="імідаклоприд&#10;лямбда-цигалотрин&#10;гліфосат, малатіон, хлорпірифос"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button class="btn" onclick="bulkAdd()">➕ Додати всі</button>
+        <span id="bulk-s" class="muted"></span>
+      </div>
+      <div id="bulk-out" style="margin-top:8px;font-size:.88rem"></div>
+    </details>
+
+    <script>
+    async function bulkAdd(){
+      var raw=document.getElementById('bulk-ta').value.trim();
+      if(!raw){alert('Введіть назви речовин');return;}
+      document.getElementById('bulk-s').textContent='додаю…';
+      var r=await fetch('/admin/ingredients',{method:'POST',headers:{'content-type':'text/plain'},body:raw});
+      var d=await r.json().catch(function(){return{ok:false,error:'помилка'};});
+      document.getElementById('bulk-s').textContent='';
+      if(!d.ok){document.getElementById('bulk-out').innerHTML='<span style="color:#c0392b">❌ '+d.error+'</span>';return;}
+      document.getElementById('bulk-out').innerHTML='✅ Додано: <b>'+d.added+'</b>, вже існували: <b>'+d.skipped+'</b>';
+      if(d.added>0) setTimeout(function(){location.reload();},800);
+    }
+    </script>
+
     ${rows.length ? `<table><tr><th>Назва</th><th>Вжито</th><th></th></tr>${list}</table>` : '<p>Поки порожньо.</p>'}`;
   return new Response(PAGE(body), { headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
 
 export async function onRequestPost(context){
   const db = context.env.DB;
+  const ct = (context.request.headers.get('content-type') || '').toLowerCase();
+
+  // Масовий імпорт — plain text (одна речовина на рядок або через кому)
+  if (ct.includes('text/plain')) {
+    const raw = await context.request.text();
+    const names = raw
+      .split(/[\n,]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (!names.length) return new Response(JSON.stringify({ ok: false, error: 'Порожньо' }), { headers: { 'content-type': 'application/json' } });
+    let added = 0, skipped = 0;
+    for (const name of names) {
+      const existing = await db.prepare(`SELECT id FROM active_ingredients WHERE name=? COLLATE NOCASE`).bind(name).first();
+      if (existing) { skipped++; continue; }
+      await db.prepare(`INSERT INTO active_ingredients(name) VALUES(?)`).bind(name).run();
+      added++;
+    }
+    return new Response(JSON.stringify({ ok: true, added, skipped }), { headers: { 'content-type': 'application/json' } });
+  }
+
+  // Звичайний form POST (add / rename)
   const f = await context.request.formData();
   const op = f.get('op');
   const name = (f.get('name') || '').trim();
