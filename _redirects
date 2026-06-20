@@ -1,0 +1,2 @@
+# /index.html → / (301, щоб Google не бачив дві різні сторінки)
+/index.html https://agronom.pp.ua/ 301
