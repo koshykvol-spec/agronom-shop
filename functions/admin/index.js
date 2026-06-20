@@ -266,7 +266,69 @@ export async function onRequestGet(context) {
           <div style="flex:1;min-width:140px"><label>Діє до (дата)</label><input name="sale_until" type="date" value="${esc(p.sale_until||'')}"></div>
         </div>
       </div>
-      <div><label>Анотація</label><textarea name="annotation" rows="5">${esc(p.annotation)}</textarea></div>
+      <div>
+        <label>Анотація <span style="font-size:.78rem;color:#888;font-weight:400">(Markdown)</span></label>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
+          <button type="button" onclick="mdWrap('annotation','**','**')" title="Жирний" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-weight:700">Б</button>
+          <button type="button" onclick="mdWrap('annotation','*','*')" title="Курсив" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-style:italic">К</button>
+          <button type="button" onclick="mdLine('annotation','- ')" title="Список" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer">≡</button>
+          <button type="button" onclick="mdLine('annotation','1. ')" title="Нумерований список" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer">1.</button>
+          <button type="button" onclick="mdLine('annotation','### ')" title="Заголовок" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-weight:700">H</button>
+          <button type="button" onclick="mdPreview('annotation','anno-preview')" style="padding:3px 9px;border:1px solid #ccc;border-radius:5px;background:#f0f7f0;cursor:pointer">👁 Перегляд</button>
+        </div>
+        <textarea id="annotation" name="annotation" rows="8">${esc(p.annotation)}</textarea>
+        <div id="anno-preview" style="display:none;border:1px solid #cde8cd;border-radius:8px;padding:12px;margin-top:6px;background:#fafcf8;font-size:.93rem;line-height:1.7;color:#222"></div>
+      </div>
+      <script>
+      function mdWrap(id,pre,post){
+        var t=document.getElementById(id); if(!t)return;
+        var s=t.selectionStart,e=t.selectionEnd,v=t.value;
+        var sel=v.slice(s,e)||'текст';
+        t.value=v.slice(0,s)+pre+sel+post+v.slice(e);
+        t.selectionStart=s+pre.length; t.selectionEnd=s+pre.length+sel.length;
+        t.focus();
+      }
+      function mdLine(id,prefix){
+        var t=document.getElementById(id); if(!t)return;
+        var s=t.selectionStart,v=t.value;
+        var lineStart=v.lastIndexOf('\\n',s-1)+1;
+        var line=v.slice(lineStart);
+        var lineEnd=line.indexOf('\\n'); if(lineEnd<0)lineEnd=line.length;
+        // toggle: якщо вже є prefix — прибрати
+        var cur=v.slice(lineStart,lineStart+prefix.length);
+        if(cur===prefix){
+          t.value=v.slice(0,lineStart)+v.slice(lineStart+prefix.length);
+          t.selectionStart=t.selectionEnd=Math.max(s-prefix.length,lineStart);
+        } else {
+          t.value=v.slice(0,lineStart)+prefix+v.slice(lineStart);
+          t.selectionStart=t.selectionEnd=s+prefix.length;
+        }
+        t.focus();
+      }
+      function mdToHtml(md){
+        return md
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+          .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+          .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+          .replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>')
+          .replace(/\\*(.+?)\\*/g,'<em>$1</em>')
+          .replace(/^- (.+)$/gm,'<li>$1</li>')
+          .replace(/^\\d+\\. (.+)$/gm,'<li>$1</li>')
+          .replace(/(<li>.*<\\/li>)/gs,function(m){return '<ul>'+m+'</ul>';})
+          .replace(/\\n\\n+/g,'</p><p>')
+          .replace(/^(?!<[hulo])/gm,'')
+          .replace(/^(.+)$/gm,function(l){return /^<[hulo]/.test(l)?l:'<p>'+l+'</p>';})
+          .replace(/<p><\\/p>/g,'');
+      }
+      function mdPreview(id,previewId){
+        var t=document.getElementById(id), p=document.getElementById(previewId); if(!t||!p)return;
+        if(p.style.display==='none'){
+          p.innerHTML=mdToHtml(t.value)||'<span style="color:#aaa">Порожньо</span>';
+          p.style.display='block';
+        } else { p.style.display='none'; }
+      }
+      </script>
       <div><label>Ключові слова (пошук)</label><input name="keywords" value="${esc(p.keywords)}"></div>
       <div><label>SEO title</label><input name="meta_title" value="${esc(p.meta_title)}"></div>
       <div><label>SEO description</label><input name="meta_desc" value="${esc(p.meta_desc)}"></div>
