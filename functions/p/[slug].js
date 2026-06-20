@@ -112,24 +112,32 @@ export async function onRequest(context) {
   } catch (e) {}
   const catUrl = catKey ? ('/category.html?cat=' + catKey) : '/index.html';
 
+  // image: лише валідні абсолютні URL реальних фото товару (не fallback-іконка)
+  const ldImages = imgList.map(toAbs).filter(u => u && u.startsWith('http'));
+  // description: annotation → meta_desc → генерований текст (не може бути порожнім)
+  const ldDesc = (p.annotation || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
+
   const jsonld = {
     '@context': 'https://schema.org', '@type': 'Product',
-    name: displayName, sku: p.sku, category: p.category,
+    name: displayName,
+    sku: p.sku,
+    mpn: p.sku,   // глобальний ідентифікатор (manufacturer part number = SKU)
+    category: p.category,
     brand: p.brand ? { '@type': 'Brand', name: p.brand } : undefined,
-    image: imgList.length ? imgList.map(toAbs) : undefined,
-    description: (p.annotation || '').slice(0, 500) || undefined,
+    image: ldImages.length ? ldImages : undefined,
+    description: ldDesc,
     offers: {
       '@type': 'Offer', price: effPrice, priceCurrency: 'UAH', url: canonical,
       priceValidUntil: (onSale && p.sale_until) ? p.sale_until : undefined,
       availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      // Рекомендовані Google поля (Merchant listings): політика повернення + доставка
       hasMerchantReturnPolicy: {
         '@type': 'MerchantReturnPolicy',
         applicableCountry: 'UA',
         returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
         merchantReturnDays: seoReturnDays,
         returnMethod: 'https://schema.org/ReturnByMail',
-        returnFees: 'https://schema.org/ReturnShippingFees'
+        returnFees: 'https://schema.org/ReturnShippingFees',
+        returnShippingFeesAmount: { '@type': 'MonetaryAmount', value: 0, currency: 'UAH' }
       },
       shippingDetails: {
         '@type': 'OfferShippingDetails',
