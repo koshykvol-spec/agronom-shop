@@ -371,7 +371,11 @@ export async function onRequest(context) {
 .p-section  { margin-top:28px; max-width:760px; }
 .p-section h2 { font-size:1.05rem; font-weight:800; color:var(--text); border-bottom:2px solid #e6f0e6; padding-bottom:6px; margin:0 0 12px; }
 
-.p-desc     { font-size:.96rem; line-height:1.75; color:#333; white-space:pre-line; }
+.p-desc     { font-size:.96rem; line-height:1.75; color:#333; }
+.p-desc h1,.p-desc h2,.p-desc h3 { font-size:1rem; font-weight:700; margin:10px 0 4px; color:#1a3e1a; }
+.p-desc ul  { padding-left:1.3em; margin:6px 0; }
+.p-desc li  { margin-bottom:3px; }
+.p-desc p   { margin:0 0 8px; }
 .p-ai       { display:inline-flex; align-items:center; gap:8px; background:#eef5ee; border:1px solid #cde8cd; border-radius:8px; padding:7px 13px; font-size:.88rem; color:#1a3e1a; }
 .p-ai strong { color:var(--green); }
 
@@ -537,7 +541,24 @@ export async function onRequest(context) {
   <!-- Анотація / опис -->
   ${p.annotation ? `<div class="p-section">
     <h2>📋 Опис</h2>
-    <div class="p-desc">${esc(p.annotation)}</div>
+    <div class="p-desc" id="p-annotation"></div>
+    <script>(function(){
+      var md=${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
+      function mdToHtml(t){
+        return t
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+          .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+          .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g,'<em>$1</em>')
+          .replace(/(^|\n)((?:- .+\n?)+)/g,function(_,pre,block){return pre+'<ul>'+block.replace(/^- (.+)$/gm,'<li>$1</li>')+'</ul>';})
+          .replace(/(^|\n)((?:\d+\. .+\n?)+)/g,function(_,pre,block){return pre+'<ol>'+block.replace(/^\d+\. (.+)$/gm,'<li>$1</li>')+'</ol>';})
+          .split(/\n\n+/).map(function(b){return /^<[huo]/.test(b.trim())?b:'<p>'+b.replace(/\n/g,'<br>')+'</p>';}).join('');
+      }
+      var el=document.getElementById('p-annotation');
+      if(el) el.innerHTML=mdToHtml(md);
+    })();</script>
   </div>` : ''}
 
   <!-- Дозування + калькулятор -->
