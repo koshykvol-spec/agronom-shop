@@ -52,7 +52,16 @@ export async function onRequestGet(context){
 
     <details style="margin:12px 0;border:1px solid #d4e8d4;border-radius:10px;background:#fafcf8;padding:10px 14px">
       <summary style="cursor:pointer;font-weight:700;color:#2d6a2d">📥 Масове додавання речовин</summary>
-      <p class="muted" style="margin:8px 0 6px">Одна речовина на рядок (або через кому). Дублікати ігноруються.</p>
+      <p class="muted" style="margin:8px 0 4px">Одна речовина на рядок (або через кому). Дублікати ігноруються.</p>
+
+      <div style="background:#eef5ee;border:1px solid #c8e0c8;border-radius:8px;padding:10px;margin-bottom:10px">
+        <b>⚡ Синхронізувати з товарів</b>
+        <p class="muted" style="margin:4px 0 8px">Витягує всі унікальні значення поля «Діюча речовина» з карток товарів і додає їх до довідника. Запускай після масового заповнення через /admin/aifill.</p>
+        <button class="btn" onclick="syncFromProducts()">🔄 Синхронізувати</button>
+        <span id="sync-s" class="muted" style="margin-left:8px"></span>
+        <div id="sync-out" style="margin-top:8px;font-size:.88rem"></div>
+      </div>
+
       <textarea id="bulk-ta" style="min-height:100px;width:100%;box-sizing:border-box;border:1.5px solid #c8e0c8;border-radius:8px;padding:8px;font:inherit;font-size:.9rem" placeholder="імідаклоприд&#10;лямбда-цигалотрин&#10;гліфосат, малатіон, хлорпірифос"></textarea>
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
         <button class="btn" onclick="bulkAdd()">➕ Додати всі</button>
@@ -62,6 +71,15 @@ export async function onRequestGet(context){
     </details>
 
     <script>
+    async function syncFromProducts(){
+      document.getElementById('sync-s').textContent='синхронізую…';
+      var r=await fetch('/admin/ingredients',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:'op=sync'});
+      var d=await r.json().catch(function(){return{ok:false,error:'помилка'};});
+      document.getElementById('sync-s').textContent='';
+      if(!d.ok){document.getElementById('sync-out').innerHTML='<span style="color:#c0392b">❌ '+d.error+'</span>';return;}
+      document.getElementById('sync-out').innerHTML='✅ Додано нових: <b>'+d.added+'</b>, вже існували: <b>'+d.skipped+'</b>'+(d.examples?'<br><span class="muted">Приклади нових: '+d.examples+'</span>':'');
+      if(d.added>0) setTimeout(function(){location.reload();},1200);
+    }
     async function bulkAdd(){
       var raw=document.getElementById('bulk-ta').value.trim();
       if(!raw){alert('Введіть назви речовин');return;}
@@ -105,6 +123,35 @@ export async function onRequestPost(context){
   const f = await context.request.formData();
   const op = f.get('op');
   const name = (f.get('name') || '').trim();
+
+  if (op === 'sync') {
+    // Витягуємо всі унікальні active_ingredient з product_content
+    // Поле може містити кілька речовин через " + " або ", " — розбиваємо
+    const src = (await db.prepare(
+      `SELECT DISTINCT active_ingredient FROM product_content
+       WHERE active_ingredient IS NOT NULL AND active_ingredient != ''`
+    ).all()).results || [];
+    const existing = new Set(
+      ((await db.prepare(`SELECT name FROM active_ingredients`).all()).results || [])
+        .map(r => r.name.trim().toLowerCase())
+    );
+    let added = 0, skipped = 0;
+    const examples = [];
+    for (const row of src) {
+      // розбиваємо "речовина1 + речовина2, речовина3"
+      const parts = row.active_ingredient.split(/\s*[+,;]\s*/).map(s => s.trim()).filter(Boolean);
+      for (const name of parts) {
+        if (!name || name.includes('"') || name.includes(':') || name.length > 120) continue;
+        if (existing.has(name.toLowerCase())) { skipped++; continue; }
+        await db.prepare(`INSERT INTO active_ingredients(name) VALUES(?)`).bind(name).run();
+        existing.add(name.toLowerCase());
+        if (examples.length < 5) examples.push(name);
+        added++;
+      }
+    }
+    return new Response(JSON.stringify({ ok: true, added, skipped, examples: examples.join(', ') }),
+      { headers: { 'content-type': 'application/json' } });
+  }
 
   if (op === 'add' && name){
     await db.prepare(`INSERT OR IGNORE INTO active_ingredients(name) VALUES(?)`).bind(name).run();
