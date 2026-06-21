@@ -63,9 +63,9 @@ export async function onRequest(context) {
       variantSelector = '<div style="margin:10px 0 6px"><div style="font-size:.85rem;color:#777;margin-bottom:6px">Фасовка <span style="color:#aaa">(ціна за варіант):</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">'
         + sibs.map(s => {
             const cur = s.slug === p.slug, oos = s.in_stock === 0;
-            const st = `display:inline-flex;flex-direction:column;align-items:center;line-height:1.25;padding:7px 13px;border-radius:8px;border:2px solid ${cur ? 'var(--green)' : '#ccc'};text-decoration:none;${cur ? 'background:var(--green);color:#fff;' : 'color:var(--text);'}${oos ? 'opacity:.5;' : ''}`;
+            const st = `display:inline-flex;flex-direction:column;align-items:center;line-height:1.25;padding:7px 13px;border-radius:8px;border:2px solid ${cur ? '#2d6a2d' : '#ccc'};text-decoration:none;${cur ? 'background:#2d6a2d;color:#fff;' : 'color:#222;'}${oos ? 'opacity:.5;' : ''}`;
             const lbl = `<b style="font-size:.92rem">${esc(s.variant_label || '—')}${oos ? ' ✕' : ''}</b>`;
-            const pr = `<span style="font-size:.78rem;${cur ? 'color:#dfeede;' : 'color:var(--green);'}font-weight:700">${oos ? 'немає' : (Number(s.price).toFixed(2) + ' грн')}</span>`;
+            const pr = `<span style="font-size:.78rem;${cur ? 'color:#dfeede;' : 'color:#2d6a2d;'}font-weight:700">${oos ? 'немає' : (Number(s.price).toFixed(2) + ' грн')}</span>`;
             return cur ? `<span style="${st}">${lbl}${pr}</span>` : `<a href="/p/${esc(s.slug)}" style="${st}">${lbl}${pr}</a>`;
           }).join('')
         + '</div></div>';
