@@ -342,7 +342,7 @@ export async function onRequestGet(context) {
   // ── категорії ──
   const catRows = await db.prepare(`SELECT category c, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC`).all();
   const totalC = await db.prepare(`SELECT COUNT(*) n,
-                                     SUM(CASE WHEN c.annotation='' THEN 1 ELSE 0 END) noa,
+                                     SUM(CASE WHEN COALESCE(c.annotation,'')='' THEN 1 ELSE 0 END) noa,
                                      SUM(CASE WHEN COALESCE(c.image_ok, 0)=0 THEN 1 ELSE 0 END) noimg,
                                      SUM(CASE WHEN (c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) nodosage,
                                      SUM(CASE WHEN (c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) noai,
@@ -370,7 +370,7 @@ export async function onRequestGet(context) {
   if (q) {
     where = '1'; // витягуємо всі, фільтруємо smartScore нижче
   }
-  else if (noa) { where = "c.annotation=''"; }
+  else if (noa) { where = "COALESCE(c.annotation,'')=''"; }
   else if (noimg) { where = "COALESCE(c.image_ok,0)=0"; }
   else if (nodosage) { where = "(c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ'"; }
   else if (noai) { where = "(c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ'"; }
@@ -423,7 +423,7 @@ export async function onRequestGet(context) {
     if (q) {
       const qtokens = normS(q).split(' ').filter(Boolean);
       const allRows = (await db.prepare(
-        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
+        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(COALESCE(c.annotation,'')!='') hasA,c.visible,c.image_ok
            FROM products p JOIN product_content c ON c.pid=p.pid
           ORDER BY COALESCE(NULLIF(c.display_name,''), p.name)`).all()).results || [];
       const scored = allRows
@@ -435,7 +435,7 @@ export async function onRequestGet(context) {
     } else {
       total = (await db.prepare(`SELECT COUNT(*) n FROM products p JOIN product_content c ON c.pid=p.pid WHERE ${where}`).bind(...binds).first()).n;
       rows = (await db.prepare(
-        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(c.annotation!='') hasA,c.visible,c.image_ok
+        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(COALESCE(c.annotation,'')!='') hasA,c.visible,c.image_ok
            FROM products p JOIN product_content c ON c.pid=p.pid
           WHERE ${where} ORDER BY COALESCE(NULLIF(c.display_name,''), p.name) LIMIT ? OFFSET ?`).bind(...binds, ps, (page - 1) * ps).all()).results || [];
     }
