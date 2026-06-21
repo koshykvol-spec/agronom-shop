@@ -544,17 +544,38 @@ export async function onRequest(context) {
     <div class="p-desc" id="p-annotation"></div>
     <script>(function(){
       var md=${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
+      function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
       function mdToHtml(t){
-        return t
-          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-          .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-          .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+        // Розбиваємо на блоки по подвійному переносу
+        return t.split(/\n\n+/).map(function(block){
+          var b = block.trim();
+          if(!b) return '';
+          // Заголовки
+          if(/^### /.test(b)) return '<h3>'+esc(b.slice(4))+'</h3>';
+          if(/^## /.test(b))  return '<h2>'+esc(b.slice(3))+'</h2>';
+          if(/^# /.test(b))   return '<h1>'+esc(b.slice(2))+'</h1>';
+          // Маркований список
+          if(/^- /m.test(b)){
+            var items=b.split('\n').filter(function(l){return l.trim();}).map(function(l){
+              return '<li>'+inl(l.replace(/^-\s*/,''))+'</li>';
+            });
+            return '<ul>'+items.join('')+'</ul>';
+          }
+          // Нумерований список
+          if(/^\d+\. /m.test(b)){
+            var items=b.split('\n').filter(function(l){return l.trim();}).map(function(l){
+              return '<li>'+inl(l.replace(/^\d+\.\s*/,''))+'</li>';
+            });
+            return '<ol>'+items.join('')+'</ol>';
+          }
+          // Звичайний абзац
+          return '<p>'+b.split('\n').map(function(l){return inl(l);}).join('<br>')+'</p>';
+        }).join('');
+      }
+      function inl(t){
+        return esc(t)
           .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-          .replace(/\*(.+?)\*/g,'<em>$1</em>')
-          .replace(/(^|\n)((?:- .+\n?)+)/g,function(_,pre,block){return pre+'<ul>'+block.replace(/^- (.+)$/gm,'<li>$1</li>')+'</ul>';})
-          .replace(/(^|\n)((?:\d+\. .+\n?)+)/g,function(_,pre,block){return pre+'<ol>'+block.replace(/^\d+\. (.+)$/gm,'<li>$1</li>')+'</ol>';})
-          .split(/\n\n+/).map(function(b){return /^<[huo]/.test(b.trim())?b:'<p>'+b.replace(/\n/g,'<br>')+'</p>';}).join('');
+          .replace(/\*(.+?)\*/g,'<em>$1</em>');
       }
       var el=document.getElementById('p-annotation');
       if(el) el.innerHTML=mdToHtml(md);
