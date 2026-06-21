@@ -388,12 +388,12 @@ export async function onRequest(context) {
 /* ── Варіанти фасовок ── */
 .p-variants      { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 14px; }
 .p-variants a,
-.p-variants span { display:inline-flex; flex-direction:column; align-items:center; padding:7px 14px; border-radius:9px; border:2px solid #ccc; text-decoration:none; line-height:1.25; }
-.p-variants span { border-color:var(--green); background:var(--green); color:#fff; }
-.p-variants a    { color:var(--text); }
-.p-variants a:hover { border-color:var(--green); }
-.p-variants .v-price { font-size:.75rem; font-weight:700; color:var(--green); margin-top:2px; }
-.p-variants span .v-price { color:#dfeede; }
+.p-variants > span { display:inline-flex; flex-direction:column; align-items:center; padding:7px 14px; border-radius:9px; border:2px solid #ccc; text-decoration:none; line-height:1.25; }
+.p-variants > span { border-color:#2d6a2d; background:#2d6a2d; color:#fff; }
+.p-variants a    { color:#222; }
+.p-variants a:hover { border-color:#2d6a2d; }
+.p-variants .v-price { font-size:.75rem; font-weight:700; color:#2d6a2d; margin-top:2px; }
+.p-variants > span .v-price { color:#dfeede; }
 .p-variants .oos { opacity:.5; }
 
 /* ── Картки аналогів/супутніх ── */
