@@ -542,25 +542,10 @@ export async function onRequest(context) {
   ${p.annotation ? `<div class="p-section">
     <h2>📋 Опис</h2>
     <div class="p-desc" id="p-annotation"></div>
-    <script>(function(){
-      var md=${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
-      function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-      function inl(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');}
-      function mdToHtml(t){
-        return t.split(/\n\n+/).map(function(block){
-          var b=block.trim();
-          if(!b) return '';
-          if(/^### /.test(b)) return '<h3>'+esc(b.slice(4))+'</h3>';
-          if(/^## /.test(b))  return '<h2>'+esc(b.slice(3))+'</h2>';
-          if(/^# /.test(b))   return '<h1>'+esc(b.slice(2))+'</h1>';
-          if(/^- /m.test(b))  return '<ul>'+b.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<li>'+inl(l.replace(/^-\s*/,''))+'</li>';}).join('')+'</ul>';
-          if(/^\d+\. /m.test(b)) return '<ol>'+b.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<li>'+inl(l.replace(/^\d+\.\s*/,''))+'</li>';}).join('')+'</ol>';
-          return '<p>'+b.split('\n').map(inl).join('<br>')+'</p>';
-        }).join('');
-      }
-      var el=document.getElementById('p-annotation');
-      if(el) el.innerHTML=mdToHtml(md);
-    })();</script>
+    <script>
+      window.__MD_ANNOTATION = ${JSON.stringify(p.annotation).replace(/</g,'\u003c')};
+    </script>
+    <script src="/md-render.js" defer onload="window.mdRender(window.__MD_ANNOTATION,'p-annotation')"></script>
   </div>` : ''}
 
   <!-- Дозування + калькулятор -->
