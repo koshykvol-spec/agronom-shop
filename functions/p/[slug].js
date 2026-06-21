@@ -440,10 +440,10 @@ export async function onRequest(context) {
 <main id="main" class="container" style="max-width:920px;">
 
   <!-- Хлібні крихти -->
-  <nav class="breadcrumb" aria-label="Навігація" style="font-size:.83rem;color:#999;margin:12px 0 0;">
-    <a href="/index.html" style="color:var(--green);">Каталог</a> ›
-    <a href="${esc(catUrl)}" style="color:var(--green);">${esc(p.category || '')}</a> ›
-    <span>${esc(displayName)}</span>
+  <nav class="breadcrumb" aria-label="Навігація" style="font-size:.83rem;color:#666;margin:12px 0 0;background:#fff;padding:4px 0;">
+    <a href="/index.html" style="color:#2d6a2d;text-decoration:none;">Каталог</a> ›
+    <a href="${esc(catUrl)}" style="color:#2d6a2d;text-decoration:none;">${esc(p.category || '')}</a> ›
+    <span style="color:#666;">${esc(displayName)}</span>
   </nav>
 
   <!-- Основний грід: фото | інфо -->
