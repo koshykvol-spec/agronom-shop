@@ -509,6 +509,7 @@
                 products = rawProducts.map(function(p) {
                     return Object.assign({}, p, { img: imgs[p.n] || p.img || '' });
                 });
+                window.allProducts = products; // глобально для dpInit та searchPreparat
 
                 if (DEBUG) console.log('✅ Схеми завантажені');
                 if (DEBUG) console.log('✅ Товари завантажені:', products.length, '| з фото:', products.filter(function(p){return p.img;}).length);
@@ -854,18 +855,24 @@ function switchTab(name) {
 function searchPreparat(rawName) {
     // Обрізаємо дозування (після коми або пробілу+цифри)
     var name = rawName.replace(/[,\s]+\d.*$/, '').trim();
-    // Шукаємо в productRegistry
-    var found = productRegistry.filter(function(p) {
+    // Шукаємо спочатку в productRegistry (схеми захисту)
+    var reg = productRegistry || [];
+    var found = reg.filter(function(p) {
         return p.n && p.n.toLowerCase().indexOf(name.toLowerCase()) !== -1;
     });
-    if (found.length === 1) {
-        openProductCard(productRegistry.indexOf(found[0]));
-    } else if (found.length > 1) {
-        // Відкриваємо перший знайдений
-        openProductCard(productRegistry.indexOf(found[0]));
+    if (found.length >= 1) {
+        openProductCard(reg.indexOf(found[0]));
+        return;
+    }
+    // Якщо не знайдено в реєстрі — шукаємо в allProducts і переходимо на сторінку товару
+    var all = window.allProducts || [];
+    var fp = all.filter(function(p) {
+        return p.n && p.n.toLowerCase().indexOf(name.toLowerCase()) !== -1;
+    });
+    if (fp.length >= 1 && fp[0].slug) {
+        window.location.href = '/p/' + fp[0].slug;
     } else {
-        // Не знайдено — ведемо на пошук в каталозі
-        window.location.href = '/?search=' + encodeURIComponent(name);
+        window.location.href = '/index.html?search=' + encodeURIComponent(name);
     }
 }
 
