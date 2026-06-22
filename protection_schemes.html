@@ -853,8 +853,8 @@ function switchTab(name) {
 // Пошук препарату в каталозі по назві (без дозування)
 // ════════════════════════════════════════════════════
 function searchPreparat(rawName) {
-    // Витягуємо назву і дозування: "Сальто 30 мл" → name="Сальто", dose=30
-    var doseMatch = rawName.match(/[,\s]+([\d.]+)\s*(мл|г|кг|л)\b/i);
+    // Витягуємо назву і дозування: "Сальто, 30 мл" → name="сальто", dose=30
+    var doseMatch = rawName.match(/([\d.]+)\s*(мл|г|кг|л)\b/i);
     var dose = doseMatch ? parseFloat(doseMatch[1]) : null;
     var name = rawName.replace(/[,\s]+\d.*$/, '').trim().toLowerCase();
     if (!name) return;
@@ -862,19 +862,15 @@ function searchPreparat(rawName) {
     function score(pname) {
         var n = pname.toLowerCase();
         if (n === name) return 100;
-        if (n.startsWith(name + ' ') || n.startsWith(name + ',')) return 90;
-        var firstWord = n.split(/[\s,]/)[0];
-        if (firstWord === name) return 80;
+        if (n.startsWith(name + ',') || n.startsWith(name + ' ')) return 90;
+        if (n.split(/[\s,]/)[0] === name) return 80;
         var re = new RegExp('(^|[\\s,])' + name.replace(/[-()]/g,'\\$&') + '($|[\\s,])', 'i');
         if (re.test(n)) return 60;
-        if (n.indexOf(name) !== -1) return 10;
         return 0;
     }
 
-    // Якщо є дозування — з кандидатів вибираємо найближчий за об'ємом
     function bestByDose(matches) {
         if (!dose || matches.length <= 1) return matches[0];
-        // Витягуємо число з назви товару
         return matches.reduce(function(best, cur) {
             var bm = (best.p.n||'').match(/([\d.]+)\s*(мл|г|кг|л)/i);
             var cm = (cur.p.n||'').match(/([\d.]+)\s*(мл|г|кг|л)/i);
@@ -884,30 +880,29 @@ function searchPreparat(rawName) {
         });
     }
 
-    // Шукаємо в productRegistry
+    // Шукаємо в allProducts (надійніше ніж registry бо містить усі фасовки)
+    var all = window.allProducts || [];
+    var allMatches = all.map(function(p){ return {p:p,s:score(p.n||'')}; })
+        .filter(function(x){return x.s>=60;})
+        .sort(function(a,b){return b.s-a.s;});
+
+    if (allMatches.length) {
+        var topScore = allMatches[0].s;
+        var topMatches = allMatches.filter(function(x){return x.s===topScore;});
+        var best = bestByDose(topMatches);
+        if (best.p.slug) { window.location.href = '/p/' + best.p.slug; return; }
+    }
+
+    // Fallback — пошук в productRegistry (схеми захисту)
     var reg = productRegistry || [];
     var regMatches = reg.map(function(p,i){ return {p:p,i:i,s:score(p.n||'')}; })
         .filter(function(x){return x.s>=60;})
         .sort(function(a,b){return b.s-a.s;});
     if (regMatches.length) {
-        // Фільтруємо топових кандидатів (той самий score)
-        var topScore = regMatches[0].s;
-        var topMatches = regMatches.filter(function(x){return x.s===topScore;});
-        var best = bestByDose(topMatches);
-        openProductCard(best.i);
+        var topScore2 = regMatches[0].s;
+        var top2 = regMatches.filter(function(x){return x.s===topScore2;});
+        openProductCard(bestByDose(top2).i);
         return;
-    }
-
-    // Шукаємо в allProducts → /p/slug
-    var all = window.allProducts || [];
-    var allMatches = all.map(function(p){ return {p:p,s:score(p.n||'')}; })
-        .filter(function(x){return x.s>=60;})
-        .sort(function(a,b){return b.s-a.s;});
-    if (allMatches.length) {
-        var topScore2 = allMatches[0].s;
-        var topMatches2 = allMatches.filter(function(x){return x.s===topScore2;});
-        var best2 = bestByDose(topMatches2);
-        if (best2.p.slug) { window.location.href = '/p/' + best2.p.slug; return; }
     }
 
     window.location.href = '/index.html?search=' + encodeURIComponent(name);
