@@ -41,8 +41,14 @@ export async function onRequestPost(context) {
   const bytes = await file.arrayBuffer();
   if (bytes.byteLength > MAX_SIZE) return json({ok:false, error:'Фото завелике (макс. 8 МБ)'}, 400);
 
-  // Base64
-  const b64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  // Base64 — chunk-based щоб уникнути stack overflow на великих файлах
+  const uint8 = new Uint8Array(bytes);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < uint8.length; i += chunkSize) {
+    binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+  }
+  const b64 = btoa(binary);
   const mediaType = file.type;
 
   // Завантажуємо каталог товарів для контексту
@@ -155,3 +161,4 @@ ${prodList}
     products: matchedProducts,
   });
 }
+
