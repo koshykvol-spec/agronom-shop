@@ -18,7 +18,7 @@ export async function onRequestGet(context){
   const db = context.env.DB;
   const saved = new URL(context.request.url).searchParams.get('saved');
   const ss = {};
-  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN ('ga4_id','clarity_id','turnstile_sitekey')`).all()).results || []) ss[r.key]=r.value;
+  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN ('ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key')`).all()).results || []) ss[r.key]=r.value;
   // Turnstile secret — у таблиці secrets (server-only, у /site-config НЕ потрапляє). Значення не показуємо.
   let tsSecretSet = false, tsSecretTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='turnstile_secret'`).first(); if (r && r.value){ tsSecretSet = true; tsSecretTail = String(r.value).slice(-4); } } catch(e){}
@@ -36,6 +36,12 @@ export async function onRequestGet(context){
       <h3 style="margin-top:0">📊 Аналітика <span class="tag">публічні ID</span></h3>
       <div class="muted">Вмикається одразу, щойно вставите ID. Ці ID не секретні.</div>
       <div class="fl"><label>Google Analytics 4 — ID (G-XXXXXXX)</label><input name="ga4_id" value="${esc(ss.ga4_id||'')}" placeholder="G-..."></div>
+      <hr style="border:0;border-top:1px solid #e8e8e8;margin:14px 0">
+      <b>🤖 AI діагностика фото (Порадник)</b>
+      <div class="fl"><label>Anthropic API Key ${ss.anthropic_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано (діагностика фото не працює)</span>'}</label>
+        <input name="anthropic_api_key" type="password" autocomplete="off" value="${ss.anthropic_api_key?'••••••••••••'+String(ss.anthropic_api_key).slice(-6):''}" placeholder="sk-ant-api03-...">
+        <div class="muted" style="margin-top:3px">Ключ для розпізнавання фото хвороб/шкідників/бур'янів. Отримати на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+      </div>
       <div class="fl"><label>Microsoft Clarity — ID</label><input name="clarity_id" value="${esc(ss.clarity_id||'')}" placeholder="напр. abcdef1234"></div>
       <h3>🛡 Turnstile <span class="tag">анти-спам</span></h3>
       <div class="muted">Захист форми замовлення від ботів. Cloudflare → Turnstile → Add site → отримаєш <b>Sitekey</b> і <b>Secret</b> — обидва встав сюди.</div>
@@ -70,7 +76,7 @@ export async function onRequestPost(context){
   const db = context.env.DB;
   const f = await context.request.formData();
   // публічні ID → site_settings (порожнє = очистити; для них це безпечно)
-  for (const k of ['ga4_id','clarity_id']){
+  for (const k of ['ga4_id','clarity_id','anthropic_api_key']){
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(k, (f.get(k)||'').trim()).run();
   }
   // turnstile_sitekey: захист від випадкового затирання застарілою формою — порожнє НЕ чистить.
