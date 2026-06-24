@@ -444,6 +444,103 @@
             <button class="main-tab" onclick="switchTab('herbicides')">🌿 Гербіциди</button>
         </div>
 
+
+        <!-- ── Діагностика по фото ── -->
+        <div id="diagnose-bar" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:1.3rem">🔬</span>
+            <div style="flex:1;min-width:200px">
+              <b style="color:#1a3e1a;font-size:.97rem">Визначити хворобу, шкідника або бур'ян по фото</b>
+              <div style="font-size:.82rem;color:#555;margin-top:2px">Завантажте фото — AI підбере препарати з нашого каталогу</div>
+            </div>
+            <label id="diagnose-btn" style="display:inline-flex;align-items:center;gap:7px;background:#2d6a2d;color:#fff;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.9rem;white-space:nowrap;">
+              📷 Завантажити фото
+              <input type="file" id="diagnose-file" accept="image/*" capture="environment" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px;">
+            </label>
+          </div>
+          <div id="diagnose-result" style="display:none;margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
+        </div>
+
+        <script>
+        (function(){
+          var fileInput = document.getElementById('diagnose-file');
+          var resultBox = document.getElementById('diagnose-result');
+          if (!fileInput) return;
+
+          fileInput.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            diagnose(file);
+            // Скидаємо щоб можна було завантажити ще раз те ж фото
+            fileInput.value = '';
+          });
+
+          function diagnose(file) {
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#555;"><span style="font-size:1.4rem">⏳</span> Аналізуємо фото...</div>';
+
+            var fd = new FormData();
+            fd.append('photo', file);
+
+            fetch('/api/diagnose', { method: 'POST', body: fd })
+              .then(function(r) { return r.json(); })
+              .then(function(d) { renderResult(d, file); })
+              .catch(function(e) {
+                resultBox.innerHTML = '<div style="color:#c0392b;">❌ Помилка зв'язку: ' + e.message + '</div>';
+              });
+          }
+
+          function renderResult(d, file) {
+            if (!d.ok) {
+              resultBox.innerHTML = '<div style="color:#c0392b;">❌ ' + esc(d.error || 'Невідома помилка') + '</div>';
+              return;
+            }
+
+            var typeIcon = d.type === 'disease' ? '🍂' : d.type === 'pest' ? '🐛' : d.type === 'weed' ? '🌿' : '❓';
+            var typeLabel = d.type === 'disease' ? 'Хвороба' : d.type === 'pest' ? 'Шкідник' : d.type === 'weed' ? 'Бур'ян' : 'Не визначено';
+            var confColor = d.confidence === 'high' ? '#2d6a2d' : d.confidence === 'medium' ? '#b8860b' : '#888';
+            var confLabel = d.confidence === 'high' ? 'висока впевненість' : d.confidence === 'medium' ? 'середня впевненість' : 'низька впевненість';
+
+            // Preview фото
+            var imgUrl = URL.createObjectURL(file);
+            var preview = '<img src="' + imgUrl + '" style="max-width:120px;max-height:100px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="фото">';
+
+            // Продукти
+            var prods = '';
+            if (d.products && d.products.length) {
+              prods = '<div style="margin-top:10px"><b style="font-size:.88rem;color:#1a3e1a;">🛒 Рекомендовані препарати:</b><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">';
+              d.products.forEach(function(p) {
+                prods += '<a href="/p/' + esc(p.slug) + '" style="display:inline-flex;flex-direction:column;padding:7px 12px;border:1.5px solid #2d6a2d;border-radius:8px;text-decoration:none;background:#f0f8f0;min-width:130px;">'
+                  + '<span style="font-size:.82rem;font-weight:700;color:#1a3e1a;">' + esc(p.n) + '</span>'
+                  + (p.p ? '<span style="font-size:.78rem;color:#2d6a2d;font-weight:700;margin-top:2px;">' + Number(p.p).toFixed(2) + ' грн</span>' : '')
+                  + '</a>';
+              });
+              prods += '</div></div>';
+            } else if (d.type !== 'unknown') {
+              prods = '<div style="margin-top:8px;font-size:.85rem;color:#888;">Препаратів у нашому каталозі не знайдено. <a href="/index.html" style="color:#2d6a2d;">Перейти до каталогу →</a></div>';
+            }
+
+            resultBox.innerHTML =
+              '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+              + preview
+              + '<div style="flex:1;min-width:200px;">'
+              + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+              + '<span style="font-size:1.2rem;">' + typeIcon + '</span>'
+              + '<b style="font-size:1rem;color:#1a3e1a;">' + esc(d.name || typeLabel) + '</b>'
+              + '<span style="font-size:.75rem;color:' + confColor + ';background:#f5f5f5;padding:2px 8px;border-radius:10px;">' + confLabel + '</span>'
+              + '<span style="font-size:.78rem;background:#e8f0e8;color:#555;padding:2px 8px;border-radius:10px;">' + typeLabel + '</span>'
+              + '</div>'
+              + (d.description ? '<div style="font-size:.88rem;line-height:1.55;color:#333;margin-bottom:6px;">' + esc(d.description) + '</div>' : '')
+              + (d.advice ? '<div style="font-size:.85rem;color:#555;background:#fffbe6;border-left:3px solid #f0c040;padding:6px 10px;border-radius:0 6px 6px 0;">' + esc(d.advice) + '</div>' : '')
+              + prods
+              + '</div></div>'
+              + '<div style="margin-top:10px;"><button onclick="document.getElementById('diagnose-file').click()" style="background:#fff;border:1.5px solid #2d6a2d;color:#2d6a2d;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;">📷 Ще одне фото</button></div>';
+          }
+
+          function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        })();
+        </script>
+
         <!-- Вкладка 1: Схеми захисту -->
         <div id="tab-schemes" class="main-section active">
             <button class="btn-back" onclick="backToCategories()">← Повернутися до категорій</button>
@@ -935,13 +1032,13 @@ const DATA={
         {n:"Скор, 2 мл",t:F},{n:"Хорус, 3 г",t:F},{n:"Сальто, 30 мл",t:F},
         {n:"Шавіт Ф, 20 г",t:F},{n:"Чарівник, 20 г",t:F},{n:"Старк (Квадріс), 6 мл",t:F},
         {n:"Фундазол, 10 г",t:F},{n:"Топсін-М, 10 г",t:F},{n:"Ревіона, 100 мл",t:F},
-        {n:"Антракол, 15 г",t:F},{n:"Джип, 100 мл",t:F},
+        {n:"Антракол, 15 г",t:F},{n:"Антигусінь + Самшит, 4+3 мл",t:F},{n:"Джип, 100 мл",t:F},
         {n:"Бордоська суміш, 250 г",t:F}
       ]},
       {d:"Борошниста роса",p:[
         {n:"Сальто, 30 мл",t:F},{n:"Скор, 2 мл",t:F},
         {n:"Тіовіт Джет, 40 г",t:F},{n:"Сірка колоїдна, 40 г",t:F},
-        {n:"Фалькон, 10 мл",t:F},{n:"Таймер, 15 мл",t:F},{n:"Чарівник, 20 г",t:F}
+        {n:"Фалькон, 10 мл",t:F},{n:"Таймер, 15 мл",t:F},{n:"Чарівник, 20 г",t:F},{n:"Антигусінь + Самшит, 4+3 мл",t:F}
       ]},
       {d:"Моніліоз (плодова гниль)",p:[
         {n:"Хорус, 3 г",t:F},{n:"Скор, 2 мл",t:F},{n:"Світч, 10 г",t:F},
@@ -959,7 +1056,7 @@ const DATA={
     pests:[
       {d:"Яблунева плодожерка",p:[
         {n:"Ампліго, 4 мл",t:I},{n:"Актара, 1.4 г",t:I},{n:"Матч, 4 мл",t:I},
-        {n:"Кораген, 1.2 мл",t:I},{n:"Логус, 4 мл",t:I}
+        {n:"Кораген, 1.2 мл",t:I},{n:"Логус, 4 мл",t:I},{n:"Антигусінь + Самшит, 4+3 мл",t:I}
       ]},
       {d:"Яблунева попелиця",p:[
         {n:"Актара, 1.4 г",t:I},{n:"Актелік, 6 мл",t:I},{n:"Бі-58, 10 мл",t:I},
@@ -1254,7 +1351,7 @@ const DATA={
     pests:[
       {d:"Гроновий листокрут",p:[
         {n:"Ампліго, 4 мл",t:I},{n:"Актара, 1.4 г",t:I},
-        {n:"Матч, 4 мл",t:I},{n:"Кораген, 1.2 мл",t:I}
+        {n:"Матч, 4 мл",t:I},{n:"Кораген, 1.2 мл",t:I},{n:"Антигусінь + Самшит, 4+3 мл",t:I}
       ]},
       {d:"Виноградний кліщ (повстяний / бруньковий)",p:[
         {n:"Антикліщ Про, 10 мл",t:A},{n:"Тіовіт Джет, 40 г",t:F},
