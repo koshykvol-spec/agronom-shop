@@ -76,8 +76,13 @@ export async function onRequestPost(context){
   const db = context.env.DB;
   const f = await context.request.formData();
   // публічні ID → site_settings (порожнє = очистити; для них це безпечно)
-  for (const k of ['ga4_id','clarity_id','anthropic_api_key']){
+  for (const k of ['ga4_id','clarity_id']){
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(k, (f.get(k)||'').trim()).run();
+  }
+  // Anthropic API key — зберігаємо лише якщо не маска (не починається з ••)
+  const anthropicKey = (f.get('anthropic_api_key')||'').trim();
+  if (anthropicKey && !anthropicKey.startsWith('••')) {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind('anthropic_api_key', anthropicKey).run();
   }
   // turnstile_sitekey: захист від випадкового затирання застарілою формою — порожнє НЕ чистить.
   // (інакше sitekey зник би, а воркер далі вимагав токен → усі замовлення заблокувались би.)
