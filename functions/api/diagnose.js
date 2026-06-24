@@ -1,3 +1,4 @@
+// updated: 2026-06-24
 // /api/diagnose — діагностика фото: хвороба/шкідник/бур'ян → препарати з каталогу
 // POST multipart/form-data: поле "photo" (image/jpeg|png|webp|gif)
 // Відповідь: { ok, type, name, description, products: [{n,slug,p}], advice }
