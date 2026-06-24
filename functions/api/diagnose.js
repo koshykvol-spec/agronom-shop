@@ -58,7 +58,7 @@ export async function onRequestPost(context) {
             COALESCE(c.annotation,'') ann
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid
       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-        AND p.category IN ('АГРОХІМІКАТИ','ГЕРБІЦИДИ','ФУНГІЦИДИ','ІНСЕКТИЦИДИ')
+        AND (p.category LIKE '%АГРОХІМІК%' OR p.category LIKE '%ГЕРБІЦИД%' OR p.category LIKE '%ФУНГІЦИД%' OR p.category LIKE '%ІНСЕКТИЦИД%' OR p.category = 'АГРОХІМІКАТИ')
       ORDER BY p.name LIMIT 300`
   ).all()).results || [];
 
