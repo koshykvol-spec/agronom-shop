@@ -485,7 +485,7 @@
               .then(function(r) { return r.json(); })
               .then(function(d) { renderResult(d, file); })
               .catch(function(e) {
-                resultBox.innerHTML = '<div style="color:#c0392b;">❌ Помилка зв'язку: ' + e.message + '</div>';
+                resultBox.innerHTML = '<div style="color:#c0392b;">❌ Помилка зв’язку: ' + e.message + '</div>';
               });
           }
 
@@ -496,7 +496,7 @@
             }
 
             var typeIcon = d.type === 'disease' ? '🍂' : d.type === 'pest' ? '🐛' : d.type === 'weed' ? '🌿' : '❓';
-            var typeLabel = d.type === 'disease' ? 'Хвороба' : d.type === 'pest' ? 'Шкідник' : d.type === 'weed' ? 'Бур'ян' : 'Не визначено';
+            var typeLabel = d.type === 'disease' ? 'Хвороба' : d.type === 'pest' ? 'Шкідник' : d.type === 'weed' ? 'Бур’ян' : 'Не визначено';
             var confColor = d.confidence === 'high' ? '#2d6a2d' : d.confidence === 'medium' ? '#b8860b' : '#888';
             var confLabel = d.confidence === 'high' ? 'висока впевненість' : d.confidence === 'medium' ? 'середня впевненість' : 'низька впевненість';
 
