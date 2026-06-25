@@ -20,57 +20,44 @@ const J = (o, s) => new Response(JSON.stringify(o), {
 export async function onRequestPost(context) {
   const { request, env } = context;
   try {
-    let fd;
-    try { fd = await request.formData(); }
-    catch(e) { return J({ok:false, error:'formData: '+e.message}, 400); }
+    // Parse JSON body (not formData - send as JSON with base64 image)
+    let body;
+    try { body = await request.json(); }
+    catch(e) { return J({ok:false, error:'Invalid JSON body: '+e.message}, 400); }
 
-    const file = fd.get('photo');
-    if (!file || typeof file === 'string') return J({ok:false, error:'no file'}, 400);
+    const { image_b64, image_type } = body;
+    if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
 
-    const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
-    if (!allowed.includes(file.type)) return J({ok:false, error:'unsupported format'}, 400);
-
-    const bytes = await file.arrayBuffer();
-    if (bytes.byteLength > 8*1024*1024) return J({ok:false, error:'file too large'}, 400);
-
+    // Get API key
     const row = await env.DB.prepare(
       `SELECT value FROM site_settings WHERE key='anthropic_api_key' LIMIT 1`
     ).first().catch(()=>null);
     const apiKey = row && row.value ? row.value.trim() : '';
     if (!apiKey) return J({ok:false, error:'API key not configured'}, 503);
 
-    const uint8 = new Uint8Array(bytes);
-    let bin = '';
-    for (let i = 0; i < uint8.length; i += 8192) {
-      bin += String.fromCharCode(...uint8.subarray(i, i + 8192));
-    }
-    const b64 = btoa(bin);
-
+    // Load products
     const prods = (await env.DB.prepare(
       `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
               COALESCE(c.slug,'') slug, p.price,
-              COALESCE(c.active_ingredient,'') ai,
-              COALESCE(c.annotation,'') ann
+              COALESCE(c.active_ingredient,'') ai
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid
        WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 200`
+       ORDER BY p.name LIMIT 150`
     ).all().catch(()=>({results:[]}))).results || [];
 
-    const prodList = prods.slice(0,150).map(p =>
-      p.name + (p.ai ? ' ('+p.ai+')' : '')
-    ).join('\n');
+    const prodList = prods.map(p => p.name + (p.ai ? ' ('+p.ai+')' : '')).join('\n');
 
     const sys = 'You are an agronomist for a Ukrainian garden shop. '
       + 'Identify plant diseases, pests, or weeds from photos. '
-      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language in all text fields.\n\n'
-      + 'CATALOG:\n' + prodList;
+      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language.\n\nCATALOG:\n' + prodList;
 
-    const prompt = 'Identify what is shown in this photo. Return JSON only:\n'
+    const prompt = 'Identify what is in this photo. Return JSON only:\n'
       + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
       + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
-      + '"advice":"Treatment advice in Ukrainian",'
-      + '"products":["exact name from catalog or empty array"]}';
+      + '"advice":"treatment advice in Ukrainian",'
+      + '"products":["exact name from catalog"]}';
 
+    // Call Anthropic
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -80,10 +67,10 @@ export async function onRequestPost(context) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
+        max_tokens: 600,
         system: sys,
         messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } },
+          { type: 'image', source: { type: 'base64', media_type: image_type || 'image/jpeg', data: image_b64 } },
           { type: 'text', text: prompt }
         ]}]
       })
@@ -91,7 +78,7 @@ export async function onRequestPost(context) {
 
     if (!aiRes.ok) {
       const err = await aiRes.text();
-      return J({ok:false, error:'Claude API '+aiRes.status+': '+err.slice(0,200)}, 502);
+      return J({ok:false, error:'Claude '+aiRes.status+': '+err.slice(0,300)}, 502);
     }
 
     const aiData = await aiRes.json();
@@ -102,7 +89,7 @@ export async function onRequestPost(context) {
       const clean = raw.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
       diag = JSON.parse(clean);
     } catch(e) {
-      return J({ok:false, error:'JSON parse failed: '+e.message, raw:raw.slice(0,200)}, 502);
+      return J({ok:false, error:'JSON parse: '+e.message, raw:raw.slice(0,200)}, 502);
     }
 
     const matched = [];
