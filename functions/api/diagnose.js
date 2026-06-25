@@ -1,3 +1,9 @@
+export async function onRequestGet() {
+  return new Response(JSON.stringify({ok:true,msg:'diagnose worker is alive'}), {
+    headers: {'content-type':'application/json','access-control-allow-origin':'*'}
+  });
+}
+
 const J = (o, s) => new Response(JSON.stringify(o), {
   status: s || 200,
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
