@@ -21,6 +21,15 @@ export async function onRequestOptions() {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  try {
+    return await _handlePost(request, env);
+  } catch(e) {
+    return new Response(JSON.stringify({ok:false,error:'Worker exception: '+String(e.message||e),stack:String(e.stack||'').slice(0,300)}),
+      {status:500,headers:{'content-type':'application/json','access-control-allow-origin':'*'}});
+  }
+}
+
+async function _handlePost(request, env) {
 
   // Читаємо API ключ з D1
   const apiKeyRow = await env.DB.prepare(
