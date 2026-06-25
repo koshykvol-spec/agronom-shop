@@ -62,12 +62,12 @@ async function _handlePost(request, env) {
 
   // Завантажуємо каталог товарів для контексту
   const products = (await env.DB.prepare(
-    `SELECT p.sku, COALESCE(NULLIF(c.display_name,''),p.name) name, p.slug,
+    `SELECT p.sku, COALESCE(NULLIF(c.display_name,''),p.name) name, COALESCE(c.slug,'') slug,
             COALESCE(c.active_ingredient,'') ai, p.price, p.category, p.brand,
             COALESCE(c.annotation,'') ann
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid
       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-        AND (p.category LIKE '%АГРОХІМІК%' OR p.category LIKE '%ГЕРБІЦИД%' OR p.category LIKE '%ФУНГІЦИД%' OR p.category LIKE '%ІНСЕКТИЦИД%' OR p.category = 'АГРОХІМІКАТИ')
+        AND (p.category LIKE '%АГРОХІМІК%' OR p.category LIKE '%ГЕРБІЦИД%' OR p.category LIKE '%ФУНГІЦИД%' OR p.category LIKE '%ІНСЕКТИЦИД%')
       ORDER BY p.name LIMIT 300`
   ).all()).results || [];
 
