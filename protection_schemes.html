@@ -478,10 +478,15 @@
             resultBox.style.display = 'block';
             resultBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#555;"><span style="font-size:1.4rem">⏳</span> Аналізуємо фото...</div>';
 
-            var fd = new FormData();
-            fd.append('photo', file);
-
-            fetch('/api/diagnose', { method: 'POST', body: fd })
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+              var dataUrl = ev.target.result;
+              var b64 = dataUrl.split(',')[1];
+              fetch('/api/diagnose', {
+                method: 'POST',
+                headers: {'content-type': 'application/json'},
+                body: JSON.stringify({image_b64: b64, image_type: file.type})
+              })
               .then(function(r) {
                 var status = r.status;
                 var ct = r.headers.get('content-type') || '';
@@ -498,6 +503,8 @@
                 resultBox.innerHTML = '<div style="color:#c0392b;">❌ ' + e.message + '</div>';
                 console.error('diagnose error:', e);
               });
+            };
+            reader.readAsDataURL(file);
           }
 
           function renderResult(d, file) {
