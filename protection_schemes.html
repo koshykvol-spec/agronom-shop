@@ -482,10 +482,21 @@
             fd.append('photo', file);
 
             fetch('/api/diagnose', { method: 'POST', body: fd })
-              .then(function(r) { return r.json(); })
+              .then(function(r) {
+                var status = r.status;
+                var ct = r.headers.get('content-type') || '';
+                return r.text().then(function(text) {
+                  console.log('diagnose status:', status, 'ct:', ct, 'body:', text.slice(0,200));
+                  if (!ct.includes('json')) {
+                    throw new Error('Server returned non-JSON (HTTP ' + status + '): ' + text.slice(0,100));
+                  }
+                  return JSON.parse(text);
+                });
+              })
               .then(function(d) { renderResult(d, file); })
               .catch(function(e) {
-                resultBox.innerHTML = '<div style="color:#c0392b;">❌ Помилка зв’язку: ' + e.message + '</div>';
+                resultBox.innerHTML = '<div style="color:#c0392b;">❌ ' + e.message + '</div>';
+                console.error('diagnose error:', e);
               });
           }
 
