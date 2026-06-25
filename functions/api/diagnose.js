@@ -4,11 +4,6 @@ export async function onRequestGet() {
   });
 }
 
-const J = (o, s) => new Response(JSON.stringify(o), {
-  status: s || 200,
-  headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
-});
-
 export async function onRequestOptions() {
   return new Response(null, { headers: {
     'access-control-allow-origin': '*',
@@ -17,84 +12,74 @@ export async function onRequestOptions() {
   }});
 }
 
+const J = (o, s) => new Response(JSON.stringify(o), {
+  status: s || 200,
+  headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
+});
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   try {
-    // Get API key from DB
-    const row = await env.DB.prepare(
-      `SELECT value FROM site_settings WHERE key='anthropic_api_key' LIMIT 1`
-    ).first();
-    const apiKey = row && row.value ? row.value : '';
-    if (!apiKey) return J({ ok: false, error: 'API key not configured' }, 503);
-
-    // Parse form
+    // Step 1: parse formData
     let fd;
     try { fd = await request.formData(); }
-    catch(e) { return J({ ok: false, error: 'Invalid request format' }, 400); }
+    catch(e) { return J({ok:false, step:'formData', error: e.message}, 400); }
 
+    // Step 2: get file
     const file = fd.get('photo');
-    if (!file || typeof file === 'string') return J({ ok: false, error: 'No photo provided' }, 400);
+    if (!file || typeof file === 'string') return J({ok:false, step:'file', error:'no file'}, 400);
 
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowed.includes(file.type)) return J({ ok: false, error: 'Unsupported format' }, 400);
+    // Step 3: read DB key
+    let apiKey = '';
+    try {
+      const row = await env.DB.prepare(
+        `SELECT value FROM site_settings WHERE key='anthropic_api_key' LIMIT 1`
+      ).first();
+      apiKey = row && row.value ? row.value : '';
+    } catch(e) { return J({ok:false, step:'db', error: e.message}, 500); }
 
-    const bytes = await file.arrayBuffer();
-    if (bytes.byteLength > 8 * 1024 * 1024) return J({ ok: false, error: 'File too large (max 8MB)' }, 400);
+    if (!apiKey) return J({ok:false, step:'apikey', error:'not configured'}, 503);
 
-    // Base64
-    const uint8 = new Uint8Array(bytes);
-    let bin = '';
-    for (let i = 0; i < uint8.length; i += 8192) {
-      bin += String.fromCharCode(...uint8.subarray(i, i + 8192));
-    }
-    const b64 = btoa(bin);
+    // Step 4: read bytes
+    let bytes;
+    try { bytes = await file.arrayBuffer(); }
+    catch(e) { return J({ok:false, step:'arrayBuffer', error: e.message}, 500); }
 
-    // Load products from DB
-    const prods = (await env.DB.prepare(
-      `SELECT COALESCE(NULLIF(c.display_name,''), p.name) name,
-              COALESCE(c.slug,'') slug, p.price,
-              COALESCE(c.active_ingredient,'') ai,
-              COALESCE(c.annotation,'') ann
-       FROM products p LEFT JOIN product_content c ON c.pid=p.pid
-       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 300`
-    ).all()).results || [];
+    // Step 5: base64
+    let b64;
+    try {
+      const uint8 = new Uint8Array(bytes);
+      let bin = '';
+      for (let i = 0; i < uint8.length; i += 8192) {
+        bin += String.fromCharCode(...uint8.subarray(i, i + 8192));
+      }
+      b64 = btoa(bin);
+    } catch(e) { return J({ok:false, step:'base64', error: e.message}, 500); }
 
-    const prodList = prods.map(p =>
-      p.name + (p.ai ? ' (' + p.ai + ')' : '') + (p.ann ? ' - ' + p.ann.slice(0, 60) : '')
-    ).join('\n');
-
-    const systemPrompt = 'You are an agronomist assistant for the "Agronom" garden shop in Ukraine. '
-      + 'Identify plant diseases, pests, or weeds from photos. Respond ONLY in valid JSON, no markdown. '
-      + 'Always respond in Ukrainian language.\n\nAVAILABLE PRODUCTS:\n' + prodList;
-
-    const userPrompt = 'Analyze this photo. Return JSON:\n'
-      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name","confidence":"high|medium|low",'
-      + '"description":"2-3 sentences in Ukrainian","advice":"Treatment advice in Ukrainian",'
-      + '"products":["exact product name from catalog"]}';
-
-    // Call Claude API
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } },
-          { type: 'text', text: userPrompt }
-        ]}]
-      })
-    });
+    // Step 6: call Claude
+    let aiRes;
+    try {
+      aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: file.type, data: b64 } },
+            { type: 'text', text: 'What is in this image? Reply in JSON: {"type":"disease|pest|weed|unknown","name":"name in Ukrainian","description":"short description in Ukrainian","products":[]}' }
+          ]}]
+        })
+      });
+    } catch(e) { return J({ok:false, step:'fetch_claude', error: e.message}, 502); }
 
     if (!aiRes.ok) {
       const err = await aiRes.text();
-      return J({ ok: false, error: 'AI error ' + aiRes.status + ': ' + err.slice(0, 200) }, 502);
+      return J({ok:false, step:'claude_status', error: aiRes.status + ': ' + err.slice(0,300)}, 502);
     }
 
     const aiData = await aiRes.json();
@@ -105,32 +90,20 @@ export async function onRequestPost(context) {
       const clean = raw.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
       diagnosis = JSON.parse(clean);
     } catch(e) {
-      return J({ ok: false, error: 'AI returned invalid JSON', raw: raw.slice(0, 300) }, 502);
-    }
-
-    // Match products
-    const matched = [];
-    if (Array.isArray(diagnosis.products)) {
-      for (const pname of diagnosis.products) {
-        const nl = pname.toLowerCase().split(',')[0].trim();
-        const found = prods.filter(p => p.name.toLowerCase().startsWith(nl));
-        if (found.length && found[0].slug) {
-          matched.push({ n: found[0].name, slug: found[0].slug, p: found[0].price });
-        }
-      }
+      return J({ok:false, step:'parse_json', error: e.message, raw: raw.slice(0,300)}, 502);
     }
 
     return J({
       ok: true,
       type: diagnosis.type || 'unknown',
       name: diagnosis.name || '',
-      confidence: diagnosis.confidence || 'medium',
+      confidence: 'medium',
       description: diagnosis.description || '',
-      advice: diagnosis.advice || '',
-      products: matched,
+      advice: '',
+      products: [],
     });
 
   } catch(e) {
-    return J({ ok: false, error: 'Worker error: ' + String(e.message || e) }, 500);
+    return J({ok:false, step:'global', error: String(e.message || e)}, 500);
   }
 }
