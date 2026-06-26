@@ -474,6 +474,16 @@
             setTimeout(function(){ fileInput.value = ''; }, 100);
           };
 
+          var DIAGNOSE_URL = 'https://agro-diagnose.ruslanchyk.workers.dev';
+
+          function getProdList() {
+            // Беремо список товарів з window.allProducts якщо завантажений
+            var all = window.allProducts || [];
+            return all.slice(0, 150).map(function(p) {
+              return p.n + (p.annot ? ' - ' + p.annot.slice(0, 60) : '');
+            }).join('\n');
+          }
+
           function diagnose(file) {
             resultBox.style.display = 'block';
             resultBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#555;"><span style="font-size:1.4rem">⏳</span> Аналізуємо фото...</div>';
@@ -482,10 +492,10 @@
             reader.onload = function(ev) {
               var dataUrl = ev.target.result;
               var b64 = dataUrl.split(',')[1];
-              fetch('/api/diagnose', {
+              fetch(DIAGNOSE_URL, {
                 method: 'POST',
                 headers: {'content-type': 'application/json'},
-                body: JSON.stringify({image_b64: b64, image_type: file.type})
+                body: JSON.stringify({image_b64: b64, image_type: file.type, prod_list: getProdList()})
               })
               .then(function(r) {
                 var status = r.status;
@@ -523,10 +533,23 @@
             var preview = '<img src="' + imgUrl + '" style="max-width:120px;max-height:100px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="фото">';
 
             // Продукти
+            // Зіставляємо назви препаратів з allProducts
             var prods = '';
+            var all = window.allProducts || [];
+            var matchedProds = [];
             if (d.products && d.products.length) {
+              d.products.forEach(function(pname) {
+                if (!pname) return;
+                var nl = pname.toLowerCase().split(',')[0].trim();
+                var found = all.find(function(p) {
+                  return p.n && p.n.toLowerCase().startsWith(nl);
+                });
+                if (found && found.slug) matchedProds.push(found);
+              });
+            }
+            if (matchedProds.length) {
               prods = '<div style="margin-top:10px"><b style="font-size:.88rem;color:#1a3e1a;">🛒 Рекомендовані препарати:</b><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">';
-              d.products.forEach(function(p) {
+              matchedProds.forEach(function(p) {
                 prods += '<a href="/p/' + esc(p.slug) + '" style="display:inline-flex;flex-direction:column;padding:7px 12px;border:1.5px solid #2d6a2d;border-radius:8px;text-decoration:none;background:#f0f8f0;min-width:130px;">'
                   + '<span style="font-size:.82rem;font-weight:700;color:#1a3e1a;">' + esc(p.n) + '</span>'
                   + (p.p ? '<span style="font-size:.78rem;color:#2d6a2d;font-weight:700;margin-top:2px;">' + Number(p.p).toFixed(2) + ' грн</span>' : '')
