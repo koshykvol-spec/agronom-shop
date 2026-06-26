@@ -37,13 +37,15 @@ export default {
     const sys = 'You are an agronomist for a Ukrainian garden shop. '
       + 'Identify plant diseases, pests, or weeds from photos. '
       + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language in all text fields.\n\n'
-      + 'CATALOG OF AVAILABLE PRODUCTS:\n' + (prod_list || '');
+      + 'CATALOG (one product per line):\n' + (prod_list || '');
 
     const prompt = 'Identify what is shown in this photo. Return JSON only:\n'
       + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
       + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
       + '"advice":"treatment advice in Ukrainian",'
-      + '"products":["exact product name from catalog"]}';
+      + '"products":["copy exact product name from catalog - pick 3-5 most relevant"]}\n\n'
+      + 'IMPORTANT: products array must contain exact names copied from the CATALOG above. '
+      + 'If disease - suggest fungicides. If pest - suggest insecticides. If weed - suggest herbicides.';
 
     let aiRes;
     try {
