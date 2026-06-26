@@ -477,16 +477,19 @@
           var DIAGNOSE_URL = 'https://agro-diagnose.ruslanchyk.workers.dev';
 
           function getProdList() {
-            // Беремо список товарів з window.allProducts якщо завантажений
             var all = window.allProducts || [];
-            return all.slice(0, 150).map(function(p) {
-              return p.n + (p.annot ? ' - ' + p.annot.slice(0, 60) : '');
+            return all.slice(0, 200).map(function(p) {
+              return p.n;
             }).join('\n');
           }
 
           function diagnose(file) {
             resultBox.style.display = 'block';
             resultBox.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#555;"><span style="font-size:1.4rem">⏳</span> Аналізуємо фото...</div>';
+
+            // Зберігаємо URL фото до показу результату
+            var imgUrl = URL.createObjectURL(file);
+            var imgType = file.type;
 
             var reader = new FileReader();
             reader.onload = function(ev) {
@@ -495,7 +498,7 @@
               fetch(DIAGNOSE_URL, {
                 method: 'POST',
                 headers: {'content-type': 'application/json'},
-                body: JSON.stringify({image_b64: b64, image_type: file.type, prod_list: getProdList()})
+                body: JSON.stringify({image_b64: b64, image_type: imgType, prod_list: getProdList()})
               })
               .then(function(r) {
                 var status = r.status;
@@ -508,7 +511,7 @@
                   return JSON.parse(text);
                 });
               })
-              .then(function(d) { renderResult(d, file); })
+              .then(function(d) { renderResult(d, imgUrl); })
               .catch(function(e) {
                 resultBox.innerHTML = '<div style="color:#c0392b;">❌ ' + e.message + '</div>';
                 console.error('diagnose error:', e);
@@ -529,8 +532,7 @@
             var confLabel = d.confidence === 'high' ? 'висока впевненість' : d.confidence === 'medium' ? 'середня впевненість' : 'низька впевненість';
 
             // Preview фото
-            var imgUrl = URL.createObjectURL(file);
-            var preview = '<img src="' + imgUrl + '" style="max-width:120px;max-height:100px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="фото">';
+            var preview = '<img src="' + file + '" style="max-width:120px;max-height:100px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="фото">';
 
             // Продукти
             // Зіставляємо назви препаратів з allProducts
@@ -541,10 +543,18 @@
               d.products.forEach(function(pname) {
                 if (!pname) return;
                 var nl = pname.toLowerCase().split(',')[0].trim();
+                // Шукаємо по назві АБО по keywords
                 var found = all.find(function(p) {
-                  return p.n && p.n.toLowerCase().startsWith(nl);
+                  if (!p.n) return false;
+                  var pnl = p.n.toLowerCase();
+                  if (pnl.startsWith(nl)) return true;
+                  // Пошук по ключових словах
+                  if (p.keywords && p.keywords.toLowerCase().indexOf(nl) >= 0) return true;
+                  return false;
                 });
-                if (found && found.slug) matchedProds.push(found);
+                if (found && found.slug && !matchedProds.find(function(x){return x.slug===found.slug;})) {
+                  matchedProds.push(found);
+                }
               });
             }
             if (matchedProds.length) {
