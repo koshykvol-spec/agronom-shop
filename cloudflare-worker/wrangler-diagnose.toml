@@ -1,0 +1,10 @@
+name = "agro-diagnose"
+main = "diagnose-worker.js"
+compatibility_date = "2024-11-01"
+
+# Змінні (не секрети — вказуй тут)
+[vars]
+ALLOWED_ORIGIN = "https://agronom.pp.ua"
+
+# ANTHROPIC_API_KEY — додай як Secret:
+# wrangler secret put ANTHROPIC_API_KEY --config wrangler-diagnose.toml
