@@ -98,7 +98,7 @@ export default {
 
     // Сповіщення в Telegram (тимчасово для моніторингу)
     if (env.BOT_TOKEN && env.CHAT_ID && result.type !== 'unknown') {
-      const typeLabel = result.type === 'disease' ? '🍂 Хвороба' : result.type === 'pest' ? '🐛 Шкідник' : '🌿 Бур'ян';
+      const typeLabel = result.type === 'disease' ? '🍂 Хвороба' : result.type === 'pest' ? '🐛 Шкідник' : '🌿 Бур’ян';
       const confLabel = result.confidence === 'high' ? 'висока' : result.confidence === 'medium' ? 'середня' : 'низька';
       const prodsText = result.products.length ? result.products.slice(0,3).join(', ') : 'не знайдено';
       const msg = `🔬 AI-діагностика на agronom.pp.ua
