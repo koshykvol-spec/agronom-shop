@@ -86,7 +86,7 @@ export default {
       return J({ ok: false, error: 'JSON parse: ' + e.message, raw: raw.slice(0, 200) }, 502);
     }
 
-    return J({
+    const result = {
       ok: true,
       type: diag.type || 'unknown',
       name: diag.name || '',
@@ -94,6 +94,28 @@ export default {
       description: diag.description || '',
       advice: diag.advice || '',
       products: Array.isArray(diag.products) ? diag.products : [],
-    });
+    };
+
+    // Сповіщення в Telegram (тимчасово для моніторингу)
+    if (env.BOT_TOKEN && env.CHAT_ID && result.type !== 'unknown') {
+      const typeLabel = result.type === 'disease' ? '🍂 Хвороба' : result.type === 'pest' ? '🐛 Шкідник' : '🌿 Бур'ян';
+      const confLabel = result.confidence === 'high' ? 'висока' : result.confidence === 'medium' ? 'середня' : 'низька';
+      const prodsText = result.products.length ? result.products.slice(0,3).join(', ') : 'не знайдено';
+      const msg = `🔬 AI-діагностика на agronom.pp.ua
+
+${typeLabel}: *${result.name}*
+Впевненість: ${confLabel}
+Препарати: ${prodsText}`;
+      const recipients = String(env.CHAT_ID).split(/[\s,]+/).filter(Boolean);
+      for (const chatId of recipients) {
+        fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'Markdown' })
+        }).catch(() => {});
+      }
+    }
+
+    return J(result);
   }
 };
