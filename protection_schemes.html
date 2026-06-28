@@ -539,27 +539,34 @@
             var all = window.allProducts || [];
             var matchedProds = [];
 
-            // Визначаємо категорію для фільтрації
-            var catFilter = '';
-            if (d.type === 'disease') catFilter = 'фунгіцид';
-            else if (d.type === 'pest') catFilter = 'інсектицид';
-            else if (d.type === 'weed') catFilter = 'гербіцид';
+            // Визначаємо тип препарату для фільтрації (шукаємо в назві товару)
+            var typeKeywords = [];
+            if (d.type === 'disease') typeKeywords = ['фунгіцид', 'бордоськ', 'мідн', 'купорос'];
+            else if (d.type === 'pest') typeKeywords = ['інсектицид', 'акарицид', 'інсекто'];
+            else if (d.type === 'weed') typeKeywords = ['гербіцид'];
 
-            // Ключові слова для пошуку — назва + перші слова
+            function isRightType(p) {
+              if (!typeKeywords.length) return true;
+              var pn = (p.n || '').toLowerCase();
+              var pb = (p.b || '').toLowerCase();
+              return typeKeywords.some(function(k){ return pn.indexOf(k) >= 0 || pb.indexOf(k) >= 0; });
+            }
+
+            // Ключові слова для пошуку в анотації/keywords
             var diagName = (d.name || '').toLowerCase();
-            var searchTerms = diagName.split(/[\s,]+/).filter(function(w){ return w.length > 3; });
+            // Беремо значущі слова (>3 символів), прибираємо загальні
+            var stopWords = ['рослин', 'листя', 'плод', 'гілок', 'дерев', 'цей', 'така'];
+            var searchTerms = diagName.split(/[\s,()]+/).filter(function(w){
+              return w.length > 3 && stopWords.indexOf(w) < 0;
+            });
             if (diagName) searchTerms.unshift(diagName);
 
-            // 1. Спочатку шукаємо по анотації/keywords
+            // 1. Шукаємо по анотації/keywords — тільки правильного типу
             if (searchTerms.length && d.type !== 'unknown') {
               all.forEach(function(p) {
                 if (matchedProds.length >= 5) return;
                 if (!p.slug) return;
-                // Фільтр по типу препарату
-                var pn = (p.n || '').toLowerCase();
-                if (catFilter && pn.indexOf(catFilter) < 0 &&
-                    (p.b || '').toLowerCase().indexOf(catFilter) < 0 &&
-                    (p.c || '').toLowerCase().indexOf(catFilter) < 0) return;
+                if (!isRightType(p)) return;
                 // Пошук в анотації та keywords
                 var haystack = ((p.annot || '') + ' ' + (p.keywords || '')).toLowerCase();
                 var hit = searchTerms.some(function(term) {
