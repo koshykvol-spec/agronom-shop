@@ -8,7 +8,7 @@
 // повертає діагноз + список препаратів.
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = env.ALLOWED_ORIGIN || 'https://agronom.pp.ua';
     const cors = {
       'Access-Control-Allow-Origin': '*',
@@ -96,11 +96,16 @@ export default {
       products: Array.isArray(diag.products) ? diag.products : [],
     };
 
-    // Логування для статистики (адмінка)
+    // Логування для статистики (адмінка) — await, бо без ctx.waitUntil Worker
+    // може завершитись до виконання запиту
     if (env.DB) {
-      env.DB.prepare(
-        `INSERT INTO diagnose_log(type, name, confidence, products_found) VALUES(?,?,?,?)`
-      ).bind(result.type, result.name, result.confidence, result.products.length).run().catch(() => {});
+      try {
+        await env.DB.prepare(
+          `INSERT INTO diagnose_log(type, name, confidence, products_found) VALUES(?,?,?,?)`
+        ).bind(result.type, result.name, result.confidence, result.products.length).run();
+      } catch(logErr) {
+        // не блокуємо відповідь користувачу через помилку логування
+      }
     }
 
     // Сповіщення в Telegram (тимчасово для моніторингу)
