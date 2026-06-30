@@ -96,6 +96,13 @@ export default {
       products: Array.isArray(diag.products) ? diag.products : [],
     };
 
+    // Логування для статистики (адмінка)
+    if (env.DB) {
+      env.DB.prepare(
+        `INSERT INTO diagnose_log(type, name, confidence, products_found) VALUES(?,?,?,?)`
+      ).bind(result.type, result.name, result.confidence, result.products.length).run().catch(() => {});
+    }
+
     // Сповіщення в Telegram (тимчасово для моніторингу)
     if (env.BOT_TOKEN && env.CHAT_ID && result.type !== 'unknown') {
       const typeLabel = result.type === 'disease' ? '🍂 Хвороба' : result.type === 'pest' ? '🐛 Шкідник' : '🌿 Бур’ян';
