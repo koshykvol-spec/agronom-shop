@@ -478,7 +478,14 @@
 
           function getProdList() {
             var all = window.allProducts || [];
-            return all.slice(0, 200).map(function(p) {
+            // Беремо лише агрохімікати (фунгіциди/інсектициди/гербіциди) — це те, що AI має пропонувати
+            var agro = all.filter(function(p) {
+              var n = (p.n || '').toLowerCase();
+              return n.indexOf('фунгіцид') >= 0 || n.indexOf('інсектицид') >= 0 ||
+                     n.indexOf('гербіцид') >= 0 || n.indexOf('акарицид') >= 0 ||
+                     n.indexOf('бордоськ') >= 0 || n.indexOf('купорос') >= 0;
+            });
+            return agro.slice(0, 250).map(function(p) {
               return p.n;
             }).join('\n');
           }
