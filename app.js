@@ -738,7 +738,7 @@ function render(arr) {
     var canon  = origin + location.pathname + location.search;
     ld.textContent = JSON.stringify(slice.map(function (p) {
         var effPrice = (typeof p.sale === 'number' && p.sale > 0 && p.sale < p.p) ? p.sale : p.p;
-        var imgAbs = p.img ? (p.img.startsWith('http') ? p.img : origin + '/' + p.img.replace(/^\//, '')) : undefined;
+        var imgAbs = p.img ? (p.img.startsWith('http') ? p.img : origin + '/' + encodeURI(p.img.replace(/^\//, ''))) : undefined;
         var desc = p.annot || p.n;
         return {
             "@context": "https://schema.org", "@type": "Product",
