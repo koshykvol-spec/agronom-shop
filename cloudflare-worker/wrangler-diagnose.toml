@@ -6,5 +6,11 @@ compatibility_date = "2024-11-01"
 [vars]
 ALLOWED_ORIGIN = "https://agronom.pp.ua"
 
+# D1 — спільна база з сайтом (логування статистики діагностик)
+[[d1_databases]]
+binding = "DB"
+database_name = "agronom-db"
+database_id = "b5d676d5-53a5-4b81-8888-4c77a967cf32"
+
 # ANTHROPIC_API_KEY — додай як Secret:
 # wrangler secret put ANTHROPIC_API_KEY --config wrangler-diagnose.toml
