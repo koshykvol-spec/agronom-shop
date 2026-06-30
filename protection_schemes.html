@@ -476,18 +476,27 @@
 
           var DIAGNOSE_URL = 'https://agro-diagnose.ruslanchyk.workers.dev';
 
-          function getProdList() {
-            var all = window.allProducts || [];
-            // Беремо лише агрохімікати (фунгіциди/інсектициди/гербіциди) — це те, що AI має пропонувати
-            var agro = all.filter(function(p) {
-              var n = (p.n || '').toLowerCase();
-              return n.indexOf('фунгіцид') >= 0 || n.indexOf('інсектицид') >= 0 ||
-                     n.indexOf('гербіцид') >= 0 || n.indexOf('акарицид') >= 0 ||
-                     n.indexOf('бордоськ') >= 0 || n.indexOf('купорос') >= 0;
-            });
-            return agro.slice(0, 250).map(function(p) {
-              return p.n;
-            }).join('\n');
+          function getKnownNames() {
+            var names = [];
+            // Хвороби і шкідники з DATA
+            if (typeof DATA !== 'undefined') {
+              Object.keys(DATA).forEach(function(crop) {
+                ['diseases','pests'].forEach(function(key) {
+                  (DATA[crop][key] || []).forEach(function(entry) {
+                    if (names.indexOf(entry.d) < 0) names.push(entry.d);
+                  });
+                });
+              });
+            }
+            // Бур'яни з crops
+            if (typeof crops !== 'undefined') {
+              crops.forEach(function(crop) {
+                (crop.weeds || []).forEach(function(w) {
+                  if (names.indexOf(w) < 0) names.push(w);
+                });
+              });
+            }
+            return names.join('\n');
           }
 
           function diagnose(file) {
@@ -504,7 +513,7 @@
               fetch(DIAGNOSE_URL, {
                 method: 'POST',
                 headers: {'content-type': 'application/json'},
-                body: JSON.stringify({image_b64: b64, image_type: imgType, prod_list: getProdList()})
+                body: JSON.stringify({image_b64: b64, image_type: imgType, known_names: getKnownNames()})
               })
               .then(function(r) {
                 var status = r.status;
@@ -541,58 +550,78 @@
             var preview = file ? '<img src="' + file + '" style="max-width:120px;max-height:100px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="фото">' : '';
 
             // Продукти
-            // Шукаємо препарати по назві хвороби/шкідника/бур'яну в анотаціях і keywords
+            // Шукаємо препарати в довідниках DATA (хвороби/шкідники) та crops (бур'яни) —
+            // це перевірена агрономом база, а не вгадування AI з усього каталогу.
             var prods = '';
             var all = window.allProducts || [];
             var matchedProds = [];
+            var diagName = (d.name || '').toLowerCase().trim();
 
-            // Визначаємо тип препарату для фільтрації (шукаємо в назві товару)
-            var typeKeywords = [];
-            if (d.type === 'disease') typeKeywords = ['фунгіцид', 'бордоськ', 'мідн', 'купорос'];
-            else if (d.type === 'pest') typeKeywords = ['інсектицид', 'акарицид', 'інсекто'];
-            else if (d.type === 'weed') typeKeywords = ['гербіцид'];
-
-            function isRightType(p) {
-              if (!typeKeywords.length) return true;
-              var pn = (p.n || '').toLowerCase();
-              var pb = (p.b || '').toLowerCase();
-              return typeKeywords.some(function(k){ return pn.indexOf(k) >= 0 || pb.indexOf(k) >= 0; });
-            }
-
-            // Ключові слова для пошуку в анотації/keywords
-            var diagName = (d.name || '').toLowerCase();
-            // Беремо значущі слова (>3 символів), прибираємо загальні
-            var stopWords = ['рослин', 'листя', 'плод', 'гілок', 'дерев', 'цей', 'така'];
-            var searchTerms = diagName.split(/[\s,()]+/).filter(function(w){
-              return w.length > 3 && stopWords.indexOf(w) < 0;
-            });
-            if (diagName) searchTerms.unshift(diagName);
-
-            // 1. Шукаємо по анотації/keywords — тільки правильного типу
-            if (searchTerms.length && d.type !== 'unknown') {
-              all.forEach(function(p) {
-                if (matchedProds.length >= 5) return;
-                if (!p.slug) return;
-                if (!isRightType(p)) return;
-                // Пошук в анотації та keywords
-                var haystack = ((p.annot || '') + ' ' + (p.keywords || '')).toLowerCase();
-                var hit = searchTerms.some(function(term) {
-                  return haystack.indexOf(term) >= 0;
-                });
-                if (hit && !matchedProds.find(function(x){return x.slug===p.slug;})) {
-                  matchedProds.push(p);
-                }
+            function findInAllProducts(prepName) {
+              var nl = prepName.toLowerCase().split(',')[0].trim();
+              if (!nl) return null;
+              return all.find(function(p) {
+                return p.n && p.n.toLowerCase().startsWith(nl);
               });
             }
 
-            // 2. Якщо AI запропонував конкретні назви — додаємо їх
-            if (d.products && d.products.length && matchedProds.length < 5) {
-              d.products.forEach(function(pname) {
-                if (!pname || matchedProds.length >= 5) return;
-                var nl = pname.toLowerCase().split(',')[0].trim();
-                var found = all.find(function(p) {
-                  return p.n && p.n.toLowerCase().startsWith(nl);
+            function nameMatches(entryName, target) {
+              var e = entryName.toLowerCase();
+              // точний збіг, або входження в обидва боки (для дужок типу "Моніліоз (плодова гниль)")
+              return e === target || e.indexOf(target) >= 0 || target.indexOf(e) >= 0;
+            }
+
+            if (d.type === 'disease' || d.type === 'pest') {
+              // Шукаємо у DATA по всіх культурах — знаходимо запис хвороби/шкідника з найбільш близькою назвою
+              var key = d.type === 'disease' ? 'diseases' : 'pests';
+              var bestEntry = null;
+              if (typeof DATA !== 'undefined') {
+                Object.keys(DATA).forEach(function(crop) {
+                  var list = DATA[crop] && DATA[crop][key];
+                  if (!list) return;
+                  list.forEach(function(entry) {
+                    if (bestEntry) return;
+                    if (nameMatches(entry.d, diagName)) bestEntry = entry;
+                  });
                 });
+              }
+              if (bestEntry && bestEntry.p) {
+                bestEntry.p.forEach(function(prep) {
+                  if (matchedProds.length >= 5) return;
+                  var found = findInAllProducts(prep.n);
+                  if (found && found.slug && !matchedProds.find(function(x){return x.slug===found.slug;})) {
+                    matchedProds.push(found);
+                  }
+                });
+              }
+            } else if (d.type === 'weed') {
+              // Шукаємо у crops[].herbs — бур'ян згаданий у списку weeds культури
+              var bestHerbs = null;
+              if (typeof crops !== 'undefined') {
+                crops.forEach(function(crop) {
+                  if (bestHerbs) return;
+                  var hit = (crop.weeds || []).some(function(w) { return nameMatches(w, diagName); });
+                  if (hit) bestHerbs = crop.herbs;
+                });
+                // Якщо по конкретній культурі не знайдено — беремо herbs першої культури де є суцільної дії гербіциди
+                if (!bestHerbs && crops.length) bestHerbs = crops[0].herbs;
+              }
+              if (bestHerbs) {
+                bestHerbs.slice(0, 5).forEach(function(h) {
+                  if (matchedProds.length >= 5) return;
+                  var found = findInAllProducts(h.n);
+                  if (found && found.slug && !matchedProds.find(function(x){return x.slug===found.slug;})) {
+                    matchedProds.push(found);
+                  }
+                });
+              }
+            }
+
+            // Fallback — якщо в довідниках нічого не знайшли, пробуємо назви від AI напряму
+            if (!matchedProds.length && d.products && d.products.length) {
+              d.products.forEach(function(pname) {
+                if (matchedProds.length >= 5) return;
+                var found = findInAllProducts(pname);
                 if (found && found.slug && !matchedProds.find(function(x){return x.slug===found.slug;})) {
                   matchedProds.push(found);
                 }
