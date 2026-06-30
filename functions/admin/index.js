@@ -27,7 +27,8 @@ td,th{padding:7px 10px;border-bottom:1px solid #eee;text-align:left;font-size:.8
 function navGrid() {
   const groups = [
     { h: '📨 Операційне', items: [
-      ['/admin/orders', '🛒', 'Замовлення'], ['/admin/reviews', '⭐', 'Відгуки'] ] },
+      ['/admin/orders', '🛒', 'Замовлення'], ['/admin/reviews', '⭐', 'Відгуки'],
+      ['/admin/diagnose-stats', '🔬', 'Порадник по фото (статистика)'] ] },
     { h: '⚙️ Налаштування', items: [
       ['/admin/categories', '📂', 'Категорії'], ['/admin/pages', '📄', 'Сторінки'],
       ['/admin/contacts', '📍', 'Контакти'], ['/admin/recipes', '🧪', 'Чипи'],
