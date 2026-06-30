@@ -31,21 +31,21 @@ export default {
     try { body = await request.json(); }
     catch(e) { return J({ ok: false, error: 'Invalid JSON: ' + e.message }, 400); }
 
-    const { image_b64, image_type, prod_list } = body;
+    const { image_b64, image_type, known_names } = body;
     if (!image_b64) return J({ ok: false, error: 'No image_b64' }, 400);
 
     const sys = 'You are an agronomist for a Ukrainian garden shop. '
       + 'Identify plant diseases, pests, or weeds from photos. '
       + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language in all text fields.\n\n'
-      + 'CATALOG (one product per line):\n' + (prod_list || '');
+      + (known_names ? 'KNOWN DISEASE/PEST/WEED NAMES IN OUR REFERENCE DATABASE (prefer matching exactly to one of these if applicable):\n' + known_names + '\n\n' : '');
 
     const prompt = 'Identify what is shown in this photo. Return JSON only:\n'
-      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
+      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name - use EXACT name from the KNOWN NAMES list above if it matches, otherwise your own precise Ukrainian name",'
       + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
       + '"advice":"treatment advice in Ukrainian",'
-      + '"products":["copy exact product name from catalog - pick 3-5 most relevant"]}\n\n'
-      + 'IMPORTANT: products array must contain exact names copied from the CATALOG above. '
-      + 'If disease - suggest fungicides. If pest - suggest insecticides. If weed - suggest herbicides.';
+      + '"products":[]}\n\n'
+      + 'IMPORTANT: leave products as empty array - we will look up products ourselves based on the disease/pest/weed name you provide. '
+      + 'Focus on giving the most ACCURATE name matching our known names list.';
 
     let aiRes;
     try {
