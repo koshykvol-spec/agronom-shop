@@ -9,6 +9,15 @@
 
 export default {
   async fetch(request, env, ctx) {
+    // Debug: перевірка DB
+    if (new URL(request.url).pathname === '/debug-db') {
+      try {
+        const r = await env.DB.prepare(`SELECT COUNT(*) n FROM diagnose_log`).first();
+        return new Response(JSON.stringify({db:'ok', count: r.n}), {headers:{'content-type':'application/json'}});
+      } catch(e) {
+        return new Response(JSON.stringify({db:'error', msg: e.message}), {headers:{'content-type':'application/json'}});
+      }
+    }
     const origin = env.ALLOWED_ORIGIN || 'https://agronom.pp.ua';
     const cors = {
       'Access-Control-Allow-Origin': '*',
