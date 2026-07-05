@@ -740,10 +740,11 @@ function render(arr) {
         var effPrice = (typeof p.sale === 'number' && p.sale > 0 && p.sale < p.p) ? p.sale : p.p;
         var imgAbs = p.img ? (p.img.startsWith('http') ? p.img : origin + '/' + encodeURI(p.img.replace(/^\//, ''))) : undefined;
         var desc = p.annot || p.n;
+        var safeMpn = (p.slug && String(p.slug).trim()) ? String(p.slug).trim().slice(0, 70) : undefined;
         return {
             "@context": "https://schema.org", "@type": "Product",
             "name": p.n,
-            "mpn": p.slug || undefined,
+            "mpn": safeMpn,
             "description": desc,
             "image": imgAbs || undefined,
             "brand": p.b ? {"@type": "Brand", "name": p.b} : undefined,
