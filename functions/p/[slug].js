@@ -117,11 +117,16 @@ export async function onRequest(context) {
   // description: annotation → meta_desc → генерований текст (не може бути порожнім)
   const ldDesc = (p.annotation || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
 
+  // mpn: Google вимагає рядок 1–70 символів. p.sku з 1С інколи порожній —
+  // тоді підставляємо slug товару як стабільний унікальний ідентифікатор.
+  const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
+  const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
+
   const jsonld = {
     '@context': 'https://schema.org', '@type': 'Product',
     name: displayName,
-    sku: p.sku,
-    mpn: p.sku,   // глобальний ідентифікатор (manufacturer part number = SKU)
+    sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
+    mpn: safeMpn,
     category: p.category,
     brand: p.brand ? { '@type': 'Brand', name: p.brand } : undefined,
     image: ldImages.length ? ldImages : undefined,
