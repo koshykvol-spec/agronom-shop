@@ -1,0 +1,10 @@
+﻿.cf-secrets
+.wrangler/
+cloudflare-worker/.wrangler/
+node_modules/
+*.log
+
+thumb/
+d1_export.json
+products_Old.json
+products_backup_before_merge.json
