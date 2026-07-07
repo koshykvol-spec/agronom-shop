@@ -24,12 +24,10 @@ export async function onRequest(context) {
 
   if (!p) return new Response('Товар не знайдено', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 
-  // Фасадна назва (показується на сайті); якщо порожня — робоча назва з 1С
   const displayName = (p.display_name && String(p.display_name).trim()) ? String(p.display_name).trim() : p.name;
 
-  // Бренд/місто для SEO-суфікса — з site_settings (керується в /admin/contacts); fallback нижче
   let s_name = 'Агроном', s_city = 'м. Володимир', s_tskey = '', s_addr = '', s_phone = '063 462 52 06', s_viber = '';
-  let seoReturnDays = 14, seoShipCost = 0;   // для структурованих даних offers (керується в /admin/checkout)
+  let seoReturnDays = 14, seoShipCost = 0;
   try {
     const ss = (await env.DB.prepare(`SELECT key,value FROM site_settings WHERE key IN ('name','city','turnstile_sitekey','address','phoneDisplay','viberPhone','seo_return_days','seo_ship_cost')`).all()).results || [];
     for (const r of ss) {
@@ -44,14 +42,12 @@ export async function onRequest(context) {
     }
   } catch (e) {}
 
-  // Калькулятор робочого розчину: парсимо «X од на Y л» з тексту дозування (сервер-сайд, без regex в інлайн-JS).
   let doseCalc = null;
   if (p.dosage) {
     const dm = String(p.dosage).replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*(мл|г|кг|л)\s*(?:на|\/|за|–|—|-|x|×)?\s*(\d+(?:\.\d+)?)\s*л/i);
     if (dm && parseFloat(dm[3]) > 0) doseCalc = { amount: parseFloat(dm[1]), unit: dm[2], per: parseFloat(dm[3]) };
   }
 
-  // Селектор фасовок (інші варіанти тієї ж групи)
   let variantSelector = '';
   if (p.group_id) {
     const sibs = (await env.DB.prepare(
@@ -76,7 +72,6 @@ export async function onRequest(context) {
     `SELECT path FROM product_images WHERE pid=? ORDER BY sort, id`
   ).bind(p.pid).all()).results || [];
   let imgList = imgsAll.map(r => r.path).filter(Boolean);
-  // якщо в цієї фасовки фото немає або файл відсутній — беремо фото сусіда по групі з робочим файлом
   if ((imgList.length === 0 || p.image_ok !== 1) && p.group_id) {
     const sib = await env.DB.prepare(
       `SELECT i.path FROM product_images i JOIN product_content c ON c.pid=i.pid
@@ -85,15 +80,21 @@ export async function onRequest(context) {
     if (sib && sib.path) imgList = [sib.path];
   }
   const img = imgList[0] || '';
-  // ВАЖЛИВО: og:image/JSON-LD image мусять бути URL-КОДОВАНІ (пробіли/кирилиця),
-  // інакше скрапери (Telegram/Facebook/Viber) не витягнуть фото → прев'ю без картинки.
-  const toAbs = pth => pth.startsWith('http') ? pth : origin + '/' + encodeURI(pth.replace(/^\//, ''));
+  // encodeURI НЕ кодує "( ) , '" (вважає їх "безпечними" за RFC 3986) — а саме ці символи
+  // трапляються в назвах файлів фото (напр. "Краспедія Соларіс 0,1г (GL Seeds).webp"),
+  // через що Google Search Console відхиляв image-URL як недійсні. Кодуємо кожен сегмент шляху окремо.
+  const toAbs = pth => {
+    if (!pth) return pth;
+    if (pth.startsWith('http')) return pth;
+    const clean = pth.replace(/^\/+/, '');
+    const encoded = clean.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    return origin + '/' + encoded;
+  };
   const imgAbs = img ? toAbs(img) : (origin + '/android-chrome-512x512.png');
 
   const weight = isWeight(p);
   const inStock = p.in_stock !== 0;
   const price = (typeof p.price === 'number') ? p.price.toFixed(2) : '';
-  // Акція: активна, якщо є акційна ціна < звичайної і дата ще не минула
   const today = new Date().toISOString().slice(0, 10);
   const onSale = p.sale_price != null && p.sale_price > 0 && p.sale_price < (p.price || Infinity) && (!p.sale_until || p.sale_until >= today);
   const effPrice = onSale ? p.sale_price : p.price;
@@ -104,7 +105,6 @@ export async function onRequest(context) {
   const title = p.meta_title || (displayName + ' — ' + s_name + ', ' + s_city);
   const desc = (p.meta_desc || p.annotation || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 300);
   const canonical = origin + '/p/' + p.slug;
-  // urlkey категорії — з D1 (таблиця categories, керується в /admin/categories)
   let catKey = '';
   try {
     const ck = await env.DB.prepare(`SELECT key FROM categories WHERE db_name=? LIMIT 1`).bind(p.category).first();
@@ -112,13 +112,9 @@ export async function onRequest(context) {
   } catch (e) {}
   const catUrl = catKey ? ('/category.html?cat=' + catKey) : '/index.html';
 
-  // image: лише валідні абсолютні URL реальних фото товару (не fallback-іконка)
   const ldImages = imgList.map(toAbs).filter(u => u && u.startsWith('http'));
-  // description: annotation → meta_desc → генерований текст (не може бути порожнім)
   const ldDesc = (p.annotation || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
 
-  // mpn: Google вимагає рядок 1–70 символів. p.sku з 1С інколи порожній —
-  // тоді підставляємо slug товару як стабільний унікальний ідентифікатор.
   const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
   const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
 
@@ -157,7 +153,6 @@ export async function onRequest(context) {
     }
   };
 
-  // ── Відгуки (схвалені) + супутні товари ──
   let reviews = [];
   try { reviews = (await env.DB.prepare(`SELECT name,rating,text,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
   const revCount = reviews.length;
@@ -177,7 +172,6 @@ export async function onRequest(context) {
     ).bind(p.category, p.pid, p.group_id||'', p.group_id||'').all()).results || [];
   } catch(e){}
 
-  // Аналоги — товари з ТІЄЮ САМОЮ діючою речовиною (інша марка/ціна); сортуємо від дешевших
   let analogs = [];
   const aing = (p.active_ingredient || '').trim();
   if (aing) {
@@ -192,7 +186,6 @@ export async function onRequest(context) {
     } catch(e){}
   }
 
-  // Галерея: головне фото + мініатюри. Шляхи абсолютні (сторінка живе на /p/<slug>).
   const toSrc = pth => pth.startsWith('http') ? pth : '/' + pth.replace(/^\//, '');
   const mainSrc = img ? toSrc(img) : '';
   const thumbs = imgList.length > 1
@@ -256,10 +249,8 @@ export async function onRequest(context) {
       <button type="submit" style="margin-top:8px;background:var(--green);color:#fff;border:0;padding:9px 16px;border-radius:8px;font-weight:700;cursor:pointer">Надіслати відгук</button>
     </form>${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
   </section>`;
-  // Картка супутнього/аналога: посилання (фото+назва+ціна) + пряма кнопка «У кошик».
-  // Дані для додавання — у data-атрибутах (безпечно, без інтерполяції у JS-рядок).
   const relCard = (r, fallbackIco) => {
-    const ri = r.img ? encodeURI('/' + String(r.img).replace(/^\//, '')) : '';
+    const ri = r.img ? toSrc(r.img) : '';
     const oos = r.in_stock === 0;
     const addBtn = oos
       ? `<div class="rc-oos">Немає в наявності</div>`
@@ -281,13 +272,11 @@ export async function onRequest(context) {
     ${related.map(r => relCard(r, '🛒')).join('')}
     </div></section>` : '';
 
-  // Хлібні крихти для Google (rich result): Каталог › Категорія › Товар
   const bcItems = [{ '@type': 'ListItem', position: 1, name: 'Каталог', item: origin + '/' }];
   if (p.category) bcItems.push({ '@type': 'ListItem', position: 2, name: p.category, item: origin + catUrl });
   bcItems.push({ '@type': 'ListItem', position: bcItems.length + 1, name: displayName, item: canonical });
   const breadcrumbLd = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: bcItems };
 
-  // Кнопка «Поділитися»: Web Share API (мобільний) + фолбек-меню (Telegram/Viber/FB/копія)
   const shTg = 'https://t.me/share/url?url=' + encodeURIComponent(canonical) + '&text=' + encodeURIComponent(displayName);
   const shVb = 'viber://forward?text=' + encodeURIComponent(displayName + ' — ' + canonical);
   const shFb = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(canonical);
