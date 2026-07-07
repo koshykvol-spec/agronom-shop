@@ -1,8 +1,10 @@
 // /admin/import — імпорт вигрузки 1С: вибір локального файлу → перевірка формату (dry-run) → імпорт у D1.
 // Обогащення (product_content/product_images) НЕ чіпається.
+// Товари, які зникли з вигрузки (є в базі, нема у файлі), автоматично отримують in_stock=0 —
+// вони не видаляються і не втрачають фото/SEO, просто ховаються з наявності до повернення у 1С.
 const TR = {'а':'a','б':'b','в':'v','г':'g','ґ':'g','д':'d','е':'e','є':'ie','ж':'zh','з':'z','и':'y','і':'i','ї':'i','й':'j','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ь':'','ю':'iu','я':'ia',"'":'','’':''};
 function slugify(n){let s=(n||'').toLowerCase();let o='';for(const ch of s)o+=(TR[ch]!==undefined?TR[ch]:ch);o=o.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');return o.slice(0,80)||'tovar';}
-function fixNum(s){return String(s==null?'':s).replace(/[\s ]/g,'');}
+function fixNum(s){return String(s==null?'':s).replace(/[\s ]/g,'');}
 // Символи у шляху фото, що ламають роздачу з R2 / блокуються WAF (виявлено при міграції):
 // ".." (path-traversal), "%" (псує URL ключа), зворотний слеш, керуючі символи.
 function imgPathIssues(path){
@@ -25,7 +27,7 @@ function sanitizeImgPath(path){
 }
 function parseTolerant(txt){
   txt = txt.replace(/^﻿/, '');
-  txt = txt.replace(/("p"\s*:\s*)([0-9][0-9\s ]*\.?[0-9]*)/g, (m, a, b) => a + fixNum(b));
+  txt = txt.replace(/("p"\s*:\s*)([0-9][0-9\s ]*\.?[0-9]*)/g, (m, a, b) => a + fixNum(b));
   txt = txt.replace(/,\s*]/g, ']');
   return JSON.parse(txt);
 }
@@ -43,7 +45,7 @@ pre{background:#fff;padding:12px;border-radius:8px;white-space:pre-wrap;border:1
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body>
 <div><a href="/admin">← до адмінки</a></div>
 <h2>Імпорт вигрузки 1С</h2>
-<p class=muted>1) Оберіть файл <code>products.json</code> з 1С. 2) «Перевірити формат». 3) Якщо помилок немає — «Імпортувати». Оновлюються ціни/наявність/назви; нові товари додаються; описи й фото зберігаються.</p>
+<p class=muted>1) Оберіть файл <code>products.json</code> з 1С. 2) «Перевірити формат». 3) Якщо помилок немає — «Імпортувати». Оновлюються ціни/наявність/назви; нові товари додаються; описи й фото зберігаються. Товари, яких немає у новому файлі, автоматично позначаються «немає в наявності» (не видаляються).</p>
 <label class=btn style="background:#555;cursor:pointer;display:inline-block">📂 Виберіть файл<input type=file id=f accept=".json,application/json" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"></label>
 <span id=fn class=muted style="margin-left:8px">Файл не вибрано</span>
 <p><button class=btn id=chk onclick="verify()" disabled>① Перевірити формат</button>
@@ -82,7 +84,7 @@ function renderReport(d,dry){
   h+=sect('📈 Знову в наявності (0→в наявності)',r.stockRestored,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+'</div>');
   h+=sect('💸 Зміна ціни (стара → нова)',r.priceChanges,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+': <b>'+x.old+' → '+x.neu+'</b></div>');
   h+=sect('🔀 Зміна категорії/бренду',r.moved,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+': '+esc(x.oldC||'—')+'→'+esc(x.newC||'—')+(x.oldB!==x.newB?' / бренд '+esc(x.oldB||'—')+'→'+esc(x.newB||'—'):'')+'</div>');
-  h+=sect('🗑 Зникли з вигрузки (є в базі, нема у файлі)',r.disappeared,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+(x.inStock?' <span style="color:#c0392b">(в наявності!)</span>':'')+'</div>');
+  h+=sect('🗑 Зникли з вигрузки (є в базі, нема у файлі) — деактивовано: '+(r.disappearedZeroed||0),r.disappeared,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+(x.inStock?' <span style="color:#c0392b">(було в наявності — знято з наявності)</span>':' <span class=muted>(вже було відсутнє)</span>')+'</div>');
   h+=sect('⚠️ Дублі sku в базі (один sku = різні товари — виправити в 1С)',r.dupSkus,x=>'<div><b>'+esc(x.sku)+'</b>: '+esc((x.names||[]).join('  |  '))+'</div>');
   if(d.imgWarnings) h+=sect('🖼 Виправлені шляхи фото',{total:d.imgWarnings,sample:d.sampleImgWarnings},x=>'<div>'+esc(x.sku)+': '+esc(x.problem)+'<br><span class=muted>'+esc(x.img)+' → '+esc(x.fixedTo)+'</span></div>');
   if(d.invalid) h+=sect('⛔ Пропущені (помилки формату)',{total:d.invalid,sample:d.sampleInvalid},x=>'<div>'+esc(x.sku||'?')+' · '+esc(x.n||'')+' — '+esc(x.reason)+'</div>');
@@ -149,6 +151,7 @@ export async function onRequestPost(context) {
   } catch (e) {}
 
   const Up = db.prepare(`UPDATE products SET name=?,price=?,category=?,brand=?,in_stock=?,updated_at=? WHERE pid=?`);
+  const ZeroMissing = db.prepare(`UPDATE products SET in_stock=0,updated_at=? WHERE pid=?`);
   const InP = db.prepare(`INSERT INTO products(pid,sku,name,price,category,brand,in_stock,updated_at) VALUES(?,?,?,?,?,?,?,?)`);
   const InC = db.prepare(`INSERT INTO product_content(pid,slug,meta_title,visible) VALUES(?,?,?,1)`);
   const InI = db.prepare(`INSERT INTO product_images(pid,path,sort) VALUES(?,?,0)`);
@@ -180,8 +183,21 @@ export async function onRequestPost(context) {
       created++;
     }
   }
-  // товари, що Є в базі, але ВІДСУТНІ у файлі (за sku) — їхні дані застаріють
-  for (const r of exRows) if (!importSkus.has(r.sku)) rep.disappeared.push({ sku: r.sku, n: r.name, inStock: r.in_stock | 0 });
+
+  // товари, що Є в базі, але ВІДСУТНІ у файлі (за sku) — вважаємо їх відсутніми в наявності.
+  // Дані (описи/фото/SEO) НЕ чіпаємо і НЕ видаляємо — лише гасимо in_stock,
+  // щоб товар зник з фронту, але автоматично «ожив», щойно знову з'явиться в 1С.
+  const nowIso = new Date().toISOString();
+  let disappearedZeroed = 0;
+  for (const r of exRows) {
+    if (!importSkus.has(r.sku)) {
+      rep.disappeared.push({ sku: r.sku, n: r.name, inStock: r.in_stock | 0 });
+      if ((r.in_stock | 0) !== 0) {
+        stmts.push(ZeroMissing.bind(nowIso, r.pid));
+        disappearedZeroed++;
+      }
+    }
+  }
 
   // дублі sku в базі (один sku = різні товари) — їх не можна синхронізувати лише по sku
   const dupSkus = [];
@@ -196,6 +212,7 @@ export async function onRequestPost(context) {
     priceChanges: cap(rep.priceChanges, 200),
     moved: cap(rep.moved, 200),
     disappeared: cap(rep.disappeared, 300),
+    disappearedZeroed,
     dupSkus: cap(dupSkus, 50),
   };
 
