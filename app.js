@@ -24,6 +24,18 @@ function thumbUrl(img){
     return '/thumb/' + img.replace(/^\/+/, '');
 }
 
+// Абсолютний URL фото для JSON-LD/og:image. encodeURI НЕ кодує "( ) , '"
+// (вважає їх "безпечними" за RFC 3986) — а саме ці символи трапляються в назвах
+// файлів фото (напр. "Краспедія Соларіс 0,1г (GL Seeds).webp"), через що Google
+// Search Console відхиляв image-URL як недійсні. Кодуємо кожен сегмент шляху окремо.
+function toAbsImageUrl(rawPath, origin){
+    if (!rawPath) return undefined;
+    if (/^https?:\/\//i.test(rawPath)) return rawPath;
+    var clean = rawPath.replace(/^\/+/, '');
+    var encoded = clean.split('/').map(function (seg) { return encodeURIComponent(seg); }).join('/');
+    return origin + '/' + encoded;
+}
+
 let products = [];
 let renderedProducts = []; // для модального вікна товару
 
@@ -738,7 +750,7 @@ function render(arr) {
     var canon  = origin + location.pathname + location.search;
     ld.textContent = JSON.stringify(slice.map(function (p) {
         var effPrice = (typeof p.sale === 'number' && p.sale > 0 && p.sale < p.p) ? p.sale : p.p;
-        var imgAbs = p.img ? (p.img.startsWith('http') ? p.img : origin + '/' + encodeURI(p.img.replace(/^\//, ''))) : undefined;
+        var imgAbs = toAbsImageUrl(p.img, origin);
         var desc = p.annot || p.n;
         var safeMpn = (p.slug && String(p.slug).trim()) ? String(p.slug).trim().slice(0, 70) : undefined;
         return {
