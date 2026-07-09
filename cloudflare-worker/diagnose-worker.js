@@ -108,7 +108,7 @@ export default {
     });
 
     // Пробуємо основну модель, а якщо вона перевантажена (503) — резервну
-    const models = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+    const models = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite'];
     let aiRes = null;
     let lastErrText = '';
     for (let i = 0; i < models.length; i++) {
