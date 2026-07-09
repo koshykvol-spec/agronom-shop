@@ -107,13 +107,17 @@ export default {
       },
     });
 
-    // Пробуємо основну модель, а якщо вона перевантажена (503) — резервну
-    const models = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite'];
+    // Повторні спроби при тимчасовому перевантаженні моделі (503/429),
+    // з невеликою затримкою між спробами (з точними назвами резервних
+    // моделей Google міняється надто часто, щоб на них покладатись)
+    const model = 'gemini-3.5-flash';
+    const maxAttempts = 3;
+    const delaysMs = [800, 2000];
     let aiRes = null;
     let lastErrText = '';
-    for (let i = 0; i < models.length; i++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -124,15 +128,18 @@ export default {
         if (res.ok) { aiRes = res; break; }
         lastErrText = await res.text();
         if (res.status !== 503 && res.status !== 429) {
-          return J({ ok: false, error: 'Gemini API (' + models[i] + ') ' + res.status + ': ' + lastErrText.slice(0, 300) }, 502);
+          return J({ ok: false, error: 'Gemini API ' + res.status + ': ' + lastErrText.slice(0, 300) }, 502);
         }
       } catch(e) {
         lastErrText = e.message;
       }
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, delaysMs[attempt]));
+      }
     }
 
     if (!aiRes) {
-      return J({ ok: false, error: 'Gemini API недоступний (усі моделі): ' + lastErrText.slice(0, 300) }, 502);
+      return J({ ok: false, error: 'Gemini API перевантажена, спробуйте ще раз через хвилину: ' + lastErrText.slice(0, 200) }, 502);
     }
 
     const aiData = await aiRes.json();
