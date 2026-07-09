@@ -3,35 +3,72 @@
 //   ANTHROPIC_API_KEY — ключ від console.anthropic.com
 // Змінні:
 //   ALLOWED_ORIGIN — домен сайту (за замовчуванням https://agronom.pp.ua)
+//   RATE_LIMIT_MAX — макс. запитів на IP за вікно (за замовчуванням 8)
+//   RATE_LIMIT_WINDOW_SEC — тривалість вікна в секундах (за замовчуванням 3600 = 1 год)
 //
 // Worker читає base64 фото з JSON body, передає в Claude API,
 // повертає діагноз + список препаратів.
+// Захист: CORS обмежений ALLOWED_ORIGIN + rate-limit по IP через D1 (таблиця rate_limits).
 
 export default {
   async fetch(request, env, ctx) {
-    // Debug: перевірка DB
-    if (new URL(request.url).pathname === '/debug-db') {
-      try {
-        const r = await env.DB.prepare(`SELECT COUNT(*) n FROM diagnose_log`).first();
-        return new Response(JSON.stringify({db:'ok', count: r.n}), {headers:{'content-type':'application/json'}});
-      } catch(e) {
-        return new Response(JSON.stringify({db:'error', msg: e.message}), {headers:{'content-type':'application/json'}});
-      }
-    }
     const origin = env.ALLOWED_ORIGIN || 'https://agronom.pp.ua';
     const cors = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Vary': 'Origin',
     };
     const J = (o, s) => new Response(JSON.stringify(o), {
       status: s || 200,
       headers: { 'content-type': 'application/json; charset=utf-8', ...cors }
     });
 
+    // Debug: перевірка DB
+    if (new URL(request.url).pathname === '/debug-db') {
+      try {
+        const r = await env.DB.prepare(`SELECT COUNT(*) n FROM diagnose_log`).first();
+        return J({db:'ok', count: r.n});
+      } catch(e) {
+        return J({db:'error', msg: e.message});
+      }
+    }
+
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (request.method === 'GET') return J({ ok: true, msg: 'diagnose worker alive' });
     if (request.method !== 'POST') return J({ ok: false, error: 'Method not allowed' }, 405);
+
+    // ---- Rate limiting по IP (захист від зловживання Anthropic API) ----
+    if (env.DB) {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const max = parseInt(env.RATE_LIMIT_MAX || '8', 10);
+      const windowSec = parseInt(env.RATE_LIMIT_WINDOW_SEC || '3600', 10);
+      const now = Math.floor(Date.now() / 1000);
+      const key = `diagnose:${ip}`;
+
+      try {
+        const row = await env.DB.prepare(
+          `SELECT cnt, exp FROM rate_limits WHERE k = ?`
+        ).bind(key).first();
+
+        if (!row || row.exp <= now) {
+          // нове вікно
+          await env.DB.prepare(
+            `INSERT INTO rate_limits (k, cnt, exp) VALUES (?, 1, ?)
+             ON CONFLICT(k) DO UPDATE SET cnt = 1, exp = excluded.exp`
+          ).bind(key, now + windowSec).run();
+        } else if (row.cnt >= max) {
+          return J({ ok: false, error: 'Забагато запитів. Спробуйте пізніше.' }, 429);
+        } else {
+          await env.DB.prepare(
+            `UPDATE rate_limits SET cnt = cnt + 1 WHERE k = ?`
+          ).bind(key).run();
+        }
+      } catch (e) {
+        // якщо rate-limit таблиця недоступна — не блокуємо користувача,
+        // але це резервний захист; основний — сама наявність цієї перевірки
+      }
+    }
 
     const apiKey = env.ANTHROPIC_API_KEY || '';
     if (!apiKey) return J({ ok: false, error: 'ANTHROPIC_API_KEY not set' }, 503);
