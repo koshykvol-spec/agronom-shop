@@ -102,7 +102,7 @@ export default {
         ]
       }],
       generationConfig: {
-        maxOutputTokens: 600,
+        maxOutputTokens: 1024,
         responseMimeType: 'application/json',
       },
     });
@@ -147,10 +147,15 @@ export default {
 
     let diag;
     try {
-      const clean = raw.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
+      let clean = raw.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
+      const start = clean.indexOf('{');
+      const end = clean.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        clean = clean.slice(start, end + 1);
+      }
       diag = JSON.parse(clean);
     } catch(e) {
-      return J({ ok: false, error: 'JSON parse: ' + e.message, raw: raw.slice(0, 200) }, 502);
+      return J({ ok: false, error: 'JSON parse: ' + e.message, raw: raw.slice(0, 500) }, 502);
     }
 
     const result = {
