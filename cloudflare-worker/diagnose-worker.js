@@ -92,36 +92,47 @@ export default {
       + 'IMPORTANT: leave products as empty array - we will look up products ourselves based on the disease/pest/weed name you provide. '
       + 'Focus on giving the most ACCURATE name matching our known names list.';
 
-    let aiRes;
-    try {
-      aiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: sys }] },
-          contents: [{
-            role: 'user',
-            parts: [
-              { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } },
-              { text: prompt }
-            ]
-          }],
-          generationConfig: {
-            maxOutputTokens: 600,
-            responseMimeType: 'application/json',
+    const geminiBody = JSON.stringify({
+      system_instruction: { parts: [{ text: sys }] },
+      contents: [{
+        role: 'user',
+        parts: [
+          { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: {
+        maxOutputTokens: 600,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    // Пробуємо основну модель, а якщо вона перевантажена (503) — резервну
+    const models = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+    let aiRes = null;
+    let lastErrText = '';
+    for (let i = 0; i < models.length; i++) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[i]}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': apiKey,
           },
-        })
-      });
-    } catch(e) {
-      return J({ ok: false, error: 'Fetch to Gemini failed: ' + e.message }, 502);
+          body: geminiBody
+        });
+        if (res.ok) { aiRes = res; break; }
+        lastErrText = await res.text();
+        if (res.status !== 503 && res.status !== 429) {
+          return J({ ok: false, error: 'Gemini API (' + models[i] + ') ' + res.status + ': ' + lastErrText.slice(0, 300) }, 502);
+        }
+      } catch(e) {
+        lastErrText = e.message;
+      }
     }
 
-    if (!aiRes.ok) {
-      const err = await aiRes.text();
-      return J({ ok: false, error: 'Gemini API ' + aiRes.status + ': ' + err.slice(0, 300) }, 502);
+    if (!aiRes) {
+      return J({ ok: false, error: 'Gemini API недоступний (усі моделі): ' + lastErrText.slice(0, 300) }, 502);
     }
 
     const aiData = await aiRes.json();
