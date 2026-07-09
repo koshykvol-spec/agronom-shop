@@ -1,12 +1,12 @@
 // Cloudflare Worker — AI діагностика фото для сайту «Агроном»
 // Секрети (Cloudflare → Worker → Settings → Variables and Secrets):
-//   ANTHROPIC_API_KEY — ключ від console.anthropic.com
+//   GEMINI_API_KEY — ключ від aistudio.google.com/apikey
 // Змінні:
 //   ALLOWED_ORIGIN — домен сайту (за замовчуванням https://agronom.pp.ua)
 //   RATE_LIMIT_MAX — макс. запитів на IP за вікно (за замовчуванням 8)
 //   RATE_LIMIT_WINDOW_SEC — тривалість вікна в секундах (за замовчуванням 3600 = 1 год)
 //
-// Worker читає base64 фото з JSON body, передає в Claude API,
+// Worker читає base64 фото з JSON body, передає в Gemini API,
 // повертає діагноз + список препаратів.
 // Захист: CORS обмежений ALLOWED_ORIGIN + rate-limit по IP через D1 (таблиця rate_limits).
 
@@ -38,14 +38,13 @@ export default {
     if (request.method === 'GET') return J({ ok: true, msg: 'diagnose worker alive' });
     if (request.method !== 'POST') return J({ ok: false, error: 'Method not allowed' }, 405);
 
-    // ---- Rate limiting по IP (захист від зловживання Anthropic API) ----
+    // ---- Rate limiting по IP (захист від зловживання Gemini API) ----
     if (env.DB) {
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       const max = parseInt(env.RATE_LIMIT_MAX || '8', 10);
       const windowSec = parseInt(env.RATE_LIMIT_WINDOW_SEC || '3600', 10);
       const now = Math.floor(Date.now() / 1000);
       const key = `diagnose:${ip}`;
-
       try {
         const row = await env.DB.prepare(
           `SELECT cnt, exp FROM rate_limits WHERE k = ?`
@@ -70,8 +69,8 @@ export default {
       }
     }
 
-    const apiKey = env.ANTHROPIC_API_KEY || '';
-    if (!apiKey) return J({ ok: false, error: 'ANTHROPIC_API_KEY not set' }, 503);
+    const apiKey = env.GEMINI_API_KEY || '';
+    if (!apiKey) return J({ ok: false, error: 'GEMINI_API_KEY not set' }, 503);
 
     let body;
     try { body = await request.json(); }
@@ -95,34 +94,38 @@ export default {
 
     let aiRes;
     try {
-      aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      aiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
+          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 600,
-          system: sys,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: image_type || 'image/jpeg', data: image_b64 } },
-            { type: 'text', text: prompt }
-          ]}]
+          system_instruction: { parts: [{ text: sys }] },
+          contents: [{
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            maxOutputTokens: 600,
+            responseMimeType: 'application/json',
+          },
         })
       });
     } catch(e) {
-      return J({ ok: false, error: 'Fetch to Anthropic failed: ' + e.message }, 502);
+      return J({ ok: false, error: 'Fetch to Gemini failed: ' + e.message }, 502);
     }
 
     if (!aiRes.ok) {
       const err = await aiRes.text();
-      return J({ ok: false, error: 'Claude API ' + aiRes.status + ': ' + err.slice(0, 300) }, 502);
+      return J({ ok: false, error: 'Gemini API ' + aiRes.status + ': ' + err.slice(0, 300) }, 502);
     }
 
     const aiData = await aiRes.json();
-    const raw = (aiData.content || []).map(b => b.text || '').join('').trim();
+    const raw = ((aiData.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
 
     let diag;
     try {
