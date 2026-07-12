@@ -1,31 +1,35 @@
 // POST /api/search-log — приймає {q, cnt} з фронтенду (navigator.sendBeacon) і пише в D1.
-// Публічний ендпоінт (як і сам пошук), тому тримаємо навантаження мінімальним:
-// без читань з БД, лише один INSERT, суворі ліміти на розмір і довжину.
+// ТИМЧАСОВА ДІАГНОСТИЧНА ВЕРСІЯ: console.log на кожній контрольній точці,
+// щоб знайти, де саме запис зупиняється. Прибрати логи після діагностики.
 
 export async function onRequestPost(context) {
   const { request, env } = context;
   try {
-    if (!env.DB) return new Response(null, { status: 204 });
+    console.log('search-log: hit, env.DB =', !!env.DB);
+    if (!env.DB) { console.log('search-log: STOP no env.DB'); return new Response(null, { status: 204 }); }
 
-    // Обмежуємо розмір тіла запиту (захист від зловживань)
     const raw = await request.text();
-    if (!raw || raw.length > 2000) return new Response(null, { status: 204 });
+    console.log('search-log: raw body =', raw, 'len =', raw ? raw.length : 0);
+    if (!raw || raw.length > 2000) { console.log('search-log: STOP bad raw'); return new Response(null, { status: 204 }); }
 
     let data;
-    try { data = JSON.parse(raw); } catch { return new Response(null, { status: 204 }); }
+    try { data = JSON.parse(raw); }
+    catch (pe) { console.log('search-log: STOP json parse error', pe.message); return new Response(null, { status: 204 }); }
+    console.log('search-log: parsed data =', JSON.stringify(data));
 
     let q = String(data.q || '').trim().toLowerCase().slice(0, 100);
     const cnt = Math.max(0, Math.min(9999, parseInt(data.cnt, 10) || 0));
-    if (!q) return new Response(null, { status: 204 });
+    console.log('search-log: q =', q, 'cnt =', cnt);
+    if (!q) { console.log('search-log: STOP empty q'); return new Response(null, { status: 204 }); }
 
-    await env.DB.prepare(
+    const result = await env.DB.prepare(
       `INSERT INTO search_log (q, cnt, ts) VALUES (?, ?, ?)`
     ).bind(q, cnt, Math.floor(Date.now() / 1000)).run();
+    console.log('search-log: INSERT result =', JSON.stringify(result));
 
     return new Response(null, { status: 204 });
   } catch (e) {
-    // Логування пошуку не повинно ламати сам пошук — тихо ігноруємо помилки
-    console.error('search-log error:', e.message || e);
+    console.error('search-log: EXCEPTION', e && e.message, e && e.stack);
     return new Response(null, { status: 204 });
   }
 }
