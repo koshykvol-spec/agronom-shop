@@ -313,7 +313,7 @@ function smartScore(p, qtokens){
     for (var i = 0; i < qtokens.length; i++){ var s = tokenScore(qtokens[i], p); if (s === 0) return 0; sum += s; }
     return sum;
 }
-function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
+function debounce(fn, ms){ var t; return function(){ var args = arguments, ctx = this; clearTimeout(t); t = setTimeout(function(){ fn.apply(ctx, args); }, ms); }; }
 const debouncedFilter = debounce(function(){ currentPage = 1; applyFilters(); }, 250);
 
 // Логування пошукових запитів — окремий debounce (800мс), щоб писати лише "усталений" запит,
