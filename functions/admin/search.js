@@ -23,10 +23,34 @@ export async function onRequestGet(context){
   const cfg = {};
   for (const r of (await db.prepare(`SELECT key,value FROM search_config`).all()).results || []) cfg[r.key] = r.value;
 
+  // Звіт по логах пошуку (останні 30 днів)
+  let topQueries = [], topZero = [];
+  try {
+    const since = Math.floor(Date.now() / 1000) - 30 * 86400;
+    topQueries = (await db.prepare(
+      `SELECT q, COUNT(*) n, AVG(cnt) avg_cnt FROM search_log WHERE ts > ? GROUP BY q ORDER BY n DESC LIMIT 30`
+    ).bind(since).all()).results || [];
+    topZero = (await db.prepare(
+      `SELECT q, COUNT(*) n FROM search_log WHERE ts > ? AND cnt = 0 GROUP BY q ORDER BY n DESC LIMIT 30`
+    ).bind(since).all()).results || [];
+  } catch (e) { /* таблиці ще може не бути до міграції */ }
+
+  const topQueriesRows = topQueries.map(r => `<tr><td>${esc(r.q)}</td><td>${r.n}</td><td>${Math.round(r.avg_cnt)}</td></tr>`).join('');
+  const topZeroRows = topZero.map(r => `<tr><td>${esc(r.q)}</td><td>${r.n}</td><td><a class="btn s" style="padding:3px 8px;font-size:.8rem" href="/admin/search?prefill=${encodeURIComponent(r.q)}#add-syn">+ синонім</a></td></tr>`).join('');
+
   const rows = syns.map(s => `<tr><td>${esc(s.term)}</td><td>→ ${esc(s.target)}</td><td><a href="/admin/search?delsyn=${s.id}" onclick="return confirm('Видалити?')" style="color:#c0392b">✕</a></td></tr>`).join('');
+
+  const prefill = esc(url.searchParams.get('prefill') || '');
 
   const body = `<h2>🔎 Налаштування розумного пошуку</h2>
     <div class="muted">Зміни застосуються для нових відвідувачів одразу, для кешу — до 5 хв. Нормалізація/синоніми/fuzzy працюють на боці браузера (дані звідси).</div>
+
+    <h3>📊 Топ пошукових запитів (30 днів)</h3>
+    <table><tr><th>Запит</th><th>Кількість</th><th>Сер. результатів</th></tr>${topQueriesRows || '<tr><td colspan=3 class="muted">Поки немає даних</td></tr>'}</table>
+
+    <h3>🚫 Запити без результатів (30 днів)</h3>
+    <div class="muted">Найкращі кандидати на нові синоніми — люди шукали, нічого не знайшли.</div>
+    <table><tr><th>Запит</th><th>Разів</th><th></th></tr>${topZeroRows || '<tr><td colspan=3 class="muted">Поки немає даних</td></tr>'}</table>
 
     <h3>Налаштування</h3>
     <form class="box" method="POST" action="/admin/search">
@@ -40,10 +64,10 @@ export async function onRequestGet(context){
       <button class="btn" type="submit">💾 Зберегти налаштування</button>
     </form>
 
-    <h3>Синоніми (${syns.length}) — ввід → на що шукати</h3>
+    <h3 id="add-syn">Синоніми (${syns.length}) — ввід → на що шукати</h3>
     <form class="box" method="POST" action="/admin/search" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input type="hidden" name="action" value="add-syn">
-      <input name="term" placeholder="напр. помидор" required>
+      <input name="term" placeholder="напр. помидор" value="${prefill}" required>
       <span>→</span>
       <input name="target" placeholder="напр. томат" required>
       <button class="btn" type="submit">＋ Додати</button>
