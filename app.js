@@ -316,6 +316,19 @@ function smartScore(p, qtokens){
 function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
 const debouncedFilter = debounce(function(){ currentPage = 1; applyFilters(); }, 250);
 
+// Логування пошукових запитів — окремий debounce (800мс), щоб писати лише "усталений" запит,
+// а не кожну проміжну зміну під час набору тексту
+const logSearchDebounced = debounce(function(q, cnt){
+    try {
+        var payload = JSON.stringify({ q: q, cnt: cnt });
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/search-log', new Blob([payload], { type: 'application/json' }));
+        } else {
+            fetch('/api/search-log', { method: 'POST', body: payload, headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(function(){});
+        }
+    } catch (e) { /* логування не має ламати пошук */ }
+}, 800);
+
 // ==========================================
 // ДЕФОЛТИ ВАГИ ЗА ТИПОМ ТОВАРУ (Task 11)
 // ==========================================
@@ -584,6 +597,12 @@ function applyFilters() {
     }
 
     render(filtered);
+
+    // Логування пошукового запиту (для аналізу, що реально шукають клієнти) —
+    // лише коли є реальний запит, окремий довший debounce, щоб не спамити при кожній клавіші
+    if (qtokens.length) {
+        logSearchDebounced(qtokens.join(' '), filtered.length);
+    }
 
     // Категорії з підкатегоріями (з D1; CATS_WITH_SUB)
     if (CATS_WITH_SUB.includes(currentCat)) {
