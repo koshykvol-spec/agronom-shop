@@ -25,6 +25,7 @@ export async function onRequestPost(context) {
     return new Response(null, { status: 204 });
   } catch (e) {
     // Логування пошуку не повинно ламати сам пошук — тихо ігноруємо помилки
+    console.error('search-log error:', e.message || e);
     return new Response(null, { status: 204 });
   }
 }
