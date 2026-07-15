@@ -137,8 +137,7 @@ export async function onRequest(context) {
         returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
         merchantReturnDays: seoReturnDays,
         returnMethod: 'https://schema.org/ReturnByMail',
-        returnFees: 'https://schema.org/ReturnShippingFees',
-        returnShippingFeesAmount: { '@type': 'MonetaryAmount', value: 0, currency: 'UAH' }
+        returnFees: 'https://schema.org/FreeReturnShippingFees'
       },
       shippingDetails: {
         '@type': 'OfferShippingDetails',
@@ -154,7 +153,7 @@ export async function onRequest(context) {
   };
 
   let reviews = [];
-  try { reviews = (await env.DB.prepare(`SELECT name,rating,text,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
+  try { reviews = (await env.DB.prepare(`SELECT name,rating,text,img,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
   const revCount = reviews.length;
   const revAvg = revCount ? (reviews.reduce((a,r)=>a+(r.rating||0),0)/revCount) : 0;
   if (revCount){
@@ -409,6 +408,9 @@ export async function onRequest(context) {
 .p-review-card .rc-stars  { color:#f5a623; margin:0 4px; }
 .p-review-card .rc-date   { color:#aaa; font-size:.78rem; }
 .p-review-card .rc-text   { margin-top:6px; font-size:.9rem; line-height:1.6; color:#444; white-space:pre-wrap; }
+.p-review-card .rc-photo  { display:block; margin-top:8px; max-width:180px; max-height:180px; border-radius:8px; object-fit:cover; border:1px solid #eee; }
+.p-review-form .rf-photo-label { display:block; margin-top:10px; font-size:.85rem; color:#666; }
+.p-review-form .rf-photo-label input[type=file] { display:block; margin-top:5px; font-size:.85rem; }
 .p-review-cta  { display:flex; align-items:center; gap:12px; background:linear-gradient(135deg,#fff8e6,#fffdf7); border:1px solid #f0d98a; border-radius:10px; padding:12px 14px; text-decoration:none; color:#7a5b00; margin:14px 0 6px; }
 .p-review-cta .ico { font-size:1.5rem; flex-shrink:0; }
 .p-review-form { background:#fafcf8; border:1px solid #e3e9e0; border-radius:12px; padding:16px; scroll-margin-top:80px; }
@@ -579,6 +581,7 @@ export async function onRequest(context) {
         <span class="rc-date">${esc(r.created_at || '')}</span>
       </div>
       <div class="rc-text">${esc(r.text)}</div>
+      ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank" rel="noopener"><img src="/thumb/${esc(r.img)}" alt="Фото від покупця" class="rc-photo" loading="lazy"></a>` : ''}
     </div>`).join('') : ''}
 
     <a href="#leave-review" class="p-review-cta">
@@ -587,7 +590,7 @@ export async function onRequest(context) {
       <b style="color:var(--green);">✍️ Написати відгук →</b></span>
     </a>
 
-    <form id="leave-review" class="p-review-form" method="POST" action="/api/review">
+    <form id="leave-review" class="p-review-form" method="POST" action="/api/review" enctype="multipart/form-data" onsubmit="return shrinkReviewPhoto(this,event)">
       <input type="hidden" name="pid" value="${p.pid}">
       <input type="hidden" name="slug" value="${esc(p.slug)}">
       <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
@@ -605,10 +608,37 @@ export async function onRequest(context) {
         </label>
       </div>
       <textarea name="text" required placeholder="Ваш відгук про товар" maxlength="2000" rows="4"></textarea>
+      <label class="rf-photo-label">📷 Додати фото (необов'язково)
+        <input type="file" name="photo" accept="image/*">
+      </label>
       ${s_tskey ? `<div class="cf-turnstile" data-sitekey="${esc(s_tskey)}" style="margin-top:10px;"></div>` : ''}
       <button type="submit" class="rf-submit">Надіслати відгук</button>
     </form>
     ${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
+    <script>
+    // Автостиснення фото відгуку в браузері перед відправкою (макс 900px, webp q75) — щоб трафік/сховище були мінімальними,
+    // але фото лишалось достатнім для перегляду. Той самий підхід, що й для товарних фото в адмінці.
+    async function shrinkReviewPhoto(form, ev){
+      var inp = form.querySelector('input[name=photo]');
+      var file = inp && inp.files && inp.files[0];
+      if(!file || !/^image\\//.test(file.type)) return true;   // нема фото / не зображення → звичайний сабміт
+      ev.preventDefault();
+      var btn = form.querySelector('button[type=submit]'); var oldText = btn.textContent; btn.disabled=true; btn.textContent='⏳ Стиснення фото…';
+      try {
+        var bmp = await createImageBitmap(file);
+        var MAX = 900, scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+        var w = Math.round(bmp.width*scale), h = Math.round(bmp.height*scale);
+        var cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(bmp,0,0,w,h);
+        var blob = await new Promise(function(res){ cv.toBlob(res,'image/webp',0.75); });
+        var fd = new FormData(form);
+        if (blob && blob.size < file.size) fd.set('photo', blob, 'review.webp');  // менше за оригінал → шлемо стиснене
+        var r = await fetch(form.action, {method:'POST', body:fd, redirect:'follow'});
+        location.href = r.url || location.href;
+      } catch(e){ btn.disabled=false; btn.textContent=oldText; form.onsubmit=null; form.submit(); }  // fallback — звичайний сабміт оригіналу
+      return false;
+    }
+    </script>
   </div>
 
   <!-- Схожі товари -->
