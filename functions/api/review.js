@@ -31,10 +31,26 @@ export async function onRequestPost(context) {
   let rating = parseInt(f.get('rating'), 10); if (!(rating >= 1 && rating <= 5)) rating = 5;
   const text = (f.get('text') || '').toString().trim().slice(0, 2000);
 
+  // Фото до відгуку (необов'язкове) — той самий підхід, що й для товарних фото, окрема тека 'reviews/'
+  let imgKey = '';
+  const EXT = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png' };
+  const photo = f.get('photo');
+  if (photo && typeof photo !== 'string' && photo.size) {
+    const type = (photo.type || '').toLowerCase();
+    const ext = EXT[type];
+    // тихо ігноруємо непідходящий файл — відгук все одно приймаємо
+    if (ext && photo.size <= 6 * 1024 * 1024 && context.env.IMAGES) {
+      try {
+        imgKey = 'reviews/' + (pid || 0) + '-' + Date.now() + '-' + crypto.randomUUID().slice(0, 8) + '.' + ext;
+        await context.env.IMAGES.put(imgKey, await photo.arrayBuffer(), { httpMetadata: { contentType: type } });
+      } catch (e) { imgKey = ''; }
+    }
+  }
+
   if (pid && text) {
     try {
-      await db.prepare(`INSERT INTO reviews(pid,name,rating,text,approved,created_at) VALUES(?,?,?,?,0,?)`)
-        .bind(pid, name, rating, text, new Date().toISOString().slice(0, 10)).run();
+      await db.prepare(`INSERT INTO reviews(pid,name,rating,text,img,approved,created_at) VALUES(?,?,?,?,?,0,?)`)
+        .bind(pid, name, rating, text, imgKey, new Date().toISOString().slice(0, 10)).run();
     } catch (e) {}
   }
   return Response.redirect(url, 303);

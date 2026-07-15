@@ -20,7 +20,7 @@ export async function onRequestGet(context){
   if (url.searchParams.get('del')){ await db.prepare(`DELETE FROM reviews WHERE id=?`).bind(url.searchParams.get('del')).run(); return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303); }
 
   const rows = (await db.prepare(
-    `SELECT r.id,r.pid,r.name,r.rating,r.text,r.approved,r.created_at, COALESCE(NULLIF(c.display_name,''),p.name) AS pname, c.slug
+    `SELECT r.id,r.pid,r.name,r.rating,r.text,r.img,r.approved,r.created_at, COALESCE(NULLIF(c.display_name,''),p.name) AS pname, c.slug
        FROM reviews r LEFT JOIN products p ON p.pid=r.pid LEFT JOIN product_content c ON c.pid=r.pid
       ORDER BY r.approved, r.id DESC`
   ).all()).results || [];
@@ -30,6 +30,7 @@ export async function onRequestGet(context){
     <div><b>${esc(r.name)}</b> <span class="st">${stars(r.rating)}</span> <span class="muted">${esc(r.created_at||'')}</span>
       — товар: ${r.slug?`<a href="/p/${esc(r.slug)}" target="_blank">${esc(r.pname||('#'+r.pid))}</a>`:esc(r.pname||('#'+r.pid))}</div>
     <div style="margin:6px 0;white-space:pre-wrap">${esc(r.text)}</div>
+    ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank"><img src="/thumb/${esc(r.img)}" style="max-width:120px;max-height:120px;border-radius:6px;display:block;margin:6px 0;border:1px solid #eee"></a>` : ''}
     ${r.approved?'':`<a class="btn ok" href="/admin/reviews?ok=${r.id}">✓ Схвалити</a> `}
     <a class="btn del" href="/admin/reviews?del=${r.id}" onclick="return confirm('Видалити відгук?')">🗑 Видалити</a>
   </div>`;
