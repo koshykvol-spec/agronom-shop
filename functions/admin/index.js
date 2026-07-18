@@ -307,16 +307,16 @@ export async function onRequestGet(context) {
         t.focus();
       }
       function mdEsc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-      function mdInl(t){return mdEsc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');}
+      function mdInl(t){return mdEsc(t).replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>').replace(/\\*(.+?)\\*/g,'<em>$1</em>');}
       function mdToHtml(t){
-        return t.split(/\n\n+/).map(function(block){
+        return t.split(/\\n\\n+/).map(function(block){
           var b=block.trim(); if(!b)return '';
           if(/^### /.test(b)) return '<h3>'+mdEsc(b.slice(4))+'</h3>';
           if(/^## /.test(b))  return '<h2>'+mdEsc(b.slice(3))+'</h2>';
           if(/^# /.test(b))   return '<h1>'+mdEsc(b.slice(2))+'</h1>';
-          if(/^- /m.test(b))  return '<ul>'+b.split('\n').filter(Boolean).map(function(l){return '<li>'+mdInl(l.replace(/^-\s*/,''))+'</li>';}).join('')+'</ul>';
-          if(/^\d+\. /m.test(b)) return '<ol>'+b.split('\n').filter(Boolean).map(function(l){return '<li>'+mdInl(l.replace(/^\d+\.\s*/,''))+'</li>';}).join('')+'</ol>';
-          return '<p>'+b.split('\n').map(mdInl).join('<br>')+'</p>';
+          if(/^- /m.test(b))  return '<ul>'+b.split('\\n').filter(Boolean).map(function(l){return '<li>'+mdInl(l.replace(/^-\\s*/,''))+'</li>';}).join('')+'</ul>';
+          if(/^\\d+\\. /m.test(b)) return '<ol>'+b.split('\\n').filter(Boolean).map(function(l){return '<li>'+mdInl(l.replace(/^\\d+\\.\\s*/,''))+'</li>';}).join('')+'</ol>';
+          return '<p>'+b.split('\\n').map(mdInl).join('<br>')+'</p>';
         }).join('');
       }
       function mdPreview(id,previewId){
