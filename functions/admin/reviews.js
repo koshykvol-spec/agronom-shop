@@ -1,6 +1,9 @@
-// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini 2.5 Flash) + масове видалення.
+// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini 3.5 Flash) + масове видалення.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'☆☆☆☆☆'.slice(0,5-f); }
+
+// Допоміжна функція для уникнення лімітів 429 (пауза між запитами)
+const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 const PAGE = (title, body) => `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow"><title>${esc(title)}</title><style>
 body{font-family:system-ui;max-width:860px;margin:1.2rem auto;padding:1rem;color:#222;background:#f7f8f7}
@@ -15,7 +18,7 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:10px 12px;background:#fff;border:1px solid #e3e3e3;border-radius:10px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація відгуків через Google Gemini 2.5 Flash ────────────────────
+// ── AI-генерація відгуків через Google Gemini 3.5 Flash ────────────────────
 async function generateReviewsWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
@@ -36,8 +39,8 @@ ${context}
   const apiKey = keyRow ? keyRow.value : '';
   if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  // Використовуємо актуальну робочу адресу для gemini-2.5-flash
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  // Оновлено до актуальної gemini-3.5-flash
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -47,7 +50,6 @@ ${context}
       generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 1000,
-        // Змушуємо API повертати виключно валідний JSON без Markdown-оформлення
         responseMimeType: "application/json",
         responseSchema: {
           type: "ARRAY",
@@ -82,7 +84,6 @@ ${context}
   }
 
   try {
-    // Оскільки ми передали responseSchema, тут гарантовано буде чистий масив
     const reviews = JSON.parse(content);
     return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 15);
   } catch (e) {
@@ -108,7 +109,14 @@ export async function onRequestGet(context){
     ).bind(batchSize).all()).results || [];
 
     let totalGenerated = 0;
-    for (const product of noRevProducts) {
+    for (let i = 0; i < noRevProducts.length; i++) {
+      const product = noRevProducts[i];
+      
+      // Якщо це не перший товар у пачці, робимо паузу 2 секунди, щоб безкоштовний API не сварився на ліміти (429)
+      if (i > 0) {
+        await sleep(2000);
+      }
+
       try {
         const reviews = await generateReviewsWithAI(context.env, product);
         for (const rev of reviews) {
