@@ -123,7 +123,7 @@ export async function onRequestGet(context){
   if (gen === '1') {
     const batchSize = 9; 
     
-    // Спрощений чистий запит без JOIN, щоб гарантовано витягнути товари
+    // Спрощений запит до мінімуму для надійності
     const rawRes = await db.prepare(
       `SELECT p.pid, p.name, p.category, p.brand, c.annotation
        FROM products p
@@ -131,8 +131,12 @@ export async function onRequestGet(context){
        WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)
        LIMIT ?`
     ).bind(batchSize).all();
+    
+    // Логування в консоль Cloudflare для відладки
+    console.log("Raw D1 Response:", JSON.stringify(rawRes));
 
     const noRevProducts = rawRes.results || [];
+    console.log("Found products count:", noRevProducts.length);
 
     let totalGenerated = 0;
     for (let i = 0; i < noRevProducts.length; i++) {
@@ -182,7 +186,6 @@ export async function onRequestGet(context){
   const msg = url.searchParams.get('msg');
   const msgHtml = msg ? `<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin:10px 0;color:#2d6a2d;font-weight:600">✓ ${esc(msg)}</div>` : '';
 
-  // Лічильник товарів без відгуків
   const noRevTotal = (((await db.prepare(
     `SELECT COUNT(*) n FROM products p WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)`
   ).first()) || {}).n) | 0;
@@ -234,6 +237,6 @@ export async function onRequestGet(context){
     `${msgHtml}${actionBar}
     <h2>💬 Відгуки</h2>
     <h3>На модерації (${pend.length})</h3>${pend.length?pend.map(card).join(''):'<p class="muted">Немає нових.</p>'}
-    <h3 style="margin-top:18px">Схвалены (${appr.length})</h3>${appr.length?appr.map(card).join(''):'<p class="muted">Поки порожньо.</p>'}`
+    <h3 style="margin-top:18px">Схвалені (${appr.length})</h3>${appr.length?appr.map(card).join(''):'<p class="muted">Поки порожньо.</p>'}`
   ), { headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
