@@ -4,7 +4,6 @@ function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-// База реалістичних українських імен для випадкового вибору
 const FARMER_NAMES = [
   "Олена К.", "Іван Прокопчук", "Марія Дмитрівна", "Петро Коваль", "Наталія Василівна", 
   "Василь Шатковський", "Тетяна", "Андрій Бойко", "Сергій Миколайович", "Оксана В.", 
@@ -32,11 +31,9 @@ textarea.edit-box{width:100%;max-width:100%;min-height:60px;padding:6px;border:1
 .card-actions{display:flex;gap:6px;margin-top:6px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація ОДНОГО відгуку через Google Gemini 3.5 Flash ────────────────────
 async function generateSingleReviewWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const chosenName = getRandomName();
-  // Випадковий рейтинг 4 або 5
   const randomRating = Math.random() > 0.25 ? 5 : 4; 
 
   const prompt = `Ти — український фермер або дачник. Напиши 1 короткий, природний відгук українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
@@ -45,7 +42,7 @@ ${context}
 
 Вимоги:
 - Відгук має бути довжиною від 50 до 140 символів.
-- Пиши просто, як звичайна людина (про врожай, сходи, як пережило заморозки чи спеку, чи добре вимивається бур'ян).
+- Пиши просто, як звичайна людина.
 - БЕЗ реклами та пафосу. БЕЗ знаків "!!!" чи трикрапок.
 - Автор відгуку СУВОРО: "${chosenName}"
 - Рейтинг відгуку СУВОРО: ${randomRating}`;
@@ -89,7 +86,6 @@ ${context}
 
   try {
     const rev = JSON.parse(content);
-    // Якщо ШІ раптом проігнорував ім'я або рейтинг із промпту, підстраховуємо кодом
     return {
       author: rev.author || chosenName,
       rating: rev.rating || randomRating,
@@ -100,7 +96,6 @@ ${context}
   }
 }
 
-// ── POST (Збереження відредагованого відгуку) ──────────────────────────────
 export async function onRequestPost(context) {
   const db = context.env.DB;
   const formData = await context.request.formData();
@@ -120,19 +115,18 @@ export async function onRequestPost(context) {
   return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303);
 }
 
-// ── GET ─────────────────────────────────────────────────────────────────────
 export async function onRequestGet(context){
   const db = context.env.DB;
   const url = new URL(context.request.url);
 
-  // ── генерація AI-відгуків (Тепер 9 товарів по 1 відгуку) ──
   const gen = url.searchParams.get('gen');
   if (gen === '1') {
-    const batchSize = 9; // Беремо одразу 9 різних товарів
+    const batchSize = 9; 
+    // ВИПРАВЛЕНО: LEFT JOIN замість JOIN, щоб знаходило товари без опису контенту
     const noRevProducts = (await db.prepare(
       `SELECT p.pid, p.name, p.category, p.brand, c.annotation
        FROM products p
-       JOIN product_content c ON c.pid = p.pid
+       LEFT JOIN product_content c ON c.pid = p.pid
        WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)
        LIMIT ?`
     ).bind(batchSize).all()).results || [];
@@ -140,7 +134,7 @@ export async function onRequestGet(context){
     let totalGenerated = 0;
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
-      if (i > 0) await sleep(2500); // Невелика затримка, щоб не перевантажувати безкоштовний ліміт RPM
+      if (i > 0) await sleep(2500); 
 
       try {
         const rev = await generateSingleReviewWithAI(context.env, product);
@@ -163,7 +157,6 @@ export async function onRequestGet(context){
     return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
   }
 
-  // ── масове видалення AI-відгуків ──
   const delai = url.searchParams.get('delai');
   if (delai === '1') {
     const result = await db.prepare(
@@ -174,7 +167,6 @@ export async function onRequestGet(context){
     return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
   }
 
-  // ── схвалити / видалити один через GET ──
   if (url.searchParams.get('ok')){
     await db.prepare(`UPDATE reviews SET approved=1 WHERE id=?`).bind(url.searchParams.get('ok')).run();
     return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303);
@@ -184,7 +176,6 @@ export async function onRequestGet(context){
     return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303);
   }
 
-  // ── рендер сторінки ──
   const msg = url.searchParams.get('msg');
   const msgHtml = msg ? `<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin:10px 0;color:#2d6a2d;font-weight:600">✓ ${esc(msg)}</div>` : '';
 
