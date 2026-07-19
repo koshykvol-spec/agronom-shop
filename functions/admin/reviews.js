@@ -4,6 +4,21 @@ function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
+// База реалістичних українських імен для випадкового вибору
+const FARMER_NAMES = [
+  "Олена К.", "Іван Прокопчук", "Марія Дмитрівна", "Петро Коваль", "Наталія Василівна", 
+  "Василь Шатковський", "Тетяна", "Андрій Бойко", "Сергій Миколайович", "Оксана В.", 
+  "Микола Захарчук", "Ганна", "Дмитро Кравчук", "Світлана П.", "Віктор Олександрович", 
+  "Юрій М.", "Людмила", "Олександр Т.", "Валентина Г.", "Михайло", "Надія К.",
+  "Роман Пасічник", "Ольга В.", "Володимир С.", "Ніна Степанівна", "Павло Г."
+];
+
+// Функція для вибору N випадкових унікальних імен
+function getRandomNames(count) {
+  const shuffled = [...FARMER_NAMES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
 const PAGE = (title, body) => `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow"><title>${esc(title)}</title><style>
 body{font-family:system-ui;max-width:860px;margin:1.2rem auto;padding:1rem;color:#222;background:#f7f8f7}
 a{color:#2d6a2d} h2,h3{color:#2d6a2d}
@@ -22,6 +37,10 @@ textarea.edit-box{width:100%;max-width:100%;min-height:60px;padding:6px;border:1
 // ── AI-генерація відгуків через Google Gemini 3.5 Flash ────────────────────
 async function generateReviewsWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
+  
+  // Генеруємо 3 абсолютно унікальні імені для цього конкретного товару
+  const chosenNames = getRandomNames(3);
+
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
 
 ${context}
@@ -29,11 +48,14 @@ ${context}
 Вимоги:
 - Кожен відгук 50-130 символів
 - Різні тони: 1 емоційний/вдячний, 1 практичний/технічний, 1 короткий лаконічний
-- Реалістичні деталі: врожай, терміни, конкретні проблеми (хвощ, бур'яни, осот)
+- Реалістичні деталі: врожай, терміни сходу, стійкість до фітофтори, конкретні проблеми (хвощ, бур'яни, осот)
 - БЕЗ пафосу ("найкращий у світі", "чудо-засіб")
 - БЕЗ зайвих вигуків ("!!!", "...")
-- Імена авторів: типові українські, різні (Олена, Іван, Марія, Петро, Наталія, Василь, Тетяна, Андрій)
-- Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "працює, але повільно")`;
+- Тобі ЧІТКО задано імена авторів для кожного відгуку. Використовуй САМЕ ЇХ по порядку:
+  1. Перший відгук автор: "${chosenNames[0]}"
+  2. Другий відгук автор: "${chosenNames[1]}"
+  3. Третій відгук автор: "${chosenNames[2]}"
+- Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "схожість 80%")`;
 
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
@@ -47,7 +69,7 @@ ${context}
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.8,
+        temperature: 0.85, // Трохи підняли температуру для більшої різноманітності
         maxOutputTokens: 4096,
         responseMimeType: "application/json",
         responseSchema: {
