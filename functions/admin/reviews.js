@@ -1,4 +1,4 @@
-// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini) + масове видалення.
+// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini 3.5 Flash) + масове видалення.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'☆☆☆☆☆'.slice(0,5-f); }
 
@@ -15,7 +15,7 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:10px 12px;background:#fff;border:1px solid #e3e3e3;border-radius:10px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація відгуків через Google Gemini ──────────────────────────────
+// ── AI-генерація відгуків через Google Gemini 3.5 Flash ────────────────────
 async function generateReviewsWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
@@ -39,44 +39,79 @@ ${context}
   const apiKey = keyRow ? keyRow.value : '';
   if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  // Правильна назва моделі з суфіксом -latest
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+  // Gemini 3.5 Flash — експериментальна модель
+  const models = [
+    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-pro'
+  ];
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.8,
-        maxOutputTokens: 800,
-        responseMimeType: 'application/json'
+  let lastError = '';
+
+  for (const model of models) {
+    try {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 800
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.text().catch(() => '');
+        lastError = `${model}: ${response.status} ${err.slice(0, 100)}`;
+        console.log('Model failed:', lastError);
+        continue;
       }
-    })
-  });
 
-  if (!response.ok) {
-    const err = await response.text().catch(() => '');
-    throw new Error(`Gemini API: ${response.status} ${err.slice(0, 200)}`);
+      const data = await response.json();
+
+      // Перевірка на блокування контенту
+      if (data.promptFeedback?.blockReason) {
+        console.log('Content blocked:', model, data.promptFeedback.blockReason);
+        continue;
+      }
+
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (!content) {
+        console.log('Empty content from:', model);
+        continue;
+      }
+
+      // Gemini може повернути JSON з markdown обгорткою
+      const jsonMatch = content.match(/\[[\s\S]*?\]/);
+      if (!jsonMatch) {
+        console.log('No JSON in response from', model, ':', content.slice(0, 200));
+        continue;
+      }
+
+      try {
+        const reviews = JSON.parse(jsonMatch[0]);
+        const filtered = reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
+        if (filtered.length > 0) {
+          console.log('Success with model:', model, 'Reviews:', filtered.length);
+          return filtered;
+        }
+      } catch (e) {
+        console.log('JSON parse failed for', model, e.message);
+      }
+    } catch (e) {
+      lastError = `${model}: ${e.message}`;
+      console.log('Exception with model:', lastError);
+    }
   }
 
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  // Gemini може повернути JSON з markdown обгорткою
-  const jsonMatch = content.match(/\[[\s\S]*?\]/);
-  if (!jsonMatch) {
-    console.log('Gemini response (no JSON):', content.slice(0, 300));
-    return [];
-  }
-
-  try {
-    const reviews = JSON.parse(jsonMatch[0]);
-    return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
-  } catch (e) {
-    console.error('JSON parse error:', e);
-    return [];
-  }
+  throw new Error(`Всі моделі Gemini не працюють. Остання помилка: ${lastError}`);
 }
 
 // ── GET ─────────────────────────────────────────────────────────────────────
