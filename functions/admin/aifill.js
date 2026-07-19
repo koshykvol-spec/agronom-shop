@@ -1,7 +1,8 @@
-// /admin/aifill — масове заповнення Дозування та Діючих речовин для агрохімікатів.
+// /admin/aifill — масове заповнення Дозування, Діючих речовин та AI-відгуків для агрохімікатів.
 // GET  — сторінка з формою + промптом + вибором поля
 // GET  ?export=1&field=dosage|ai — JSON-список кандидатів
 // POST ?field=dosage|ai&dryrun=1 — перевірка / заливка
+// POST ?task=generate_reviews — генерація відгуків через Claude
 
 import { allIngredients, replaceProductIngredients } from './_ingredients.js';
 
@@ -359,13 +360,52 @@ async function run(field) {
 </script></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
 
-// ── POST: заливка ────────────────────────────────────────────────────────────
+// ── POST: заливка + AI-генерація відгуків ──────────────────────────────────
 export async function onRequestPost(context) {
   const db = context.env.DB;
   const url = new URL(context.request.url);
-  const field = url.searchParams.get('field') || 'dosage'; // 'dosage' | 'ai'
+
+  // ── AI-генерація відгуків (через task=generate_reviews) ──
+  const task = url.searchParams.get('task');
+  if (task === 'generate_reviews') {
+    let body;
+    try { body = await context.request.json(); } catch(e) { return json({ ok: false, error: 'JSON expected' }, 400); }
+    const { prompt } = body.payload || {};
+    if (!prompt) return json({ ok: false, error: 'prompt required' }, 400);
+
+    const keyRow = await db.prepare(`SELECT value FROM site_settings WHERE key='anthropic_api_key'`).first();
+    const apiKey = keyRow ? keyRow.value : '';
+    if (!apiKey) return json({ ok: false, error: 'Anthropic API key не задано' }, 400);
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 600,
+        temperature: 0.8,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) return json({ ok: false, error: `Claude API: ${response.status}` }, 502);
+
+    const data = await response.json();
+    const content = data.content?.[0]?.text || '';
+    const jsonMatch = content.match(/\[[\s\S]*?\]/);
+    const reviews = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+    return json({ ok: true, reviews: reviews.filter(r => r.author && r.rating && r.text) });
+  }
+
+  // ── наявна логіка заливки dosage / ai ──
+  const field = url.searchParams.get('field') || 'dosage';
   const dry = url.searchParams.get('dryrun') === '1';
-  const policy = url.searchParams.get('policy') || 'empty'; // 'empty' | 'all'
+  const policy = url.searchParams.get('policy') || 'empty';
   const MAXLEN = 1000;
 
   let recs;
@@ -373,7 +413,6 @@ export async function onRequestPost(context) {
   catch (e) { return json({ ok: false, error: 'Не вдалося розпарсити: ' + e.message }, 400); }
   if (!Array.isArray(recs) || !recs.length) return json({ ok: false, error: 'Порожньо або невідомий формат' }, 400);
 
-  // Індекс товарів (тільки АГРОХІМІКАТИ)
   const ex = (await db.prepare(
     `SELECT p.pid, p.sku, p.name, COALESCE(c.display_name,'') dn,
             COALESCE(c.dosage,'') dosage,
@@ -403,7 +442,7 @@ export async function onRequestPost(context) {
     let pids = bySku.get(id);
     if (!pids) pids = byName.get(nkey(id));
     if (!pids || !pids.length) { unmatched++; if (unmatchedList.length < 100) unmatchedList.push(id); continue; }
-    if (pids.length > 1) continue; // неоднозначно — пропускаємо
+    if (pids.length > 1) continue;
 
     const pid = pids[0];
     if (seenPid.has(pid)) continue;
