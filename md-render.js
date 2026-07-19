@@ -8,14 +8,35 @@ window.mdRender = function(md, elId) {
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>');
   }
-  el.innerHTML = md.split(/\n\n+/).map(function(block) {
-    var b = block.trim();
-    if (!b) return '';
-    if (/^### /.test(b)) return '<h3>' + esc(b.slice(4)) + '</h3>';
-    if (/^## /.test(b))  return '<h2>' + esc(b.slice(3)) + '</h2>';
-    if (/^# /.test(b))   return '<h1>' + esc(b.slice(2)) + '</h1>';
-    if (/^- /m.test(b))  return '<ul>' + b.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<li>' + inl(l.replace(/^-\s*/,'')) + '</li>';}).join('') + '</ul>';
-    if (/^\d+\. /m.test(b)) return '<ol>' + b.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<li>' + inl(l.replace(/^\d+\.\s*/,'')) + '</li>';}).join('') + '</ol>';
-    return '<p>' + b.split('\n').map(inl).join('<br>') + '</p>';
-  }).join('');
+  var lines = md.split(/\r?\n/);
+  var html = '', i = 0;
+  while (i < lines.length) {
+    var raw = lines[i];
+    var b = raw.trim();
+    if (!b) { i++; continue; }
+    if (/^### /.test(b)) { html += '<h3>' + esc(b.slice(4)) + '</h3>'; i++; continue; }
+    if (/^## /.test(b))  { html += '<h2>' + esc(b.slice(3)) + '</h2>'; i++; continue; }
+    if (/^# /.test(b))   { html += '<h1>' + esc(b.slice(2)) + '</h1>'; i++; continue; }
+    if (/^- /.test(b)) {
+      var ulItems = [];
+      while (i < lines.length && /^- /.test(lines[i].trim())) {
+        ulItems.push('<li>' + inl(lines[i].trim().replace(/^-\s*/, '')) + '</li>');
+        i++;
+      }
+      html += '<ul>' + ulItems.join('') + '</ul>';
+      continue;
+    }
+    if (/^\d+\.\s/.test(b)) {
+      var olItems = [];
+      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+        olItems.push('<li>' + inl(lines[i].trim().replace(/^\d+\.\s*/, '')) + '</li>');
+        i++;
+      }
+      html += '<ol>' + olItems.join('') + '</ol>';
+      continue;
+    }
+    html += '<p>' + inl(b) + '</p>';
+    i++;
+  }
+  el.innerHTML = html;
 };
