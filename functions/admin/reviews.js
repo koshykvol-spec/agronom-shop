@@ -49,7 +49,7 @@ ${context}
 
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
-  if (!apiKey) throw new Error('Gemini API key не задано.');
+  if (!apiKey) throw new Error('Брак ключа Gemini API у site_settings.');
 
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
@@ -82,7 +82,7 @@ ${context}
 
   const data = await response.json();
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!content) throw new Error('Empty response');
+  if (!content) throw new Error('Порожня відповідь від нейромережі');
 
   try {
     const rev = JSON.parse(content);
@@ -92,7 +92,7 @@ ${context}
       text: rev.text
     };
   } catch (e) {
-    throw new Error('JSON parse error: ' + e.message);
+    throw new Error('Помилка парсингу JSON відповіді: ' + e.message);
   }
 }
 
@@ -121,31 +121,38 @@ export async function onRequestGet(context){
 
   const gen = url.searchParams.get('gen');
   if (gen === '1') {
-    const batchSize = 9; 
-    
-    // Спрощений запит до мінімуму для надійності
-    const rawRes = await db.prepare(
-      `SELECT p.pid, p.name, p.category, p.brand, c.annotation
-       FROM products p
-       LEFT JOIN product_content c ON c.pid = p.pid
-       WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)
-       LIMIT ?`
-    ).bind(batchSize).all();
-    
-    // Логування в консоль Cloudflare для відладки
-    console.log("Raw D1 Response:", JSON.stringify(rawRes));
+    let noRevProducts = [];
+    let dbErrorMsg = '';
 
-    const noRevProducts = rawRes.results || [];
-    console.log("Found products count:", noRevProducts.length);
+    try {
+      const batchSize = 9; 
+      // Використовуємо просту вибірку без c.annotation, щоб точно ніде не зрізало
+      const rawRes = await db.prepare(
+        `SELECT p.pid, p.name, p.category, p.brand
+         FROM products p
+         WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)
+         LIMIT ?`
+      ).bind(batchSize).all();
+
+      noRevProducts = rawRes.results || [];
+    } catch (dbErr) {
+      dbErrorMsg = 'SQL Error: ' + dbErr.message;
+    }
+
+    if (dbErrorMsg) {
+      return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(dbErrorMsg)}`, context.request.url).toString(), 303);
+    }
 
     let totalGenerated = 0;
+    let apiErrorMsg = '';
+
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
-      if (i > 0) await sleep(2500); 
+      if (i > 0) await sleep(2200); 
 
       try {
         const rev = await generateSingleReviewWithAI(context.env, product);
-        if (rev && rev.text && rev.text.length >= 15) {
+        if (rev && rev.text && rev.text.length >= 10) {
           await db.prepare(
             `INSERT INTO reviews (pid, name, rating, text, created_at, approved, source)
              VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -156,12 +163,18 @@ export async function onRequestGet(context){
           totalGenerated++;
         }
       } catch (e) {
-        console.error('Gen review failed for', product.pid, e.message || e);
+        apiErrorMsg = e.message || String(e);
+        // Якщо впало на першому ж запиті — перериваємо, щоб показати помилку
+        if (totalGenerated === 0) break;
       }
     }
 
-    const msg = `Згенеровано по 1 відгуку для ${totalGenerated} різних товарів (на модерації)`;
-    return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
+    let finalMsg = `Згенеровано по 1 відгуку для ${totalGenerated} різних товарів (на модерації)`;
+    if (apiErrorMsg && totalGenerated === 0) {
+      finalMsg = `Помилка генерації: ${apiErrorMsg}`;
+    }
+
+    return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(finalMsg)}`, context.request.url).toString(), 303);
   }
 
   const delai = url.searchParams.get('delai');
