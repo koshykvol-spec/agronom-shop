@@ -1,4 +1,4 @@
-// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini) + масове видалення.
+// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini 2.5 Flash) + масове видалення.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'☆☆☆☆☆'.slice(0,5-f); }
 
@@ -15,7 +15,7 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:10px 12px;background:#fff;border:1px solid #e3e3e3;border-radius:10px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація відгуків через Google Gemini ──────────────────────────────
+// ── AI-генерація відгуків через Google Gemini 2.5 Flash ────────────────────
 async function generateReviewsWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
@@ -29,18 +29,15 @@ ${context}
 - БЕЗ пафосу ("найкращий у світі", "чудо-засіб")
 - БЕЗ зайвих вигуків ("!!!", "...")
 - Імена авторів: типові українські, різні (Олена, Іван, Марія, Петро, Наталія, Василь, Тетяна, Андрій)
-- Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "працює, але повільно")
-
-Поверни СТРОГО JSON-масив без пояснень:
-[{"author": "Ім'я", "rating": 5, "text": "текст відгуку"}, ...]`;
+- Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "працює, але повільно")`;
 
   // Отримуємо Gemini API ключ
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
   if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  // Тільки одна модель — gemini-1.5-flash (найстабільніша безкоштовна)
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // Використовуємо актуальну робочу адресу для gemini-2.5-flash
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -49,40 +46,47 @@ ${context}
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.8,
-        maxOutputTokens: 800
+        maxOutputTokens: 1000,
+        // Змушуємо API повертати виключно валідний JSON без Markdown-оформлення
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              author: { type: "STRING" },
+              rating: { type: "INTEGER" },
+              text: { type: "STRING" }
+            },
+            required: ["author", "rating", "text"]
+          }
+        }
       }
     })
   });
 
   if (!response.ok) {
     const err = await response.text().catch(() => '');
-    throw new Error(`Gemini API: ${response.status} ${err.slice(0, 200)}`);
+    throw new Error(`Gemini API Error: ${response.status} ${err.slice(0, 200)}`);
   }
 
   const data = await response.json();
 
-  // Перевірка на блокування
   if (data.promptFeedback?.blockReason) {
     throw new Error(`Content blocked: ${data.promptFeedback.blockReason}`);
   }
 
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
   if (!content) {
     throw new Error('Empty response from Gemini');
   }
 
-  // Витягуємо JSON
-  const jsonMatch = content.match(/\[[\s\S]*?\]/);
-  if (!jsonMatch) {
-    throw new Error('No JSON in response: ' + content.slice(0, 200));
-  }
-
   try {
-    const reviews = JSON.parse(jsonMatch[0]);
-    return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
+    // Оскільки ми передали responseSchema, тут гарантовано буде чистий масив
+    const reviews = JSON.parse(content);
+    return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 15);
   } catch (e) {
-    throw new Error('JSON parse error: ' + e.message);
+    throw new Error('JSON parse error: ' + e.message + ' | Content: ' + content.slice(0, 100));
   }
 }
 
@@ -94,7 +98,7 @@ export async function onRequestGet(context){
   // ── генерація AI-відгуків ──
   const gen = url.searchParams.get('gen');
   if (gen === '1') {
-    const batchSize = 3; // Зменшено з 15 до 3
+    const batchSize = 3;
     const noRevProducts = (await db.prepare(
       `SELECT p.pid, p.name, p.category, p.brand, c.annotation
        FROM products p
