@@ -2,7 +2,6 @@
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'☆☆☆☆☆'.slice(0,5-f); }
 
-// Допоміжна функція для уникнення лімітів 429 (пауза між запитами)
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 const PAGE = (title, body) => `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow"><title>${esc(title)}</title><style>
@@ -16,6 +15,8 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 .ok{background:#2d6a2d}.del{background:#c0392b}.gen{background:#7a4e00}.bulk{background:#555}
 .st{color:#f5a623}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:10px 12px;background:#fff;border:1px solid #e3e3e3;border-radius:10px}
+textarea.edit-box{width:100%;max-width:100%;min-height:60px;padding:6px;border:1px solid #ccc;border-radius:6px;margin:6px 0;box-sizing:border-box;font-family:inherit}
+.card-actions{display:flex;gap:6px;margin-top:6px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
 // ── AI-генерація відгуків через Google Gemini 3.5 Flash ────────────────────
@@ -34,12 +35,10 @@ ${context}
 - Імена авторів: типові українські, різні (Олена, Іван, Марія, Петро, Наталія, Василь, Тетяна, Андрій)
 - Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "працює, але повільно")`;
 
-  // Отримуємо Gemini API ключ
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
   if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  // Оновлено до актуальної gemini-3.5-flash
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(apiUrl, {
@@ -49,7 +48,7 @@ ${context}
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.8,
-        maxOutputTokens: 4096, // Збільшено ліміт, щоб JSON не обрізався через довжину кирилиці
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
         responseSchema: {
           type: "ARRAY",
@@ -73,7 +72,6 @@ ${context}
   }
 
   const data = await response.json();
-
   if (data.promptFeedback?.blockReason) {
     throw new Error(`Content blocked: ${data.promptFeedback.blockReason}`);
   }
@@ -89,6 +87,26 @@ ${context}
   } catch (e) {
     throw new Error('JSON parse error: ' + e.message + ' | Content: ' + content.slice(0, 100));
   }
+}
+
+// ── POST (Збереження відредагованого відгуку) ──────────────────────────────
+export async function onRequestPost(context) {
+  const db = context.env.DB;
+  const formData = await context.request.formData();
+  const action = formData.get('action');
+
+  if (action === 'save_approve') {
+    const id = formData.get('id');
+    const text = formData.get('text');
+    
+    await db.prepare(
+      `UPDATE reviews SET text = ?, approved = 1 WHERE id = ?`
+    ).bind(text, id).run();
+
+    return Response.redirect(new URL('/admin/reviews?msg=' + encodeURIComponent('Відгук відредаговано та схвалено'), context.request.url).toString(), 303);
+  }
+
+  return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303);
 }
 
 // ── GET ─────────────────────────────────────────────────────────────────────
@@ -111,11 +129,7 @@ export async function onRequestGet(context){
     let totalGenerated = 0;
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
-      
-      // Пауза 3 секунди між товарами для стабільності безкоштовного тарифу
-      if (i > 0) {
-        await sleep(3000);
-      }
+      if (i > 0) await sleep(3000);
 
       try {
         const reviews = await generateReviewsWithAI(context.env, product);
@@ -149,7 +163,7 @@ export async function onRequestGet(context){
     return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
   }
 
-  // ── схвалити / видалити один ──
+  // ── схвалити / видалити один через GET ──
   if (url.searchParams.get('ok')){
     await db.prepare(`UPDATE reviews SET approved=1 WHERE id=?`).bind(url.searchParams.get('ok')).run();
     return Response.redirect(new URL('/admin/reviews', context.request.url).toString(), 303);
@@ -185,10 +199,23 @@ export async function onRequestGet(context){
     <div><b>${esc(r.name)}</b> <span class="st">${stars(r.rating)}</span> <span class="muted">${esc(r.created_at||'')}</span>
       ${r.source==='gemini-ai'?'<span style="font-size:.75rem;background:#4285f4;color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">🤖 AI</span>':''}
       — товар: ${r.slug?`<a href="/p/${esc(r.slug)}" target="_blank">${esc(r.pname||('#'+r.pid))}</a>`:esc(r.pname||('#'+r.pid))}</div>
-    <div style="margin:6px 0;white-space:pre-wrap">${esc(r.text)}</div>
+    
+    ${r.approved 
+      ? `<div style="margin:6px 0;white-space:pre-wrap">${esc(r.text)}</div>`
+      : `<form method="POST" action="/admin/reviews">
+          <input type="hidden" name="action" value="save_approve">
+          <input type="hidden" name="id" value="${r.id}">
+          <textarea class="edit-box" name="text">${esc(r.text)}</textarea>
+          <div class="card-actions">
+            <button type="submit" class="btn ok">💾 Зберегти й схвалити</button>
+            <a class="btn del" href="/admin/reviews?del=${r.id}" onclick="return confirm('Видалити відгук?')">🗑 Видалити</a>
+          </div>
+         </form>`
+    }
+    
     ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank"><img src="/thumb/${esc(r.img)}" style="max-width:120px;max-height:120px;border-radius:6px;display:block;margin:6px 0;border:1px solid #eee"></a>` : ''}
-    ${r.approved?'':`<a class="btn ok" href="/admin/reviews?ok=${r.id}">✓ Схвалити</a> `}
-    <a class="btn del" href="/admin/reviews?del=${r.id}" onclick="return confirm('Видалити відгук?')">🗑 Видалити</a>
+    
+    ${r.approved ? `<div class="card-actions"><a class="btn del" href="/admin/reviews?del=${r.id}" onclick="return confirm('Видалити відгук?')">🗑 Видалити</a></div>` : ''}
   </div>`;
 
   const actionBar = `<div class="bar">
