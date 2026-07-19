@@ -34,9 +34,9 @@ ${context}
 Поверни СТРОГО JSON-масив без пояснень:
 [{"author": "Ім'я", "rating": 5, "text": "текст відгуку"}, ...]`;
 
-  // Виклик через aifill.js (внутрішній fetch з task у URL)
+  // Виклик через aifill.js (внутрішній fetch з абсолютним URL)
   try {
-    const aifillRes = await fetch(`/admin/aifill?task=generate_reviews`, {
+    const aifillRes = await fetch(`https://agronom.pp.ua/admin/aifill?task=generate_reviews`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ payload: { prompt } })
