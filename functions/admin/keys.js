@@ -18,7 +18,7 @@ export async function onRequestGet(context){
   const db = context.env.DB;
   const saved = new URL(context.request.url).searchParams.get('saved');
   const ss = {};
-  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN ('ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key')`).all()).results || []) ss[r.key]=r.value;
+  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN ('ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key','gemini_api_key')`).all()).results || []) ss[r.key]=r.value;
   // Turnstile secret — у таблиці secrets (server-only, у /site-config НЕ потрапляє). Значення не показуємо.
   let tsSecretSet = false, tsSecretTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='turnstile_secret'`).first(); if (r && r.value){ tsSecretSet = true; tsSecretTail = String(r.value).slice(-4); } } catch(e){}
@@ -37,12 +37,21 @@ export async function onRequestGet(context){
       <div class="muted">Вмикається одразу, щойно вставите ID. Ці ID не секретні.</div>
       <div class="fl"><label>Google Analytics 4 — ID (G-XXXXXXX)</label><input name="ga4_id" value="${esc(ss.ga4_id||'')}" placeholder="G-..."></div>
       <hr style="border:0;border-top:1px solid #e8e8e8;margin:14px 0">
-      <b>🤖 AI діагностика фото (Порадник)</b>
-      <div class="fl"><label>Anthropic API Key ${ss.anthropic_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано (діагностика фото не працює)</span>'}</label>
+
+      <h3>🤖 AI інтеграції <span class="tag">API ключі</span></h3>
+
+      <div class="fl"><label>Anthropic API Key ${ss.anthropic_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label>
         <input name="anthropic_api_key" type="password" autocomplete="off" value="${ss.anthropic_api_key?'••••••••••••'+String(ss.anthropic_api_key).slice(-6):''}" placeholder="sk-ant-api03-...">
         <div class="muted" style="margin-top:3px">Ключ для розпізнавання фото хвороб/шкідників/бур'янів. Отримати на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
       </div>
+
+      <div class="fl"><label>Google Gemini API Key ${ss.gemini_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label>
+        <input name="gemini_api_key" type="password" autocomplete="off" value="${ss.gemini_api_key?'••••••••••••'+String(ss.gemini_api_key).slice(-6):''}" placeholder="AIzaSy...">
+        <div class="muted" style="margin-top:3px">Ключ для генерації відгуків через Google Gemini. Безкоштовний тір: 60 запитів/хв. Отримати на <a href="https://ai.google.dev" target="_blank">ai.google.dev</a></div>
+      </div>
+
       <div class="fl"><label>Microsoft Clarity — ID</label><input name="clarity_id" value="${esc(ss.clarity_id||'')}" placeholder="напр. abcdef1234"></div>
+
       <h3>🛡 Turnstile <span class="tag">анти-спам</span></h3>
       <div class="muted">Захист форми замовлення від ботів. Cloudflare → Turnstile → Add site → отримаєш <b>Sitekey</b> і <b>Secret</b> — обидва встав сюди.</div>
       <div class="fl"><label>Sitekey (публічний) ${ss.turnstile_sitekey?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label><input name="turnstile_sitekey" value="${esc(ss.turnstile_sitekey||'')}" placeholder="0x4AAAA..."></div>
@@ -50,17 +59,20 @@ export async function onRequestGet(context){
       <div class="fl"><label>Secret key (секретний) ${tsSecretSet?`<span class="ok">— задано ✓ (…${esc(tsSecretTail)})</span>`:'<span class="warn">— ще не задано</span>'}</label>
         <input name="turnstile_secret" autocomplete="off" placeholder="${tsSecretSet?'новий secret — порожньо щоб не міняти':'0x4AAAA... (Secret key з Cloudflare)'}"></div>
       ${tsSecretSet?'<label class="muted" style="display:flex;gap:6px;align-items:center;margin-top:2px"><input type="checkbox" name="turnstile_secret_del" style="width:auto"> видалити secret (вимкнути перевірку на сервері)</label>':''}
+
       <h3>💳 LiqPay <span class="tag">онлайн-оплата</span></h3>
       <div class="muted">Оплата карткою (опція поряд із НП-післяоплатою). Ключі — Приват24 для бізнесу → LiqPay → Налаштування → API. У server_url вкажіть <code>https://agronom.pp.ua/api/liqpay-callback</code>.</div>
       <div class="fl"><label>Public key ${lqPub?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label><input name="liqpay_public" value="${esc(lqPub)}" placeholder="i00000000000"></div>
       <div class="fl"><label>Private key (секретний) ${lqPrivSet?`<span class="ok">— задано ✓ (…${esc(lqPrivTail)})</span>`:'<span class="warn">— ще не задано</span>'}</label>
         <input name="liqpay_private" autocomplete="off" placeholder="${lqPrivSet?'новий private — порожньо щоб не міняти':'sandbox_… або робочий private key'}"></div>
       ${lqPrivSet?'<label class="muted" style="display:flex;gap:6px;align-items:center;margin-top:2px"><input type="checkbox" name="liqpay_private_del" style="width:auto"> видалити private (вимкнути онлайн-оплату)</label>':''}
+
       <h3>📮 Укрпошта <span class="tag">автодоповнення</span></h3>
       <div class="muted">Bearer-токен (UUID) з кабінету Укрпошти (заявка через cabinet.ukrposhta.ua / support). Дає автодоповнення відділень у формі замовлення. Без токена — адреса вводиться вручну.</div>
       <div class="fl"><label>Bearer-токен ${upSet?`<span class="ok">— задано ✓ (…${esc(upTail)})</span>`:'<span class="warn">— ще не задано</span>'}</label>
         <input name="ukrposhta_token" autocomplete="off" placeholder="${upSet?'новий токен — порожньо щоб не міняти':'a1b2c3d4-… (Bearer UUID)'}"></div>
       ${upSet?'<label class="muted" style="display:flex;gap:6px;align-items:center;margin-top:2px"><input type="checkbox" name="ukrposhta_token_del" style="width:auto"> видалити токен (вимкнути автодоповнення)</label>':''}
+
       <div style="margin-top:14px"><button class="btn" type="submit">💾 Зберегти</button></div>
     </form>
     <div class="box muted">🚚 <b>Ключ Нової Пошти</b> та відправник — на сторінці <a href="/admin/np-sender">Нова Пошта</a>.<br>🛡 <b>Secret</b> зберігається в захищеній таблиці БД (у браузер не віддається), воркер замовлень читає його звідти. Поки Sitekey+Secret не задано — форма працює без перевірки.</div>
@@ -84,8 +96,12 @@ export async function onRequestPost(context){
   if (anthropicKey && !anthropicKey.startsWith('••')) {
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind('anthropic_api_key', anthropicKey).run();
   }
+  // Gemini API key — зберігаємо лише якщо не маска
+  const geminiKey = (f.get('gemini_api_key')||'').trim();
+  if (geminiKey && !geminiKey.startsWith('••')) {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind('gemini_api_key', geminiKey).run();
+  }
   // turnstile_sitekey: захист від випадкового затирання застарілою формою — порожнє НЕ чистить.
-  // (інакше sitekey зник би, а воркер далі вимагав токен → усі замовлення заблокувались би.)
   if (f.get('turnstile_sitekey_del')) {
     await db.prepare(`DELETE FROM site_settings WHERE key='turnstile_sitekey'`).run();
   } else {

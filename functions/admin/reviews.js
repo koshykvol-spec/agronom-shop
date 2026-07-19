@@ -1,4 +1,4 @@
-// /admin/reviews — модерація відгуків + AI-генерація + масове видалення.
+// /admin/reviews — модерація відгуків + AI-генерація (Google Gemini) + масове видалення.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function stars(n){ var f=Math.round(n)||0; return '★★★★★'.slice(0,f)+'☆☆☆☆☆'.slice(0,5-f); }
 
@@ -15,7 +15,7 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:10px 12px;background:#fff;border:1px solid #e3e3e3;border-radius:10px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація відгуків через aifill ──────────────────────────────────────
+// ── AI-генерація відгуків через Google Gemini ──────────────────────────────
 async function generateReviewsWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
@@ -34,54 +34,36 @@ ${context}
 Поверни СТРОГО JSON-масив без пояснень:
 [{"author": "Ім'я", "rating": 5, "text": "текст відгуку"}, ...]`;
 
-  // Виклик через aifill.js (внутрішній fetch з абсолютним URL)
-  try {
-    const aifillRes = await fetch(`https://agronom.pp.ua/admin/aifill?task=generate_reviews`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload: { prompt } })
-    });
-    if (aifillRes.ok) {
-      const data = await aifillRes.json();
-      if (data.reviews) return data.reviews;
-    } else {
-      const errText = await aifillRes.text().catch(() => '');
-      console.error('aifill error:', aifillRes.status, errText.slice(0, 200));
-    }
-  } catch (e) {
-    console.error('aifill fetch failed:', e);
-  }
-
-  // Fallback: прямий виклик Claude API через ключ із site_settings
-  const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='anthropic_api_key'`).first();
+  // Отримуємо Gemini API ключ
+  const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
-  if (!apiKey) throw new Error('Anthropic API key не задано. Додайте у /admin/keys');
+  if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 600,
-      temperature: 0.8,
-      messages: [{ role: 'user', content: prompt }]
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 800,
+        responseMimeType: 'application/json'
+      }
     })
   });
 
   if (!response.ok) {
     const err = await response.text().catch(() => '');
-    throw new Error(`Claude API: ${response.status} ${err.slice(0, 200)}`);
+    throw new Error(`Gemini API: ${response.status} ${err.slice(0, 200)}`);
   }
 
   const data = await response.json();
-  const content = data.content?.[0]?.text || '';
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Gemini може повернути JSON з markdown обгорткою
   const jsonMatch = content.match(/\[[\s\S]*?\]/);
   if (!jsonMatch) {
-    console.log('Claude response (no JSON):', content.slice(0, 300));
+    console.log('Gemini response (no JSON):', content.slice(0, 300));
     return [];
   }
 
@@ -121,7 +103,7 @@ export async function onRequestGet(context){
              VALUES (?, ?, ?, ?, ?, ?, ?)`
           ).bind(
             product.pid, rev.author, rev.rating, rev.text,
-            new Date().toISOString().split('T')[0], 0, 'claude-ai'
+            new Date().toISOString().split('T')[0], 0, 'gemini-ai'
           ).run();
         }
         totalGenerated += reviews.length;
@@ -138,7 +120,7 @@ export async function onRequestGet(context){
   const delai = url.searchParams.get('delai');
   if (delai === '1') {
     const result = await db.prepare(
-      `DELETE FROM reviews WHERE source = 'claude-ai' AND approved = 0`
+      `DELETE FROM reviews WHERE source = 'gemini-ai' AND approved = 0`
     ).run();
     const deleted = result.meta?.changes || 0;
     const msg = `Видалено ${deleted} AI-відгуків (що були на модерації)`;
@@ -164,7 +146,7 @@ export async function onRequestGet(context){
   ).first()) || {}).n) | 0;
 
   const aiPending = (((await db.prepare(
-    `SELECT COUNT(*) n FROM reviews WHERE source = 'claude-ai' AND approved = 0`
+    `SELECT COUNT(*) n FROM reviews WHERE source = 'gemini-ai' AND approved = 0`
   ).first()) || {}).n) | 0;
 
   const rows = (await db.prepare(
@@ -177,9 +159,9 @@ export async function onRequestGet(context){
   const pend = rows.filter(r=>!r.approved);
   const appr = rows.filter(r=>r.approved);
 
-  const card = r => `<div class="rev${r.approved?'':r.source==='claude-ai'?' ai pend':' pend'}">
+  const card = r => `<div class="rev${r.approved?'':r.source==='gemini-ai'?' ai pend':' pend'}">
     <div><b>${esc(r.name)}</b> <span class="st">${stars(r.rating)}</span> <span class="muted">${esc(r.created_at||'')}</span>
-      ${r.source==='claude-ai'?'<span style="font-size:.75rem;background:#a5d6a7;color:#1a3e1a;padding:1px 6px;border-radius:4px;margin-left:4px">🤖 AI</span>':''}
+      ${r.source==='gemini-ai'?'<span style="font-size:.75rem;background:#4285f4;color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">🤖 AI</span>':''}
       — товар: ${r.slug?`<a href="/p/${esc(r.slug)}" target="_blank">${esc(r.pname||('#'+r.pid))}</a>`:esc(r.pname||('#'+r.pid))}</div>
     <div style="margin:6px 0;white-space:pre-wrap">${esc(r.text)}</div>
     ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank"><img src="/thumb/${esc(r.img)}" style="max-width:120px;max-height:120px;border-radius:6px;display:block;margin:6px 0;border:1px solid #eee"></a>` : ''}
@@ -189,7 +171,7 @@ export async function onRequestGet(context){
 
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
-    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 3 відгуки Claude для ${Math.min(noRevTotal, 15)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Claude</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 3 відгуки Gemini для ${Math.min(noRevTotal, 15)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini</a>` : ''}
     ${aiPending > 0 ? `<span class="muted">🤖 На модерації: <b>${aiPending}</b></span><a class="btn del" href="/admin/reviews?delai=1" onclick="return confirm('Видалити ВСІ ${aiPending} AI-відгуки, що на модерації?')">🗑 Скасувати AI-відгуки</a>` : ''}
   </div>`;
 
