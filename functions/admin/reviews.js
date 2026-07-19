@@ -17,7 +17,7 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 
 // ── AI-генерація відгуків через aifill ──────────────────────────────────────
 async function generateReviewsWithAI(env, product) {
-  const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 300)}` : '';
+  const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
 
 ${context}
@@ -34,19 +34,22 @@ ${context}
 Поверни СТРОГО JSON-масив без пояснень:
 [{"author": "Ім'я", "rating": 5, "text": "текст відгуку"}, ...]`;
 
-  // Виклик через aifill.js (внутрішній fetch)
+  // Виклик через aifill.js (внутрішній fetch з task у URL)
   try {
     const aifillRes = await fetch(`/admin/aifill?task=generate_reviews`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ payload: { prompt } })
-});
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload: { prompt } })
+    });
     if (aifillRes.ok) {
       const data = await aifillRes.json();
       if (data.reviews) return data.reviews;
+    } else {
+      const errText = await aifillRes.text().catch(() => '');
+      console.error('aifill error:', aifillRes.status, errText.slice(0, 200));
     }
   } catch (e) {
-    // aifill недоступний — fallback на прямий виклик
+    console.error('aifill fetch failed:', e);
   }
 
   // Fallback: прямий виклик Claude API через ключ із site_settings
@@ -69,17 +72,26 @@ ${context}
     })
   });
 
-  if (!response.ok) throw new Error(`Claude API: ${response.status}`);
+  if (!response.ok) {
+    const err = await response.text().catch(() => '');
+    throw new Error(`Claude API: ${response.status} ${err.slice(0, 200)}`);
+  }
 
   const data = await response.json();
   const content = data.content?.[0]?.text || '';
   const jsonMatch = content.match(/\[[\s\S]*?\]/);
-  if (!jsonMatch) return [];
+  if (!jsonMatch) {
+    console.log('Claude response (no JSON):', content.slice(0, 300));
+    return [];
+  }
 
   try {
     const reviews = JSON.parse(jsonMatch[0]);
     return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
-  } catch (e) { return []; }
+  } catch (e) {
+    console.error('JSON parse error:', e);
+    return [];
+  }
 }
 
 // ── GET ─────────────────────────────────────────────────────────────────────
@@ -114,7 +126,7 @@ export async function onRequestGet(context){
         }
         totalGenerated += reviews.length;
       } catch (e) {
-        console.error('Gen review failed for', product.pid, e);
+        console.error('Gen review failed for', product.pid, e.message || e);
       }
     }
 
@@ -147,12 +159,10 @@ export async function onRequestGet(context){
   const msg = url.searchParams.get('msg');
   const msgHtml = msg ? `<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin:10px 0;color:#2d6a2d;font-weight:600">✓ ${esc(msg)}</div>` : '';
 
-  // Підрахунок товарів без відгуків
   const noRevTotal = (((await db.prepare(
     `SELECT COUNT(*) n FROM products p WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid = p.pid)`
   ).first()) || {}).n) | 0;
 
-  // Підрахунок AI-відгуків на модерації
   const aiPending = (((await db.prepare(
     `SELECT COUNT(*) n FROM reviews WHERE source = 'claude-ai' AND approved = 0`
   ).first()) || {}).n) | 0;
@@ -177,7 +187,6 @@ export async function onRequestGet(context){
     <a class="btn del" href="/admin/reviews?del=${r.id}" onclick="return confirm('Видалити відгук?')">🗑 Видалити</a>
   </div>`;
 
-  // Панель дій
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
     ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 3 відгуки Claude для ${Math.min(noRevTotal, 15)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Claude</a>` : ''}
