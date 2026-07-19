@@ -49,7 +49,7 @@ ${context}
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.8,
-        maxOutputTokens: 1000,
+        maxOutputTokens: 4096, // Збільшено ліміт, щоб JSON не обрізався через довжину кирилиці
         responseMimeType: "application/json",
         responseSchema: {
           type: "ARRAY",
@@ -112,9 +112,9 @@ export async function onRequestGet(context){
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
       
-      // Якщо це не перший товар у пачці, робимо паузу 2 секунди, щоб безкоштовний API не сварився на ліміти (429)
+      // Пауза 3 секунди між товарами для стабільності безкоштовного тарифу
       if (i > 0) {
-        await sleep(2000);
+        await sleep(3000);
       }
 
       try {
