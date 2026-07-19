@@ -36,11 +36,11 @@ ${context}
 
   // Виклик через aifill.js (внутрішній fetch)
   try {
-    const aifillRes = await fetch('http://localhost/admin/aifill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task: 'generate_reviews', payload: { prompt } })
-    });
+    const aifillRes = await fetch(`/admin/aifill?task=generate_reviews`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ payload: { prompt } })
+});
     if (aifillRes.ok) {
       const data = await aifillRes.json();
       if (data.reviews) return data.reviews;
