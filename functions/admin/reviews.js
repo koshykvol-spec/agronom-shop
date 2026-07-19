@@ -17,8 +17,6 @@ a{color:#2d6a2d} h2,h3{color:#2d6a2d}
 
 // ── AI-генерація відгуків через Google Gemini ──────────────────────────────
 async function generateReviewsWithAI(env, product) {
-  console.log('Generating reviews for product:', product.pid, product.name);
-
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
 
@@ -36,66 +34,47 @@ ${context}
 Поверни СТРОГО JSON-масив без пояснень:
 [{"author": "Ім'я", "rating": 5, "text": "текст відгуку"}, ...]`;
 
-  console.log('Prompt length:', prompt.length);
-
   // Отримуємо Gemini API ключ
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
-  console.log('API key exists:', !!apiKey, 'Length:', apiKey ? apiKey.length : 0);
-
   if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
 
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  console.log('API URL (without key):', apiUrl.replace(apiKey, '***'));
-
-  const requestBody = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.8,
-      maxOutputTokens: 800,
-      responseMimeType: 'application/json'
-    }
-  };
-  console.log('Request body:', JSON.stringify(requestBody).slice(0, 200));
+  // Правильна назва моделі з суфіксом -latest
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 800,
+        responseMimeType: 'application/json'
+      }
+    })
   });
 
-  console.log('Response status:', response.status, response.statusText);
-
-  const responseText = await response.text();
-  console.log('Response body (first 500 chars):', responseText.slice(0, 500));
-
   if (!response.ok) {
-    throw new Error(`Gemini API: ${response.status} ${responseText.slice(0, 200)}`);
+    const err = await response.text().catch(() => '');
+    throw new Error(`Gemini API: ${response.status} ${err.slice(0, 200)}`);
   }
 
-  const data = JSON.parse(responseText);
-  console.log('Parsed data keys:', Object.keys(data));
-
+  const data = await response.json();
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  console.log('Content (first 300 chars):', content.slice(0, 300));
 
   // Gemini може повернути JSON з markdown обгорткою
   const jsonMatch = content.match(/\[[\s\S]*?\]/);
   if (!jsonMatch) {
-    console.log('No JSON array found in response');
+    console.log('Gemini response (no JSON):', content.slice(0, 300));
     return [];
   }
 
-  console.log('JSON match found:', jsonMatch[0].slice(0, 200));
-
   try {
     const reviews = JSON.parse(jsonMatch[0]);
-    console.log('Parsed reviews count:', reviews.length);
-    const filtered = reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
-    console.log('Filtered reviews count:', filtered.length);
-    return filtered;
+    return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 20 && r.text.length <= 150);
   } catch (e) {
-    console.error('JSON parse error:', e.message);
+    console.error('JSON parse error:', e);
     return [];
   }
 }
@@ -108,7 +87,6 @@ export async function onRequestGet(context){
   // ── генерація AI-відгуків ──
   const gen = url.searchParams.get('gen');
   if (gen === '1') {
-    console.log('=== START GENERATION ===');
     const batchSize = 15;
     const noRevProducts = (await db.prepare(
       `SELECT p.pid, p.name, p.category, p.brand, c.annotation
@@ -118,14 +96,10 @@ export async function onRequestGet(context){
        LIMIT ?`
     ).bind(batchSize).all()).results || [];
 
-    console.log('Products without reviews:', noRevProducts.length);
-
     let totalGenerated = 0;
     for (const product of noRevProducts) {
       try {
         const reviews = await generateReviewsWithAI(context.env, product);
-        console.log('Generated reviews for', product.pid, ':', reviews.length);
-
         for (const rev of reviews) {
           await db.prepare(
             `INSERT INTO reviews (pid, name, rating, text, created_at, approved, source)
@@ -140,8 +114,6 @@ export async function onRequestGet(context){
         console.error('Gen review failed for', product.pid, e.message || e);
       }
     }
-
-    console.log('=== END GENERATION. Total:', totalGenerated, '===');
 
     const msg = `Згенеровано ${totalGenerated} відгуків для ${noRevProducts.length} товарів (на модерації)`;
     return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
