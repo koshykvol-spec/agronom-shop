@@ -13,10 +13,8 @@ const FARMER_NAMES = [
   "Роман Пасічник", "Ольга В.", "Володимир С.", "Ніна Степанівна", "Павло Г."
 ];
 
-// Функція для вибору N випадкових унікальних імен
-function getRandomNames(count) {
-  const shuffled = [...FARMER_NAMES].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
+function getRandomName() {
+  return FARMER_NAMES[Math.floor(Math.random() * FARMER_NAMES.length)];
 }
 
 const PAGE = (title, body) => `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow"><title>${esc(title)}</title><style>
@@ -34,32 +32,27 @@ textarea.edit-box{width:100%;max-width:100%;min-height:60px;padding:6px;border:1
 .card-actions{display:flex;gap:6px;margin-top:6px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
-// ── AI-генерація відгуків через Google Gemini 3.5 Flash ────────────────────
-async function generateReviewsWithAI(env, product) {
+// ── AI-генерація ОДНОГО відгуку через Google Gemini 3.5 Flash ────────────────────
+async function generateSingleReviewWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
-  
-  // Генеруємо 3 абсолютно унікальні імені для цього конкретного товару
-  const chosenNames = getRandomNames(3);
+  const chosenName = getRandomName();
+  // Випадковий рейтинг 4 або 5
+  const randomRating = Math.random() > 0.25 ? 5 : 4; 
 
-  const prompt = `Ти — український фермер із Волинської області. Напиши 3 короткі відгуки українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
+  const prompt = `Ти — український фермер або дачник. Напиши 1 короткий, природний відгук українською мовою на агротовар "${product.name}" (категорія: ${product.category}${product.brand ? ', бренд: ' + product.brand : ''}).
 
 ${context}
 
 Вимоги:
-- Кожен відгук 50-130 символів
-- Різні тони: 1 емоційний/вдячний, 1 практичний/технічний, 1 короткий лаконічний
-- Реалістичні деталі: врожай, терміни сходу, стійкість до фітофтори, конкретні проблеми (хвощ, бур'яни, осот)
-- БЕЗ пафосу ("найкращий у світі", "чудо-засіб")
-- БЕЗ зайвих вигуків ("!!!", "...")
-- Тобі ЧІТКО задано імена авторів для кожного відгуку. Використовуй САМЕ ЇХ по порядку:
-  1. Перший відгук автор: "${chosenNames[0]}"
-  2. Другий відгук автор: "${chosenNames[1]}"
-  3. Третій відгук автор: "${chosenNames[2]}"
-- Рейтинги: 4 або 5 (переважно 5, один може бути 4 з поясненням "трохи дорогий" або "схожість 80%")`;
+- Відгук має бути довжиною від 50 до 140 символів.
+- Пиши просто, як звичайна людина (про врожай, сходи, як пережило заморозки чи спеку, чи добре вимивається бур'ян).
+- БЕЗ реклами та пафосу. БЕЗ знаків "!!!" чи трикрапок.
+- Автор відгуку СУВОРО: "${chosenName}"
+- Рейтинг відгуку СУВОРО: ${randomRating}`;
 
   const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
   const apiKey = keyRow ? keyRow.value : '';
-  if (!apiKey) throw new Error('Gemini API key не задано. Додайте у /admin/keys');
+  if (!apiKey) throw new Error('Gemini API key не задано.');
 
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
@@ -69,20 +62,17 @@ ${context}
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.85, // Трохи підняли температуру для більшої різноманітності
-        maxOutputTokens: 4096,
+        temperature: 0.85,
+        maxOutputTokens: 1024,
         responseMimeType: "application/json",
         responseSchema: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              author: { type: "STRING" },
-              rating: { type: "INTEGER" },
-              text: { type: "STRING" }
-            },
-            required: ["author", "rating", "text"]
-          }
+          type: "OBJECT",
+          properties: {
+            author: { type: "STRING" },
+            rating: { type: "INTEGER" },
+            text: { type: "STRING" }
+          },
+          required: ["author", "rating", "text"]
         }
       }
     })
@@ -90,24 +80,23 @@ ${context}
 
   if (!response.ok) {
     const err = await response.text().catch(() => '');
-    throw new Error(`Gemini API Error: ${response.status} ${err.slice(0, 200)}`);
+    throw new Error(`Gemini API Error: ${response.status} ${err.slice(0, 100)}`);
   }
 
   const data = await response.json();
-  if (data.promptFeedback?.blockReason) {
-    throw new Error(`Content blocked: ${data.promptFeedback.blockReason}`);
-  }
-
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!content) {
-    throw new Error('Empty response from Gemini');
-  }
+  if (!content) throw new Error('Empty response');
 
   try {
-    const reviews = JSON.parse(content);
-    return reviews.filter(r => r.author && r.rating >= 1 && r.rating <= 5 && r.text && r.text.length >= 15);
+    const rev = JSON.parse(content);
+    // Якщо ШІ раптом проігнорував ім'я або рейтинг із промпту, підстраховуємо кодом
+    return {
+      author: rev.author || chosenName,
+      rating: rev.rating || randomRating,
+      text: rev.text
+    };
   } catch (e) {
-    throw new Error('JSON parse error: ' + e.message + ' | Content: ' + content.slice(0, 100));
+    throw new Error('JSON parse error: ' + e.message);
   }
 }
 
@@ -136,10 +125,10 @@ export async function onRequestGet(context){
   const db = context.env.DB;
   const url = new URL(context.request.url);
 
-  // ── генерація AI-відгуків ──
+  // ── генерація AI-відгуків (Тепер 9 товарів по 1 відгуку) ──
   const gen = url.searchParams.get('gen');
   if (gen === '1') {
-    const batchSize = 3;
+    const batchSize = 9; // Беремо одразу 9 різних товарів
     const noRevProducts = (await db.prepare(
       `SELECT p.pid, p.name, p.category, p.brand, c.annotation
        FROM products p
@@ -151,11 +140,11 @@ export async function onRequestGet(context){
     let totalGenerated = 0;
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
-      if (i > 0) await sleep(3000);
+      if (i > 0) await sleep(2500); // Невелика затримка, щоб не перевантажувати безкоштовний ліміт RPM
 
       try {
-        const reviews = await generateReviewsWithAI(context.env, product);
-        for (const rev of reviews) {
+        const rev = await generateSingleReviewWithAI(context.env, product);
+        if (rev && rev.text && rev.text.length >= 15) {
           await db.prepare(
             `INSERT INTO reviews (pid, name, rating, text, created_at, approved, source)
              VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -163,14 +152,14 @@ export async function onRequestGet(context){
             product.pid, rev.author, rev.rating, rev.text,
             new Date().toISOString().split('T')[0], 0, 'gemini-ai'
           ).run();
+          totalGenerated++;
         }
-        totalGenerated += reviews.length;
       } catch (e) {
         console.error('Gen review failed for', product.pid, e.message || e);
       }
     }
 
-    const msg = `Згенеровано ${totalGenerated} відгуків для ${noRevProducts.length} товарів (на модерації)`;
+    const msg = `Згенеровано по 1 відгуку для ${totalGenerated} різних товарів (на модерації)`;
     return Response.redirect(new URL(`/admin/reviews?msg=${encodeURIComponent(msg)}`, context.request.url).toString(), 303);
   }
 
@@ -242,7 +231,7 @@ export async function onRequestGet(context){
 
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
-    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 3 відгуки Gemini для ${Math.min(noRevTotal, 3)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 9)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (9 шт)</a>` : ''}
     ${aiPending > 0 ? `<span class="muted">🤖 На модерації: <b>${aiPending}</b></span><a class="btn del" href="/admin/reviews?delai=1" onclick="return confirm('Видалити ВСІ ${aiPending} AI-відгуки, що на модерації?')">🗑 Скасувати AI-відгуки</a>` : ''}
   </div>`;
 
