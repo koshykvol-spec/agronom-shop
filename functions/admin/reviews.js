@@ -59,8 +59,8 @@ ${context}
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.85,
-        maxOutputTokens: 1024,
+        temperature: 0.7, // Трохи знизили для більшої стабільності структури JSON
+        maxOutputTokens: 2048, // Збільшили ліміт токенів, щоб текст не обривався
         responseMimeType: "application/json",
         responseSchema: {
           type: "OBJECT",
@@ -81,18 +81,21 @@ ${context}
   }
 
   const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!content) throw new Error('Порожня відповідь від нейромережі');
+
+  // Очищаємо контент від можливих блоків ```json ... ```
+  content = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
 
   try {
     const rev = JSON.parse(content);
     return {
       author: rev.author || chosenName,
-      rating: rev.rating || randomRating,
+      rating: Number(rev.rating) || randomRating,
       text: rev.text
     };
   } catch (e) {
-    throw new Error('Помилка парсингу JSON відповіді: ' + e.message);
+    throw new Error('Помилка парсингу JSON відповіді: ' + e.message + ' | Raw text: ' + content.slice(0, 80));
   }
 }
 
