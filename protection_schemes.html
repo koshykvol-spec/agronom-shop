@@ -460,17 +460,26 @@
 
 
        <!-- ── Діагностика по фото ── -->
+<!-- Інпут 1: Примусова Камера -->
+<input type="file" id="diagnose-camera" accept="image/*" capture="environment" style="display:none;">
+<!-- Інпут 2: Галерея / Файли -->
 <input type="file" id="diagnose-file" accept="image/*" style="display:none;">
+
 <div id="diagnose-bar" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <span style="font-size:1.3rem">🔬</span>
     <div style="flex:1;min-width:200px">
       <b style="color:#1a3e1a;font-size:.97rem">Визначити хворобу, шкідника або бур'ян по фото</b>
-      <div style="font-size:.82rem;color:#555;margin-top:2px">Зробіть фото або завантажте з галереї — AI підбере препарати</div>
+      <div style="font-size:.82rem;color:#555;margin-top:2px">Зніміть на камеру або виберіть готову світлину</div>
     </div>
-    <button onclick="document.getElementById('diagnose-file').click()" style="display:inline-flex;align-items:center;gap:7px;background:#2d6a2d;color:#fff;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.9rem;white-space:nowrap;border:none;">
-      📷 Зробити або завантажити фото
-    </button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="document.getElementById('diagnose-camera').click()" style="display:inline-flex;align-items:center;gap:6px;background:#2d6a2d;color:#fff;padding:9px 14px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.88rem;border:none;">
+        📷 Камера
+      </button>
+      <button onclick="document.getElementById('diagnose-file').click()" style="display:inline-flex;align-items:center;gap:6px;background:#ffffff;color:#2d6a2d;border:1.5px solid #2d6a2d;padding:9px 14px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.88rem;">
+        🖼️ Галерея
+      </button>
+    </div>
   </div>
   <div id="diagnose-result" style="display:none;margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
 </div>
