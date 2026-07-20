@@ -459,21 +459,21 @@
         </div>
 
 
-        <!-- ── Діагностика по фото ── -->
-        <input type="file" id="diagnose-file" accept="image/jpeg,image/png,image/webp,image/*" style="display:none;">
-        <div id="diagnose-bar" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span style="font-size:1.3rem">🔬</span>
-            <div style="flex:1;min-width:200px">
-              <b style="color:#1a3e1a;font-size:.97rem">Визначити хворобу, шкідника або бур'ян по фото</b>
-              <div style="font-size:.82rem;color:#555;margin-top:2px">Завантажте фото — AI підбере препарати з нашого каталогу</div>
-            </div>
-            <button onclick="document.getElementById('diagnose-file').click()" style="display:inline-flex;align-items:center;gap:7px;background:#2d6a2d;color:#fff;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.9rem;white-space:nowrap;border:none;">
-              📷 Завантажити фото
-            </button>
-          </div>
-          <div id="diagnose-result" style="display:none;margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
-        </div>
+       <!-- ── Діагностика по фото ── -->
+<input type="file" id="diagnose-file" accept="image/*" style="display:none;">
+<div id="diagnose-bar" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:1.3rem">🔬</span>
+    <div style="flex:1;min-width:200px">
+      <b style="color:#1a3e1a;font-size:.97rem">Визначити хворобу, шкідника або бур'ян по фото</b>
+      <div style="font-size:.82rem;color:#555;margin-top:2px">Зробіть фото або завантажте з галереї — AI підбере препарати</div>
+    </div>
+    <button onclick="document.getElementById('diagnose-file').click()" style="display:inline-flex;align-items:center;gap:7px;background:#2d6a2d;color:#fff;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:.9rem;white-space:nowrap;border:none;">
+      📷 Зробити або завантажити фото
+    </button>
+  </div>
+  <div id="diagnose-result" style="display:none;margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
+</div>
 
         <script>
         (function(){
