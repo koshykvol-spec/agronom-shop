@@ -30,10 +30,11 @@ export async function onRequestGet(context){
   const ss = {};
   
   // Формуємо список усіх ключів для запиту в БД (по 6 штук для кожної нейромережі)
-  const keysToFetch = ['ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key','gemini_api_key'];
+  const keysToFetch = ['ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key','gemini_api_key','openrouter_api_key'];
   for (let i = 1; i <= 6; i++) {
     keysToFetch.push(`anthropic_api_key_${i}`);
     keysToFetch.push(`gemini_api_key_${i}`);
+    keysToFetch.push(`openrouter_api_key_${i}`);
   }
   
   const placeholders = keysToFetch.map(() => '?').join(',');
@@ -41,15 +42,17 @@ export async function onRequestGet(context){
     ss[r.key] = r.value;
   }
 
-  // Фолбек для зворотної сумісності зі старим єдиним ключем
+  // Фолбек для зворотної сумісності зі старими єдиними ключами
   if (!ss.anthropic_api_key_1 && ss.anthropic_api_key) ss.anthropic_api_key_1 = ss.anthropic_api_key;
   if (!ss.gemini_api_key_1 && ss.gemini_api_key) ss.gemini_api_key_1 = ss.gemini_api_key;
+  if (!ss.openrouter_api_key_1 && ss.openrouter_api_key) ss.openrouter_api_key_1 = ss.openrouter_api_key;
 
   // Лічильники активних ключів
-  let antCount = 0, gemCount = 0;
+  let antCount = 0, gemCount = 0, orCount = 0;
   for (let i = 1; i <= 6; i++) {
     if (ss[`anthropic_api_key_${i}`]) antCount++;
     if (ss[`gemini_api_key_${i}`]) gemCount++;
+    if (ss[`openrouter_api_key_${i}`]) orCount++;
   }
 
   // Turnstile secret
@@ -89,6 +92,18 @@ export async function onRequestGet(context){
       </div>`;
   }
 
+  // Генерація HTML-полів для OpenRouter (6 полів)
+  let openrouterFieldsHtml = '';
+  for (let i = 1; i <= 6; i++) {
+    const val = ss[`openrouter_api_key_${i}`];
+    const label = ACCOUNT_LABELS[i - 1];
+    openrouterFieldsHtml += `
+      <div class="fl" style="margin-top:6px">
+        <label>Ключ <b>${label}</b> ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
+        <input name="openrouter_api_key_${i}" type="password" autocomplete="off" value="${val ? '••••••••••••' + String(val).slice(-6) : ''}" placeholder="sk-or-v1-...">
+      </div>`;
+  }
+
   const body = `<h2>🔑 Ключі та інтеграції</h2>
     ${saved ? '<div class="box ok">✅ Збережено. Нові ключі підхопляться автоматично.</div>' : ''}
     <form class="box" method="POST" action="/admin/keys">
@@ -112,6 +127,13 @@ export async function onRequestGet(context){
         ${gemCount > 0 ? `<span class="ok">— задано ${gemCount} з 6 ✓</span>` : '<span class="warn">— ще не задано</span>'}
         <div class="muted" style="margin-bottom:8px">Отримати на <a href="https://ai.google.dev" target="_blank">ai.google.dev</a></div>
         ${geminiFieldsHtml}
+      </div>
+
+      <div style="background:#f9fbf9;border:1px solid #e1eee1;padding:12px;border-radius:8px;margin:10px 0;">
+        <b style="color:#2d6a2d">OpenRouter API Keys</b> 
+        ${orCount > 0 ? `<span class="ok">— задано ${orCount} з 6 ✓</span>` : '<span class="warn">— ще не задано</span>'}
+        <div class="muted" style="margin-bottom:8px">Універсальний доступ до безкоштовних AI моделей. Отримати на <a href="https://openrouter.ai" target="_blank">openrouter.ai</a></div>
+        ${openrouterFieldsHtml}
       </div>
 
       <div class="fl"><label>Microsoft Clarity — ID</label><input name="clarity_id" value="${esc(ss.clarity_id||'')}" placeholder="напр. abcdef1234"></div>
@@ -165,7 +187,6 @@ export async function onRequestPost(context){
       await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
     }
   }
-  // Забезпечуємо сумісність зі старим кодом (записуємо перший валідний ключ в anthropic_api_key)
   if (firstAntKey) {
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('anthropic_api_key',?)`).bind(firstAntKey).run();
   }
@@ -182,9 +203,24 @@ export async function onRequestPost(context){
       await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
     }
   }
-  // Забезпечуємо сумісність зі старим кодом (записуємо перший валідний ключ в gemini_api_key)
   if (firstGemKey) {
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('gemini_api_key',?)`).bind(firstGemKey).run();
+  }
+
+  // Обробка 6 ключів OpenRouter API
+  let firstOrKey = '';
+  for (let i = 1; i <= 6; i++) {
+    const keyName = `openrouter_api_key_${i}`;
+    const val = (f.get(keyName) || '').trim();
+    if (val && !val.startsWith('••')) {
+      await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(keyName, val).run();
+      if (!firstOrKey) firstOrKey = val;
+    } else if (val === '') {
+      await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
+    }
+  }
+  if (firstOrKey) {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('openrouter_api_key',?)`).bind(firstOrKey).run();
   }
 
   // Turnstile sitekey
