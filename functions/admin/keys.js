@@ -14,30 +14,40 @@ input{padding:8px 10px;border:1px solid #ccc;border-radius:6px;font:inherit}
 .tag{font-size:.72rem;background:#eef;color:#556;padding:1px 7px;border-radius:6px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
+// Масив підписів для ключів за акаунтами
+const ACCOUNT_LABELS = [
+  'ruslanchyk@vvpc.com.ua',
+  'ruslanchyk.ne@vvpc.com.ua',
+  'ruslanchyk@gmail.com',
+  'koshyk.vol@gmail.com',
+  'galyusik.ne@vvpc.com.ua',
+  'galyusik.ne@gmail.com'
+];
+
 export async function onRequestGet(context){
   const db = context.env.DB;
   const saved = new URL(context.request.url).searchParams.get('saved');
   const ss = {};
   
-  // Читаємо всі налаштування з БД
-  const keysToFetch = [
-    'ga4_id','clarity_id','turnstile_sitekey',
-    'anthropic_api_key','anthropic_api_key_1','anthropic_api_key_2','anthropic_api_key_3','anthropic_api_key_4',
-    'gemini_api_key','gemini_api_key_1','gemini_api_key_2','gemini_api_key_3','gemini_api_key_4'
-  ];
+  // Формуємо список усіх ключів для запиту в БД (по 6 штук для кожної нейромережі)
+  const keysToFetch = ['ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key','gemini_api_key'];
+  for (let i = 1; i <= 6; i++) {
+    keysToFetch.push(`anthropic_api_key_${i}`);
+    keysToFetch.push(`gemini_api_key_${i}`);
+  }
   
   const placeholders = keysToFetch.map(() => '?').join(',');
   for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN (${placeholders})`).bind(...keysToFetch).all()).results || []) {
     ss[r.key] = r.value;
   }
 
-  // Спеціальний фолбек для відображення, якщо заповнено старі ключі
+  // Фолбек для зворотної сумісності зі старим єдиним ключем
   if (!ss.anthropic_api_key_1 && ss.anthropic_api_key) ss.anthropic_api_key_1 = ss.anthropic_api_key;
   if (!ss.gemini_api_key_1 && ss.gemini_api_key) ss.gemini_api_key_1 = ss.gemini_api_key;
 
-  // Рахуємо кількість збережених ключів Claude & Gemini
+  // Лічильники активних ключів
   let antCount = 0, gemCount = 0;
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 6; i++) {
     if (ss[`anthropic_api_key_${i}`]) antCount++;
     if (ss[`gemini_api_key_${i}`]) gemCount++;
   }
@@ -55,24 +65,26 @@ export async function onRequestGet(context){
   let upSet = false, upTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='ukrposhta_token'`).first(); if (r && r.value){ upSet = true; upTail = String(r.value).slice(-4); } } catch(e){}
 
-  // Генерація HTML-полів для Claude
+  // Генерація HTML-полів для Claude (6 полів)
   let anthropicFieldsHtml = '';
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 6; i++) {
     const val = ss[`anthropic_api_key_${i}`];
+    const label = ACCOUNT_LABELS[i - 1];
     anthropicFieldsHtml += `
       <div class="fl" style="margin-top:6px">
-        <label>Ключ №${i} ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
+        <label>Ключ <b>${label}</b> ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
         <input name="anthropic_api_key_${i}" type="password" autocomplete="off" value="${val ? '••••••••••••' + String(val).slice(-6) : ''}" placeholder="sk-ant-api03-...">
       </div>`;
   }
 
-  // Генерація HTML-полів для Gemini
+  // Генерація HTML-полів для Gemini (6 полів)
   let geminiFieldsHtml = '';
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 6; i++) {
     const val = ss[`gemini_api_key_${i}`];
+    const label = ACCOUNT_LABELS[i - 1];
     geminiFieldsHtml += `
       <div class="fl" style="margin-top:6px">
-        <label>Ключ №${i} ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
+        <label>Ключ <b>${label}</b> ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
         <input name="gemini_api_key_${i}" type="password" autocomplete="off" value="${val ? '••••••••••••' + String(val).slice(-6) : ''}" placeholder="AIzaSy...">
       </div>`;
   }
@@ -90,14 +102,14 @@ export async function onRequestGet(context){
 
       <div style="background:#f9fbf9;border:1px solid #e1eee1;padding:12px;border-radius:8px;margin:10px 0;">
         <b style="color:#2d6a2d">Anthropic (Claude) API Keys</b> 
-        ${antCount > 0 ? `<span class="ok">— задано ${antCount} з 4 ✓</span>` : '<span class="warn">— ще не задано</span>'}
+        ${antCount > 0 ? `<span class="ok">— задано ${antCount} з 6 ✓</span>` : '<span class="warn">— ще не задано</span>'}
         <div class="muted" style="margin-bottom:8px">Отримати на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
         ${anthropicFieldsHtml}
       </div>
 
       <div style="background:#f9fbf9;border:1px solid #e1eee1;padding:12px;border-radius:8px;margin:10px 0;">
         <b style="color:#2d6a2d">Google Gemini API Keys</b> 
-        ${gemCount > 0 ? `<span class="ok">— задано ${gemCount} з 4 ✓</span>` : '<span class="warn">— ще не задано</span>'}
+        ${gemCount > 0 ? `<span class="ok">— задано ${gemCount} з 6 ✓</span>` : '<span class="warn">— ще не задано</span>'}
         <div class="muted" style="margin-bottom:8px">Отримати на <a href="https://ai.google.dev" target="_blank">ai.google.dev</a></div>
         ${geminiFieldsHtml}
       </div>
@@ -141,9 +153,9 @@ export async function onRequestPost(context){
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(k, (f.get(k)||'').trim()).run();
   }
 
-  // Обробка 4 ключів Anthropic API
+  // Обробка 6 ключів Anthropic API
   let firstAntKey = '';
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 6; i++) {
     const keyName = `anthropic_api_key_${i}`;
     const val = (f.get(keyName) || '').trim();
     if (val && !val.startsWith('••')) {
@@ -153,14 +165,14 @@ export async function onRequestPost(context){
       await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
     }
   }
-  // Забезпечуємо сумісність зі старим кодом, що шукав просто anthropic_api_key
+  // Забезпечуємо сумісність зі старим кодом (записуємо перший валідний ключ в anthropic_api_key)
   if (firstAntKey) {
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('anthropic_api_key',?)`).bind(firstAntKey).run();
   }
 
-  // Обробка 4 ключів Gemini API
+  // Обробка 6 ключів Gemini API
   let firstGemKey = '';
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 6; i++) {
     const keyName = `gemini_api_key_${i}`;
     const val = (f.get(keyName) || '').trim();
     if (val && !val.startsWith('••')) {
@@ -170,7 +182,7 @@ export async function onRequestPost(context){
       await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
     }
   }
-  // Забезпечуємо сумісність зі старим кодом, що шукав просто gemini_api_key
+  // Забезпечуємо сумісність зі старим кодом (записуємо перший валідний ключ в gemini_api_key)
   if (firstGemKey) {
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('gemini_api_key',?)`).bind(firstGemKey).run();
   }
