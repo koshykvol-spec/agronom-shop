@@ -38,21 +38,14 @@ export default {
     if (request.method === 'GET') return J({ ok: true, msg: 'diagnose worker alive' });
     if (request.method !== 'POST') return J({ ok: false, error: 'Method not allowed' }, 405);
 
-<<<<<<< HEAD
     // ---- Rate limiting по IP (захист від зловживання Gemini API) ----
-=======
-    // ---- Rate limiting по IP (захист від зловживання Anthropic API) ----
->>>>>>> 6311357 (feat: логування пошукових запитів + звіт топ-запитів/запитів без результатів в адмінці)
     if (env.DB) {
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       const max = parseInt(env.RATE_LIMIT_MAX || '8', 10);
       const windowSec = parseInt(env.RATE_LIMIT_WINDOW_SEC || '3600', 10);
       const now = Math.floor(Date.now() / 1000);
       const key = `diagnose:${ip}`;
-<<<<<<< HEAD
-=======
 
->>>>>>> 6311357 (feat: логування пошукових запитів + звіт топ-запитів/запитів без результатів в адмінці)
       try {
         const row = await env.DB.prepare(
           `SELECT cnt, exp FROM rate_limits WHERE k = ?`
@@ -77,13 +70,8 @@ export default {
       }
     }
 
-<<<<<<< HEAD
     const apiKey = env.GEMINI_API_KEY || '';
     if (!apiKey) return J({ ok: false, error: 'GEMINI_API_KEY not set' }, 503);
-=======
-    const apiKey = env.ANTHROPIC_API_KEY || '';
-    if (!apiKey) return J({ ok: false, error: 'ANTHROPIC_API_KEY not set' }, 503);
->>>>>>> 6311357 (feat: логування пошукових запитів + звіт топ-запитів/запитів без результатів в адмінці)
 
     let body;
     try { body = await request.json(); }
@@ -198,11 +186,7 @@ export default {
       const typeLabel = result.type === 'disease' ? '🍂 Хвороба' : result.type === 'pest' ? '🐛 Шкідник' : '🌿 Бур’ян';
       const confLabel = result.confidence === 'high' ? 'висока' : result.confidence === 'medium' ? 'середня' : 'низька';
       const prodsText = result.products.length ? result.products.slice(0,3).join(', ') : 'не знайдено';
-      const msg = `🔬 AI-діагностика на agronom.pp.ua
-
-${typeLabel}: *${result.name}*
-Впевненість: ${confLabel}
-Препарати: ${prodsText}`;
+      const msg = `🔬 AI-діагностика на agronom.pp.ua\n\n${typeLabel}: *${result.name}*\nВпевненість: ${confLabel}\nПрепарати: ${prodsText}`;
       const recipients = String(env.CHAT_ID).split(/[\s,]+/).filter(Boolean);
       for (const chatId of recipients) {
         fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
