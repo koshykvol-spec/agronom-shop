@@ -18,36 +18,88 @@ export async function onRequestGet(context){
   const db = context.env.DB;
   const saved = new URL(context.request.url).searchParams.get('saved');
   const ss = {};
-  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN ('ga4_id','clarity_id','turnstile_sitekey','anthropic_api_key','gemini_api_key')`).all()).results || []) ss[r.key]=r.value;
-  // Turnstile secret — у таблиці secrets (server-only, у /site-config НЕ потрапляє). Значення не показуємо.
+  
+  // Читаємо всі налаштування з БД
+  const keysToFetch = [
+    'ga4_id','clarity_id','turnstile_sitekey',
+    'anthropic_api_key','anthropic_api_key_1','anthropic_api_key_2','anthropic_api_key_3','anthropic_api_key_4',
+    'gemini_api_key','gemini_api_key_1','gemini_api_key_2','gemini_api_key_3','gemini_api_key_4'
+  ];
+  
+  const placeholders = keysToFetch.map(() => '?').join(',');
+  for (const r of (await db.prepare(`SELECT key,value FROM site_settings WHERE key IN (${placeholders})`).bind(...keysToFetch).all()).results || []) {
+    ss[r.key] = r.value;
+  }
+
+  // Спеціальний фолбек для відображення, якщо заповнено старі ключі
+  if (!ss.anthropic_api_key_1 && ss.anthropic_api_key) ss.anthropic_api_key_1 = ss.anthropic_api_key;
+  if (!ss.gemini_api_key_1 && ss.gemini_api_key) ss.gemini_api_key_1 = ss.gemini_api_key;
+
+  // Рахуємо кількість збережених ключів Claude & Gemini
+  let antCount = 0, gemCount = 0;
+  for (let i = 1; i <= 4; i++) {
+    if (ss[`anthropic_api_key_${i}`]) antCount++;
+    if (ss[`gemini_api_key_${i}`]) gemCount++;
+  }
+
+  // Turnstile secret
   let tsSecretSet = false, tsSecretTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='turnstile_secret'`).first(); if (r && r.value){ tsSecretSet = true; tsSecretTail = String(r.value).slice(-4); } } catch(e){}
-  // LiqPay — обидва ключі у secrets (server-only). public теж не світимо у /site-config.
+
+  // LiqPay
   let lqPub = '', lqPrivSet = false, lqPrivTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='liqpay_public'`).first(); if (r && r.value) lqPub = String(r.value); } catch(e){}
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='liqpay_private'`).first(); if (r && r.value){ lqPrivSet = true; lqPrivTail = String(r.value).slice(-4); } } catch(e){}
-  // Укрпошта — Bearer-токен у secrets (server-only) для автодоповнення відділень.
+
+  // Укрпошта
   let upSet = false, upTail = '';
   try { const r = await db.prepare(`SELECT value FROM secrets WHERE key='ukrposhta_token'`).first(); if (r && r.value){ upSet = true; upTail = String(r.value).slice(-4); } } catch(e){}
 
+  // Генерація HTML-полів для Claude
+  let anthropicFieldsHtml = '';
+  for (let i = 1; i <= 4; i++) {
+    const val = ss[`anthropic_api_key_${i}`];
+    anthropicFieldsHtml += `
+      <div class="fl" style="margin-top:6px">
+        <label>Ключ №${i} ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
+        <input name="anthropic_api_key_${i}" type="password" autocomplete="off" value="${val ? '••••••••••••' + String(val).slice(-6) : ''}" placeholder="sk-ant-api03-...">
+      </div>`;
+  }
+
+  // Генерація HTML-полів для Gemini
+  let geminiFieldsHtml = '';
+  for (let i = 1; i <= 4; i++) {
+    const val = ss[`gemini_api_key_${i}`];
+    geminiFieldsHtml += `
+      <div class="fl" style="margin-top:6px">
+        <label>Ключ №${i} ${val ? '<span class="ok">— задано ✓</span>' : '<span class="warn">— порожньо</span>'}</label>
+        <input name="gemini_api_key_${i}" type="password" autocomplete="off" value="${val ? '••••••••••••' + String(val).slice(-6) : ''}" placeholder="AIzaSy...">
+      </div>`;
+  }
+
   const body = `<h2>🔑 Ключі та інтеграції</h2>
-    ${saved ? '<div class="box ok">✅ Збережено. Для аналітики зміни діють одразу; для НП — функції підхоплять ключ без передеплою.</div>' : ''}
+    ${saved ? '<div class="box ok">✅ Збережено. Нові ключі підхопляться автоматично.</div>' : ''}
     <form class="box" method="POST" action="/admin/keys">
       <h3 style="margin-top:0">📊 Аналітика <span class="tag">публічні ID</span></h3>
       <div class="muted">Вмикається одразу, щойно вставите ID. Ці ID не секретні.</div>
       <div class="fl"><label>Google Analytics 4 — ID (G-XXXXXXX)</label><input name="ga4_id" value="${esc(ss.ga4_id||'')}" placeholder="G-..."></div>
       <hr style="border:0;border-top:1px solid #e8e8e8;margin:14px 0">
 
-      <h3>🤖 AI інтеграції <span class="tag">API ключі</span></h3>
+      <h3>🤖 AI інтеграції <span class="tag">API ключі (Пули для ротації)</span></h3>
+      <div class="muted">Задайте по декілька ключів з різних акаунтів для автоматичної ротації та обходу лімітів (503 / 429).</div>
 
-      <div class="fl"><label>Anthropic API Key ${ss.anthropic_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label>
-        <input name="anthropic_api_key" type="password" autocomplete="off" value="${ss.anthropic_api_key?'••••••••••••'+String(ss.anthropic_api_key).slice(-6):''}" placeholder="sk-ant-api03-...">
-        <div class="muted" style="margin-top:3px">Ключ для розпізнавання фото хвороб/шкідників/бур'янів. Отримати на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+      <div style="background:#f9fbf9;border:1px solid #e1eee1;padding:12px;border-radius:8px;margin:10px 0;">
+        <b style="color:#2d6a2d">Anthropic (Claude) API Keys</b> 
+        ${antCount > 0 ? `<span class="ok">— задано ${antCount} з 4 ✓</span>` : '<span class="warn">— ще не задано</span>'}
+        <div class="muted" style="margin-bottom:8px">Отримати на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+        ${anthropicFieldsHtml}
       </div>
 
-      <div class="fl"><label>Google Gemini API Key ${ss.gemini_api_key?'<span class="ok">— задано ✓</span>':'<span class="warn">— ще не задано</span>'}</label>
-        <input name="gemini_api_key" type="password" autocomplete="off" value="${ss.gemini_api_key?'••••••••••••'+String(ss.gemini_api_key).slice(-6):''}" placeholder="AIzaSy...">
-        <div class="muted" style="margin-top:3px">Ключ для генерації відгуків через Google Gemini. Безкоштовний тір: 60 запитів/хв. Отримати на <a href="https://ai.google.dev" target="_blank">ai.google.dev</a></div>
+      <div style="background:#f9fbf9;border:1px solid #e1eee1;padding:12px;border-radius:8px;margin:10px 0;">
+        <b style="color:#2d6a2d">Google Gemini API Keys</b> 
+        ${gemCount > 0 ? `<span class="ok">— задано ${gemCount} з 4 ✓</span>` : '<span class="warn">— ще не задано</span>'}
+        <div class="muted" style="margin-bottom:8px">Отримати на <a href="https://ai.google.dev" target="_blank">ai.google.dev</a></div>
+        ${geminiFieldsHtml}
       </div>
 
       <div class="fl"><label>Microsoft Clarity — ID</label><input name="clarity_id" value="${esc(ss.clarity_id||'')}" placeholder="напр. abcdef1234"></div>
@@ -75,47 +127,71 @@ export async function onRequestGet(context){
 
       <div style="margin-top:14px"><button class="btn" type="submit">💾 Зберегти</button></div>
     </form>
-    <div class="box muted">🚚 <b>Ключ Нової Пошти</b> та відправник — на сторінці <a href="/admin/np-sender">Нова Пошта</a>.<br>🛡 <b>Secret</b> зберігається в захищеній таблиці БД (у браузер не віддається), воркер замовлень читає його звідти. Поки Sitekey+Secret не задано — форма працює без перевірки.</div>
+    <div class="box muted">🚚 <b>Ключ Нової Пошти</b> та відправник — на сторінці <a href="/admin/np-sender">Нова Пошта</a>.</div>`;
 
-    <div class="box muted">
-      <b>Телеграм замовлень</b> (BOT_TOKEN / CHAT_ID) налаштовано в окремому Worker'і прийому замовлень — туди ключі вводяться в його змінних. Якщо треба, перенесемо і їх сюди.<br>
-      <b>Пароль адмінки</b> та <b>токен деплою</b> свідомо лишаються в Cloudflare (env / .cf-secrets) — це «вхідні двері», їх не варто тримати в БД.
-    </div>`;
   return new Response(PAGE(body), { headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
 
 export async function onRequestPost(context){
   const db = context.env.DB;
   const f = await context.request.formData();
-  // публічні ID → site_settings (порожнє = очистити; для них це безпечно)
+
+  // Публічні ID
   for (const k of ['ga4_id','clarity_id']){
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(k, (f.get(k)||'').trim()).run();
   }
-  // Anthropic API key — зберігаємо лише якщо не маска (не починається з ••)
-  const anthropicKey = (f.get('anthropic_api_key')||'').trim();
-  if (anthropicKey && !anthropicKey.startsWith('••')) {
-    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind('anthropic_api_key', anthropicKey).run();
+
+  // Обробка 4 ключів Anthropic API
+  let firstAntKey = '';
+  for (let i = 1; i <= 4; i++) {
+    const keyName = `anthropic_api_key_${i}`;
+    const val = (f.get(keyName) || '').trim();
+    if (val && !val.startsWith('••')) {
+      await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(keyName, val).run();
+      if (!firstAntKey) firstAntKey = val;
+    } else if (val === '') {
+      await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
+    }
   }
-  // Gemini API key — зберігаємо лише якщо не маска
-  const geminiKey = (f.get('gemini_api_key')||'').trim();
-  if (geminiKey && !geminiKey.startsWith('••')) {
-    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind('gemini_api_key', geminiKey).run();
+  // Забезпечуємо сумісність зі старим кодом, що шукав просто anthropic_api_key
+  if (firstAntKey) {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('anthropic_api_key',?)`).bind(firstAntKey).run();
   }
-  // turnstile_sitekey: захист від випадкового затирання застарілою формою — порожнє НЕ чистить.
+
+  // Обробка 4 ключів Gemini API
+  let firstGemKey = '';
+  for (let i = 1; i <= 4; i++) {
+    const keyName = `gemini_api_key_${i}`;
+    const val = (f.get(keyName) || '').trim();
+    if (val && !val.startsWith('••')) {
+      await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`).bind(keyName, val).run();
+      if (!firstGemKey) firstGemKey = val;
+    } else if (val === '') {
+      await db.prepare(`DELETE FROM site_settings WHERE key=?`).bind(keyName).run();
+    }
+  }
+  // Забезпечуємо сумісність зі старим кодом, що шукав просто gemini_api_key
+  if (firstGemKey) {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('gemini_api_key',?)`).bind(firstGemKey).run();
+  }
+
+  // Turnstile sitekey
   if (f.get('turnstile_sitekey_del')) {
     await db.prepare(`DELETE FROM site_settings WHERE key='turnstile_sitekey'`).run();
   } else {
     const sk = (f.get('turnstile_sitekey')||'').trim();
     if (sk) await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('turnstile_sitekey',?)`).bind(sk).run();
   }
-  // Turnstile secret → таблиця secrets (server-only). Видалення/заміна; порожнє — лишаємо як було.
+
+  // Turnstile secret
   if (f.get('turnstile_secret_del')) {
     await db.prepare(`DELETE FROM secrets WHERE key='turnstile_secret'`).run();
   } else if (f.has('turnstile_secret')) {
     const ts = (f.get('turnstile_secret')||'').toString().trim();
     if (ts) await db.prepare(`INSERT OR REPLACE INTO secrets(key,value) VALUES('turnstile_secret',?)`).bind(ts).run();
   }
-  // LiqPay public → secrets (порожнє НЕ чистить — захист від затирання). private — видалення/заміна.
+
+  // LiqPay
   if (f.has('liqpay_public')) {
     const lp = (f.get('liqpay_public')||'').toString().trim();
     if (lp) await db.prepare(`INSERT OR REPLACE INTO secrets(key,value) VALUES('liqpay_public',?)`).bind(lp).run();
@@ -126,14 +202,16 @@ export async function onRequestPost(context){
     const lpriv = (f.get('liqpay_private')||'').toString().trim();
     if (lpriv) await db.prepare(`INSERT OR REPLACE INTO secrets(key,value) VALUES('liqpay_private',?)`).bind(lpriv).run();
   }
-  // Укрпошта Bearer → secrets. Видалення/заміна; порожнє — лишаємо.
+
+  // Укрпошта Bearer
   if (f.get('ukrposhta_token_del')) {
     await db.prepare(`DELETE FROM secrets WHERE key='ukrposhta_token'`).run();
   } else if (f.has('ukrposhta_token')) {
     const ut = (f.get('ukrposhta_token')||'').toString().trim();
     if (ut) await db.prepare(`INSERT OR REPLACE INTO secrets(key,value) VALUES('ukrposhta_token',?)`).bind(ut).run();
   }
-  // Публічні прапорці (булеві, БЕЗ ключів) → site_settings → /site-config → app.js.
+
+  // Оновлення прапорців у site_settings
   try {
     const pub = await db.prepare(`SELECT value FROM secrets WHERE key='liqpay_public'`).first();
     const priv = await db.prepare(`SELECT value FROM secrets WHERE key='liqpay_private'`).first();
@@ -141,5 +219,6 @@ export async function onRequestPost(context){
     const up = await db.prepare(`SELECT value FROM secrets WHERE key='ukrposhta_token'`).first();
     await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES('ukrposhta_on',?)`).bind((up && up.value) ? '1' : '').run();
   } catch(e){}
+
   return Response.redirect(new URL('/admin/keys?saved=1', context.request.url).toString(), 303);
 }
