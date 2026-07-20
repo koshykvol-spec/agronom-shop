@@ -486,18 +486,23 @@
 
         <script>
         (function(){
-          var fileInput = document.getElementById('diagnose-file');
-          var resultBox = document.getElementById('diagnose-result');
-          if (!fileInput) { console.error('diagnose-file not found'); return; }
+  var fileInput   = document.getElementById('diagnose-file');
+  var cameraInput = document.getElementById('diagnose-camera');
+  var resultBox   = document.getElementById('diagnose-result');
+  if (!fileInput || !cameraInput) { console.error('diagnose inputs not found'); return; }
 
-          fileInput.onchange = function(e) {
-            var file = e.target.files && e.target.files[0];
-            if (!file) return;
-            diagnose(file);
-            setTimeout(function(){ fileInput.value = ''; }, 100);
-          };
+  function handleFileSelect(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    diagnose(file);
+    var input = e.target;
+    setTimeout(function(){ input.value = ''; }, 100);
+  }
 
-          var DIAGNOSE_URL = 'https://agro-diagnose.ruslanchyk.workers.dev';
+  fileInput.onchange   = handleFileSelect;
+  cameraInput.onchange = handleFileSelect;
+
+  var DIAGNOSE_URL = 'https://agro-diagnose.ruslanchyk.workers.dev';
 
           function getKnownNames() {
             var names = [];
