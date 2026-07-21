@@ -17,10 +17,107 @@ const J = (o, s) => new Response(JSON.stringify(o), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 });
 
+// Універсальна функція: бере пул ключів (prefix = 'gemini_api_key' або 'openrouter_api_key'),
+// зсуває лічильник ротації в site_settings і повертає ключі, починаючи з наступного за чергою.
+async function getRotatedKeys(db, prefix) {
+  const rows = (await db.prepare(
+    `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
+  ).all().catch(() => ({ results: [] }))).results || [];
+
+  const keys = [];
+  for (let i = 1; i <= 6; i++) {
+    const row = rows.find(r => r.key === `${prefix}_${i}`);
+    if (row && row.value) keys.push(row.value.trim());
+  }
+  if (keys.length === 0) {
+    const legacy = rows.find(r => r.key === prefix);
+    if (legacy && legacy.value) keys.push(legacy.value.trim());
+  }
+  if (keys.length === 0) return [];
+
+  const idxKey = `${prefix}_rotation_idx`;
+  let idx = 0;
+  try {
+    const cur = await db.prepare(`SELECT value FROM site_settings WHERE key=?`).bind(idxKey).first();
+    idx = cur && cur.value ? (parseInt(cur.value, 10) || 0) : 0;
+  } catch (e) {}
+
+  const nextIdx = (idx + 1) % keys.length;
+  try {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`)
+      .bind(idxKey, String(nextIdx)).run();
+  } catch (e) {}
+
+  return [...keys.slice(idx), ...keys.slice(0, idx)];
+}
+
+// Пробує Gemini API по черзі ключів пулу. Повертає {text} або {error, retryable}.
+async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: [{ role: 'user', parts: [
+          { text: prompt },
+          { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } }
+        ]}],
+        generationConfig: { temperature: 0.4 }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    const retryable = [400, 401, 403, 429, 503].includes(res.status); // 400/401/403 часто = невалідний/вичерпаний ключ
+    return { error: 'Gemini '+res.status+': '+errText.slice(0,300), retryable };
+  }
+
+  const data = await res.json();
+  const text = ((data.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
+  if (!text) return { error: 'Gemini: порожня відповідь', retryable: true };
+  return { text };
+}
+
+// Пробує OpenRouter API по черзі ключів пулу.
+async function tryOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'Authorization': 'Bearer ' + apiKey,
+      'HTTP-Referer': 'https://agronom.pp.ua',
+      'X-Title': 'Agronom Diagnose',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.0-flash-exp:free',
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${image_type||'image/jpeg'};base64,${image_b64}` } }
+        ]}
+      ]
+    })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    const retryable = [401, 402, 403, 429, 503].includes(res.status);
+    return { error: 'OpenRouter '+res.status+': '+errText.slice(0,300), retryable };
+  }
+
+  const data = await res.json();
+  const text = (data.choices||[])[0]?.message?.content || '';
+  if (!text) return { error: 'OpenRouter: порожня відповідь', retryable: true };
+  return { text };
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   try {
-    // Parse JSON body (not formData - send as JSON with base64 image)
     let body;
     try { body = await request.json(); }
     catch(e) { return J({ok:false, error:'Invalid JSON body: '+e.message}, 400); }
@@ -28,14 +125,6 @@ export async function onRequestPost(context) {
     const { image_b64, image_type } = body;
     if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
 
-    // Get API key
-    const row = await env.DB.prepare(
-      `SELECT value FROM site_settings WHERE key='anthropic_api_key' LIMIT 1`
-    ).first().catch(()=>null);
-    const apiKey = row && row.value ? row.value.trim() : '';
-    if (!apiKey) return J({ok:false, error:'API key not configured'}, 503);
-
-    // Load products
     const prods = (await env.DB.prepare(
       `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
               COALESCE(c.slug,'') slug, p.price,
@@ -57,39 +146,36 @@ export async function onRequestPost(context) {
       + '"advice":"treatment advice in Ukrainian",'
       + '"products":["exact name from catalog"]}';
 
-    // Call Anthropic
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        system: sys,
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: image_type || 'image/jpeg', data: image_b64 } },
-          { type: 'text', text: prompt }
-        ]}]
-      })
-    });
+    let rawText = '', lastErr = '';
 
-    if (!aiRes.ok) {
-      const err = await aiRes.text();
-      return J({ok:false, error:'Claude '+aiRes.status+': '+err.slice(0,300)}, 502);
+    // 1) Gemini — основний пул, пробуємо ключі по черзі
+    const geminiKeys = await getRotatedKeys(env.DB, 'gemini_api_key');
+    for (const key of geminiKeys) {
+      const r = await tryGemini(key, sys, prompt, image_b64, image_type);
+      if (r.text) { rawText = r.text; break; }
+      lastErr = r.error;
+      if (!r.retryable) break; // не пов'язано з ключем — сенсу перебирати пул немає
     }
 
-    const aiData = await aiRes.json();
-    const raw = (aiData.content||[]).map(b=>b.text||'').join('').trim();
+    // 2) OpenRouter — резерв, якщо весь пул Gemini не спрацював
+    if (!rawText) {
+      const orKeys = await getRotatedKeys(env.DB, 'openrouter_api_key');
+      for (const key of orKeys) {
+        const r = await tryOpenRouter(key, sys, prompt, image_b64, image_type);
+        if (r.text) { rawText = r.text; break; }
+        lastErr = r.error;
+        if (!r.retryable) break;
+      }
+    }
+
+    if (!rawText) return J({ok:false, error:'Усі провайдери недоступні: '+lastErr}, 502);
 
     let diag;
     try {
-      const clean = raw.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
+      const clean = rawText.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
       diag = JSON.parse(clean);
     } catch(e) {
-      return J({ok:false, error:'JSON parse: '+e.message, raw:raw.slice(0,200)}, 502);
+      return J({ok:false, error:'JSON parse: '+e.message, raw:rawText.slice(0,200)}, 502);
     }
 
     const matched = [];
