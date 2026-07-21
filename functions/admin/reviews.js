@@ -41,6 +41,40 @@ textarea.edit-box{width:100%;max-width:100%;min-height:60px;padding:6px;border:1
 .card-actions{display:flex;gap:6px;margin-top:6px}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body><div><a href="/admin">← до адмінки</a></div>${body}</body></html>`;
 
+// Універсальна функція: бере пул ключів (prefix = 'gemini_api_key'),
+// зсуває лічильник ротації в site_settings і повертає ключі, починаючи з наступного за чергою.
+async function getRotatedKeys(db, prefix) {
+  const rows = (await db.prepare(
+    `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
+  ).all().catch(() => ({ results: [] }))).results || [];
+
+  const keys = [];
+  for (let i = 1; i <= 6; i++) {
+    const row = rows.find(r => r.key === `${prefix}_${i}`);
+    if (row && row.value) keys.push(row.value.trim());
+  }
+  if (keys.length === 0) {
+    const legacy = rows.find(r => r.key === prefix);
+    if (legacy && legacy.value) keys.push(legacy.value.trim());
+  }
+  if (keys.length === 0) return [];
+
+  const idxKey = `${prefix}_rotation_idx`;
+  let idx = 0;
+  try {
+    const cur = await db.prepare(`SELECT value FROM site_settings WHERE key=?`).bind(idxKey).first();
+    idx = cur && cur.value ? (parseInt(cur.value, 10) || 0) : 0;
+  } catch (e) {}
+
+  const nextIdx = (idx + 1) % keys.length;
+  try {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`)
+      .bind(idxKey, String(nextIdx)).run();
+  } catch (e) {}
+
+  return [...keys.slice(idx), ...keys.slice(0, idx)];
+}
+
 async function generateSingleReviewWithAI(env, product) {
   const context = product.annotation ? `Опис товару: ${product.annotation.slice(0, 150)}` : '';
   const chosenName = getRandomName();
@@ -57,42 +91,50 @@ ${context}
 - Автор відгуку СУВОРО: "${chosenName}"
 - Рейтинг відгуку СУВОРО: ${randomRating}`;
 
-  const keyRow = await env.DB.prepare(`SELECT value FROM site_settings WHERE key='gemini_api_key'`).first();
-  const apiKey = keyRow ? keyRow.value : '';
-  if (!apiKey) throw new Error('Брак ключа Gemini API у site_settings.');
+  const keys = await getRotatedKeys(env.DB, 'gemini_api_key');
+  if (keys.length === 0) throw new Error('Брак ключа Gemini API у site_settings.');
 
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7, // Трохи знизили для більшої стабільності структури JSON
-        maxOutputTokens: 2048, // Збільшили ліміт токенів, щоб текст не обривався
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            author: { type: "STRING" },
-            rating: { type: "INTEGER" },
-            text: { type: "STRING" }
-          },
-          required: ["author", "rating", "text"]
-        }
+  const reqBody = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.7, // Трохи знизили для більшої стабільності структури JSON
+      maxOutputTokens: 2048, // Збільшили ліміт токенів, щоб текст не обривався
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          author: { type: "STRING" },
+          rating: { type: "INTEGER" },
+          text: { type: "STRING" }
+        },
+        required: ["author", "rating", "text"]
       }
-    })
+    }
   });
 
-  if (!response.ok) {
-    const err = await response.text().catch(() => '');
-    throw new Error(`Gemini API Error: ${response.status} ${err.slice(0, 100)}`);
+  let content = '', lastErr = '';
+  for (const apiKey of keys) {
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: reqBody
+    });
+
+    if (!response.ok) {
+      const err = await response.text().catch(() => '');
+      lastErr = `Gemini API Error: ${response.status} ${err.slice(0, 100)}`;
+      if ([400, 401, 403, 429, 503].includes(response.status)) continue; // наступний ключ у черзі
+      throw new Error(lastErr); // інша помилка — ключ ні до чого, повторювати сенсу немає
+    }
+
+    const data = await response.json();
+    content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (content) break;
+    lastErr = 'Порожня відповідь від нейромережі';
   }
 
-  const data = await response.json();
-  let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!content) throw new Error('Порожня відповідь від нейромережі');
+  if (!content) throw new Error(lastErr || 'Порожня відповідь від нейромережі');
 
   // Очищаємо контент від можливих блоків ```json ... ```
   content = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
