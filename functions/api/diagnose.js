@@ -17,8 +17,6 @@ const J = (o, s) => new Response(JSON.stringify(o), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 });
 
-// Універсальна функція: бере пул ключів (prefix = 'gemini_api_key' або 'openrouter_api_key'),
-// зсуває лічильник ротації в site_settings і повертає ключі, починаючи з наступного за чергою.
 async function getRotatedKeys(db, prefix) {
   const rows = (await db.prepare(
     `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
@@ -51,7 +49,6 @@ async function getRotatedKeys(db, prefix) {
   return [...keys.slice(idx), ...keys.slice(0, idx)];
 }
 
-// Пробує Gemini API по черзі ключів пулу. Повертає {text} або {error, retryable}.
 async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -91,7 +88,6 @@ async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
   return { text };
 }
 
-// Пробує OpenRouter API по черзі ключів пулу.
 async function tryOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -145,14 +141,24 @@ export async function onRequestPost(context) {
     const { image_b64, image_type } = body;
     if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
 
-    const prods = (await env.DB.prepare(
-      `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
-              COALESCE(c.slug,'') slug, p.price,
-              COALESCE(c.active_ingredient,'') ai
-       FROM products p LEFT JOIN product_content c ON c.pid=p.pid
-       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 150`
-    ).all().catch(()=>({results:[]}))).results || [];
+    // DEBUG: check env.DB
+    if (!env.DB) {
+      return J({ok:false, error:'DB binding not found', env_keys: Object.keys(env)}, 500);
+    }
+
+    let prods;
+    try {
+      prods = (await env.DB.prepare(
+        `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
+                COALESCE(c.slug,'') slug, p.price,
+                COALESCE(c.active_ingredient,'') ai
+         FROM products p LEFT JOIN product_content c ON c.pid=p.pid
+         WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
+         ORDER BY p.name LIMIT 150`
+      ).all()).results || [];
+    } catch(dbErr) {
+      return J({ok:false, error:'DB query failed: '+String(dbErr.message||dbErr)}, 500);
+    }
 
     const prodList = prods.map(p => p.name + (p.ai ? ' ('+p.ai+')' : '')).join('\n');
 
@@ -168,7 +174,6 @@ export async function onRequestPost(context) {
 
     let rawText = '', lastErr = '';
 
-    // 1) Gemini — основний пул, пробуємо ключі по черзі (не більше 3)
     const geminiKeys = (await getRotatedKeys(env.DB, 'gemini_api_key')).slice(0, 3);
     for (const key of geminiKeys) {
       const r = await tryGemini(key, sys, prompt, image_b64, image_type);
@@ -177,7 +182,6 @@ export async function onRequestPost(context) {
       if (!r.retryable) break;
     }
 
-    // 2) OpenRouter — резерв, якщо весь пул Gemini не спрацював
     if (!rawText) {
       const orKeys = (await getRotatedKeys(env.DB, 'openrouter_api_key')).slice(0, 3);
       for (const key of orKeys) {
@@ -188,7 +192,7 @@ export async function onRequestPost(context) {
       }
     }
 
-    if (!rawText) return J({ok:false, error:'Усі провайдери недоступні: '+lastErr}, 502);
+    if (!rawText) return J({ok:false, error:'All providers failed: '+lastErr}, 502);
 
     let diag;
     try {
