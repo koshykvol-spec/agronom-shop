@@ -53,6 +53,8 @@ async function getRotatedKeys(db, prefix) {
 
 // Пробує Gemini API по черзі ключів пулу. Повертає {text} або {error, retryable}.
 async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
     res = await fetch(
@@ -60,7 +62,7 @@ async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        signal: AbortSignal.timeout(10000), // не даємо одному ключу "зависнути" й з'їсти весь ліміт часу воркера
+        signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: sys }] },
           contents: [{ role: 'user', parts: [
@@ -72,12 +74,14 @@ async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
       }
     );
   } catch (e) {
-    return { error: 'Gemini: ' + String(e.message || e), retryable: true }; // timeout/мережева помилка — пробуємо наступний ключ
+    clearTimeout(timeoutId);
+    return { error: 'Gemini: ' + String(e.message || e), retryable: true };
   }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
     const errText = await res.text();
-    const retryable = [400, 401, 403, 429, 503].includes(res.status); // 400/401/403 часто = невалідний/вичерпаний ключ
+    const retryable = [400, 401, 403, 429, 503].includes(res.status);
     return { error: 'Gemini '+res.status+': '+errText.slice(0,300), retryable };
   }
 
@@ -89,6 +93,8 @@ async function tryGemini(apiKey, sys, prompt, image_b64, image_type) {
 
 // Пробує OpenRouter API по черзі ключів пулу.
 async function tryOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   let res;
   try {
     res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -99,7 +105,7 @@ async function tryOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
         'HTTP-Referer': 'https://agronom.pp.ua',
         'X-Title': 'Agronom Diagnose',
       },
-      signal: AbortSignal.timeout(10000),
+      signal: controller.signal,
       body: JSON.stringify({
         model: 'google/gemini-2.0-flash-exp:free',
         messages: [
@@ -112,8 +118,10 @@ async function tryOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
       })
     });
   } catch (e) {
+    clearTimeout(timeoutId);
     return { error: 'OpenRouter: ' + String(e.message || e), retryable: true };
   }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
     const errText = await res.text();
@@ -160,16 +168,16 @@ export async function onRequestPost(context) {
 
     let rawText = '', lastErr = '';
 
-    // 1) Gemini — основний пул, пробуємо ключі по черзі (не більше 3, щоб не впертись у ліміт часу воркера)
+    // 1) Gemini — основний пул, пробуємо ключі по черзі (не більше 3)
     const geminiKeys = (await getRotatedKeys(env.DB, 'gemini_api_key')).slice(0, 3);
     for (const key of geminiKeys) {
       const r = await tryGemini(key, sys, prompt, image_b64, image_type);
       if (r.text) { rawText = r.text; break; }
       lastErr = r.error;
-      if (!r.retryable) break; // не пов'язано з ключем — сенсу перебирати пул немає
+      if (!r.retryable) break;
     }
 
-    // 2) OpenRouter — резерв, якщо весь пул Gemini не спрацював (теж не більше 3 ключів)
+    // 2) OpenRouter — резерв, якщо весь пул Gemini не спрацював
     if (!rawText) {
       const orKeys = (await getRotatedKeys(env.DB, 'openrouter_api_key')).slice(0, 3);
       for (const key of orKeys) {
