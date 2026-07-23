@@ -17,23 +17,19 @@ const J = (o, s) => new Response(JSON.stringify(o), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 });
 
-// Бере перший непорожній ключ з пулу (gemini_api_key_1..6 або openrouter_api_key_1..6),
-// зсуваючи лічильник ротації в site_settings — щоб різні запити починали з різних ключів.
-async function getOneKey(db, prefix) {
-  const rows = (await db.prepare(
-    `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
-  ).all().catch(() => ({ results: [] }))).results || [];
-
-  const keys = [];
-  for (let i = 1; i <= 6; i++) {
-    const row = rows.find(r => r.key === `${prefix}_${i}`);
-    if (row && row.value) keys.push(row.value.trim());
+// ТИМЧАСОВА ДІАГНОСТИЧНА ВЕРСІЯ: нічого не робить, крім підтвердження POST.
+// Якщо це теж дасть 502 — проблема не в D1 і не в Gemini/OpenRouter, а десь ще
+// (напр. в самій платформі чи в тому, як Pages обробляє POST-тіло).
+export async function onRequestPost(context) {
+  try {
+    const { request } = context;
+    let body = null;
+    try { body = await request.json(); } catch(e) { body = {parse_error: String(e)}; }
+    return J({ok:true, debug:'POST received, no DB/AI touched', bodyKeys: body ? Object.keys(body) : null});
+  } catch(e) {
+    return J({ok:false, error:'Worker error: '+String(e.message||e)}, 500);
   }
-  if (keys.length === 0) {
-    const legacy = rows.find(r => r.key === prefix);
-    if (legacy && legacy.value) keys.push(legacy.value.trim());
-  }
-  if (keys.length === 0) return null;
+}
 
   const idxKey = `${prefix}_rotation_idx`;
   let idx = 0;
