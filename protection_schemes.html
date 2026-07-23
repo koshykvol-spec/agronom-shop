@@ -617,6 +617,7 @@
             var diagName = (d.name || '').toLowerCase().trim();
 
             function findInAllProducts(prepName) {
+              if (!prepName || typeof prepName !== 'string') return null;
               var nl = prepName.toLowerCase().split(',')[0].trim();
               if (!nl) return null;
               return all.find(function(p) {
@@ -678,9 +679,17 @@
 
             // Fallback — якщо в довідниках нічого не знайшли, пробуємо назви від AI напряму
             if (!matchedProds.length && d.products && d.products.length) {
-              d.products.forEach(function(pname) {
+              d.products.forEach(function(item) {
                 if (matchedProds.length >= 5) return;
-                var found = findInAllProducts(pname);
+                // Бекенд diagnose.js повертає вже підібрані об'єкти {n, slug, p} —
+                // використовуємо їх напряму, без повторного пошуку по назві.
+                if (item && typeof item === 'object' && item.slug) {
+                  if (!matchedProds.find(function(x){return x.slug===item.slug;})) {
+                    matchedProds.push({n: item.n, slug: item.slug, p: item.p});
+                  }
+                  return;
+                }
+                var found = findInAllProducts(item);
                 if (found && found.slug && !matchedProds.find(function(x){return x.slug===found.slug;})) {
                   matchedProds.push(found);
                 }
