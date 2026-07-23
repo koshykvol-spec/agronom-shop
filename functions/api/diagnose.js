@@ -1,4 +1,4 @@
- export async function onRequestGet() {
+export async function onRequestGet() {
   return new Response(JSON.stringify({ok:true,msg:'diagnose worker is alive'}), {
     headers: {'content-type':'application/json','access-control-allow-origin':'*'}
   });
@@ -17,11 +17,98 @@ const J = (o, s) => new Response(JSON.stringify(o), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 });
 
-// ПРОБА №3: викликаємо ЛИШЕ Gemini (без D1, без OpenRouter, без парсингу),
-// і повертаємо все як є — включно з сирим текстом помилки від Gemini, якщо є.
-export async function onRequestPost(context) {
+// Бере перший непорожній ключ з пулу (gemini_api_key_1..6 або openrouter_api_key_1..6),
+// зсуваючи лічильник ротації в site_settings — щоб різні запити починали з різних ключів.
+async function getOneKey(db, prefix) {
+  const rows = (await db.prepare(
+    `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
+  ).all().catch(() => ({ results: [] }))).results || [];
+
+  const keys = [];
+  for (let i = 1; i <= 6; i++) {
+    const row = rows.find(r => r.key === `${prefix}_${i}`);
+    if (row && row.value) keys.push(row.value.trim());
+  }
+  if (keys.length === 0) {
+    const legacy = rows.find(r => r.key === prefix);
+    if (legacy && legacy.value) keys.push(legacy.value.trim());
+  }
+  if (keys.length === 0) return null;
+
+  const idxKey = `${prefix}_rotation_idx`;
+  let idx = 0;
   try {
-    const { request, env } = context;
+    const cur = await db.prepare(`SELECT value FROM site_settings WHERE key=?`).bind(idxKey).first();
+    idx = cur && cur.value ? (parseInt(cur.value, 10) || 0) : 0;
+  } catch (e) {}
+  const nextIdx = (idx + 1) % keys.length;
+  try {
+    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`)
+      .bind(idxKey, String(nextIdx)).run();
+  } catch (e) {}
+
+  return keys[idx % keys.length];
+}
+
+async function callGemini(apiKey, sys, prompt, image_b64, image_type) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: [{ role: 'user', parts: [
+          { text: prompt },
+          { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } }
+        ]}],
+        generationConfig: { temperature: 0.4 }
+      })
+    }
+  );
+  if (!res.ok) {
+    const errText = await res.text().catch(()=> '');
+    return { error: 'Gemini '+res.status+': '+errText.slice(0,300) };
+  }
+  const data = await res.json();
+  const text = ((data.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
+  if (!text) return { error: 'Gemini: порожня відповідь' };
+  return { text };
+}
+
+async function callOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'Authorization': 'Bearer ' + apiKey,
+      'HTTP-Referer': 'https://agronom.pp.ua',
+      'X-Title': 'Agronom Diagnose',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.0-flash-exp:free',
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${image_type||'image/jpeg'};base64,${image_b64}` } }
+        ]}
+      ]
+    })
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(()=> '');
+    return { error: 'OpenRouter '+res.status+': '+errText.slice(0,300) };
+  }
+  const data = await res.json();
+  const text = (data.choices||[])[0]?.message?.content || '';
+  if (!text) return { error: 'OpenRouter: порожня відповідь' };
+  return { text };
+}
+
+export async function onRequestPost(context) {
+  const { request, env } = context;
+  try {
     let body;
     try { body = await request.json(); }
     catch(e) { return J({ok:false, error:'Invalid JSON body: '+e.message}, 400); }
@@ -29,48 +116,77 @@ export async function onRequestPost(context) {
     const { image_b64, image_type } = body;
     if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
 
-    // Дістаємо перший ключ Gemini напряму, без ротації — щоб виключити зайву логіку
-    const row = await env.DB.prepare(
-      `SELECT key, value FROM site_settings WHERE key LIKE 'gemini_api_key%' ORDER BY key LIMIT 1`
-    ).first().catch(e => null);
+    const prods = (await env.DB.prepare(
+      `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
+              COALESCE(c.slug,'') slug, p.price,
+              COALESCE(c.active_ingredient,'') ai
+       FROM products p LEFT JOIN product_content c ON c.pid=p.pid
+       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
+       ORDER BY p.name LIMIT 150`
+    ).all().catch(()=>({results:[]}))).results || [];
 
-    if (!row || !row.value) {
-      return J({ok:false, error:'Ключ Gemini не знайдено в site_settings', row}, 500);
+    const prodList = prods.map(p => p.name + (p.ai ? ' ('+p.ai+')' : '')).join('\n');
+
+    const sys = 'You are an agronomist for a Ukrainian garden shop. '
+      + 'Identify plant diseases, pests, or weeds from photos. '
+      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language.\n\nCATALOG:\n' + prodList;
+
+    const prompt = 'Identify what is in this photo. Return JSON only:\n'
+      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
+      + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
+      + '"advice":"treatment advice in Ukrainian",'
+      + '"products":["exact name from catalog"]}';
+
+    let rawText = '', lastErr = '';
+
+    const geminiKey = await getOneKey(env.DB, 'gemini_api_key');
+    if (geminiKey) {
+      const r = await callGemini(geminiKey, sys, prompt, image_b64, image_type);
+      rawText = r.text || '';
+      lastErr = r.error || '';
+    } else {
+      lastErr = 'Немає ключів Gemini у site_settings';
     }
 
-    const apiKey = row.value.trim();
-    const keyPreview = apiKey.slice(0,4) + '...' + apiKey.slice(-4) + ' (len=' + apiKey.length + ')';
+    if (!rawText) {
+      const orKey = await getOneKey(env.DB, 'openrouter_api_key');
+      if (orKey) {
+        const r2 = await callOpenRouter(orKey, sys, prompt, image_b64, image_type);
+        if (r2.text) { rawText = r2.text; } else { lastErr = r2.error || lastErr; }
+      }
+    }
 
-    let res;
+    if (!rawText) return J({ok:false, error:'Усі провайдери недоступні: '+lastErr}, 502);
+
+    let diag;
     try {
-      res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [
-              { text: 'Describe this image in one sentence.' },
-              { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } }
-            ]}]
-          })
-        }
-      );
-    } catch (fetchErr) {
-      return J({ok:false, stage:'fetch threw', error: String(fetchErr && fetchErr.message || fetchErr), keyUsed: keyPreview}, 500);
+      const clean = rawText.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
+      diag = JSON.parse(clean);
+    } catch(e) {
+      return J({ok:false, error:'JSON parse: '+e.message, raw:rawText.slice(0,200)}, 502);
     }
 
-    const text = await res.text().catch(e => '(could not read body: '+e+')');
+    const matched = [];
+    if (Array.isArray(diag.products)) {
+      for (const pname of diag.products) {
+        const nl = pname.toLowerCase().split(',')[0].trim();
+        if (!nl) continue;
+        const found = prods.find(p => p.name.toLowerCase().startsWith(nl));
+        if (found && found.slug) matched.push({n:found.name, slug:found.slug, p:found.price});
+      }
+    }
 
     return J({
-      ok: res.ok,
-      stage: 'got response',
-      geminiStatus: res.status,
-      geminiBodyPreview: text.slice(0, 500),
-      keyUsed: keyPreview,
-    }, 200); // навмисно завжди 200, щоб побачити деталі навіть при помилці Gemini
+      ok: true,
+      type: diag.type || 'unknown',
+      name: diag.name || '',
+      confidence: diag.confidence || 'medium',
+      description: diag.description || '',
+      advice: diag.advice || '',
+      products: matched,
+    });
 
   } catch(e) {
-    return J({ok:false, stage:'outer catch', error:'Worker error: '+String(e.message||e), stack: String(e.stack||'').slice(0,500)}, 500);
+    return J({ok:false, error:'Worker error: '+String(e.message||e)}, 500);
   }
 }
