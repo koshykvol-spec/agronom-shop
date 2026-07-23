@@ -1,4 +1,4 @@
-export async function onRequestGet() {
+ export async function onRequestGet() {
   return new Response(JSON.stringify({ok:true,msg:'diagnose worker is alive'}), {
     headers: {'content-type':'application/json','access-control-allow-origin':'*'}
   });
@@ -17,9 +17,8 @@ const J = (o, s) => new Response(JSON.stringify(o), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 });
 
-// ПРОБА №2: чіпаємо D1 тим самим запитом, що й у бойовій версії,
-// але НЕ звертаємось до Gemini/OpenRouter. Якщо це дасть 502 — винен D1-запит.
-// Якщо дасть 200 — винен виклик Gemini/OpenRouter.
+// ПРОБА №3: викликаємо ЛИШЕ Gemini (без D1, без OpenRouter, без парсингу),
+// і повертаємо все як є — включно з сирим текстом помилки від Gemini, якщо є.
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
@@ -27,21 +26,51 @@ export async function onRequestPost(context) {
     try { body = await request.json(); }
     catch(e) { return J({ok:false, error:'Invalid JSON body: '+e.message}, 400); }
 
-    const { image_b64 } = body;
+    const { image_b64, image_type } = body;
     if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
 
-    const prods = (await env.DB.prepare(
-      `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
-              COALESCE(c.slug,'') slug, p.price,
-              COALESCE(c.active_ingredient,'') ai
-       FROM products p LEFT JOIN product_content c ON c.pid=p.pid
-       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 150`
-    ).all().catch(()=>({results:[]}))).results || [];
+    // Дістаємо перший ключ Gemini напряму, без ротації — щоб виключити зайву логіку
+    const row = await env.DB.prepare(
+      `SELECT key, value FROM site_settings WHERE key LIKE 'gemini_api_key%' ORDER BY key LIMIT 1`
+    ).first().catch(e => null);
 
-    return J({ok:true, debug:'D1 query succeeded, no AI call made', productsFound: prods.length, image_b64_length: image_b64.length});
+    if (!row || !row.value) {
+      return J({ok:false, error:'Ключ Gemini не знайдено в site_settings', row}, 500);
+    }
+
+    const apiKey = row.value.trim();
+    const keyPreview = apiKey.slice(0,4) + '...' + apiKey.slice(-4) + ' (len=' + apiKey.length + ')';
+
+    let res;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [
+              { text: 'Describe this image in one sentence.' },
+              { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } }
+            ]}]
+          })
+        }
+      );
+    } catch (fetchErr) {
+      return J({ok:false, stage:'fetch threw', error: String(fetchErr && fetchErr.message || fetchErr), keyUsed: keyPreview}, 500);
+    }
+
+    const text = await res.text().catch(e => '(could not read body: '+e+')');
+
+    return J({
+      ok: res.ok,
+      stage: 'got response',
+      geminiStatus: res.status,
+      geminiBodyPreview: text.slice(0, 500),
+      keyUsed: keyPreview,
+    }, 200); // навмисно завжди 200, щоб побачити деталі навіть при помилці Gemini
 
   } catch(e) {
-    return J({ok:false, error:'Worker error: '+String(e.message||e)}, 500);
+    return J({ok:false, stage:'outer catch', error:'Worker error: '+String(e.message||e), stack: String(e.stack||'').slice(0,500)}, 500);
   }
 }
