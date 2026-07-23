@@ -529,23 +529,26 @@
 
           function resizeImage(file, maxDim, quality) {
             return new Promise(function(resolve, reject) {
-              var img = new Image();
-              var url = URL.createObjectURL(file);
-              img.onload = function() {
-                URL.revokeObjectURL(url);
-                var w = img.width, h = img.height;
-                if (w > maxDim || h > maxDim) {
-                  if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
-                  else { w = Math.round(w * maxDim / h); h = maxDim; }
-                }
-                var canvas = document.createElement('canvas');
-                canvas.width = w; canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                var dataUrl = canvas.toDataURL('image/jpeg', quality);
-                resolve(dataUrl);
+              var fr = new FileReader();
+              fr.onload = function(ev) {
+                var img = new Image();
+                img.onload = function() {
+                  var w = img.width, h = img.height;
+                  if (w > maxDim || h > maxDim) {
+                    if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                    else { w = Math.round(w * maxDim / h); h = maxDim; }
+                  }
+                  var canvas = document.createElement('canvas');
+                  canvas.width = w; canvas.height = h;
+                  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                  var dataUrl = canvas.toDataURL('image/jpeg', quality);
+                  resolve(dataUrl);
+                };
+                img.onerror = function() { reject(new Error('Не вдалось завантажити зображення для стиснення')); };
+                img.src = ev.target.result; // data: URL — дозволено CSP (на відміну від blob:)
               };
-              img.onerror = function(e) { URL.revokeObjectURL(url); reject(e); };
-              img.src = url;
+              fr.onerror = function() { reject(new Error('Не вдалось прочитати файл')); };
+              fr.readAsDataURL(file);
             });
           }
 
@@ -2193,4 +2196,141 @@ document.addEventListener('click', function(e) {
                 setTimeout(function() {
                     btn.textContent = '🛒 Додати';
                     btn.style.background = '';
-                    if (car
+                    if (card) card.classList.remove('added');
+                }, 900);
+            }
+        };
+
+        window.goToCart = function() {
+            window.location.href = 'index.html';
+        };
+
+        // Ініціалізація при завантаженні
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFloat(loadCart());
+        });
+    })();
+    </script>
+
+<script>
+// ── Реєстр товарів для модального вікна ──────────────────────
+var productRegistry = [];
+
+// Кількість цього товару вже в кошику (штучний "n" або ваговий "n (кг)")
+function schemeCartQty(name){
+    var arr; try { arr = JSON.parse(localStorage.getItem('agronom_cart')) || []; } catch(e){ arr = []; }
+    var w = name + ' (кг)';
+    return arr.filter(function(i){ return i.n === name || i.n === w; })
+              .reduce(function(s, i){ return s + (parseFloat(i.q) || 0); }, 0);
+}
+function schemeQtyBadgeText(name){
+    var q = schemeCartQty(name);
+    if (q <= 0) return '';
+    return '🛒 ' + (Number.isInteger(q) ? q : Math.round(q * 100) / 100) + ' у кошику';
+}
+
+window.openProductCard = function(idx) {
+    var p = productRegistry[idx];
+    if (!p) return;
+
+    var old = document.getElementById('scheme-product-modal');
+    if (old) old.remove();
+
+    var inStock   = p.inStock !== false;
+    var price     = p.p;
+    var priceText = price ? (typeof price === 'number' ? price.toFixed(2) : price) + ' грн' : 'договір';
+
+    var imgHtml = p.img
+        ? '<img src="' + p.img + '" alt="" style="width:100%;max-height:min(260px,38vh);object-fit:contain;border-radius:10px;margin-bottom:16px;display:block;">'
+        : '';
+
+    var annotHtml = p.annot
+        ? '<p style="font-size:.92rem;color:#444;line-height:1.65;margin:0 0 16px;border-left:3px solid var(--green-l);padding-left:10px;">' + p.annot + '</p>'
+        : '';
+
+    var brandHtml = (p.b || p.c)
+        ? '<div style="font-size:.78rem;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">' + (p.b || p.c) + '</div>'
+        : '';
+
+    var stockBadge = inStock
+        ? '<span style="background:#d4edda;color:#155724;padding:3px 10px;border-radius:10px;font-size:.78rem;font-weight:600;">✅ в наявності</span>'
+        : '<span style="background:#f8d7da;color:#721c24;padding:3px 10px;border-radius:10px;font-size:.78rem;font-weight:600;">❌ немає</span>';
+
+    var addBtnHtml = inStock
+        ? '<button id="scheme-modal-add-btn" onclick="addFromSchemeModal(' + idx + ')" style="flex:1;padding:13px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:pointer;">🛒 Додати в кошик</button>'
+        : '<button disabled style="flex:1;padding:13px;background:#ccc;color:#888;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:not-allowed;">❌ Немає в наявності</button>';
+
+    var qtyTxt = schemeQtyBadgeText(p.n);
+    var cartQtyHtml = '<span id="scheme-modal-qty" style="background:#ff7a00;color:#fff;border:2px solid #fff;border-radius:12px;padding:3px 10px;font-size:.8rem;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.25);' + (qtyTxt ? '' : 'display:none;') + '">' + qtyTxt + '</span>';
+
+    var modal = document.createElement('div');
+    modal.id = 'scheme-product-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:20000;padding:16px;box-sizing:border-box;';
+
+    modal.innerHTML =
+        '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);position:relative;box-sizing:border-box;">'
+        + '<button onclick="closeProductCard()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:1.6rem;cursor:pointer;color:#888;line-height:1;">✕</button>'
+        + '<h3 style="margin:0 0 4px;padding-right:28px;font-size:1.05rem;color:#1a2e1a;line-height:1.4;">' + escapeHtml(p.n) + '</h3>'
+        + brandHtml
+        + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'
+        +   '<span style="font-size:1.25rem;font-weight:800;color:var(--green);">' + priceText + '</span>'
+        +   stockBadge
+        +   cartQtyHtml
+        + '</div>'
+        + (p.slug ? '<a href="/p/' + p.slug + '" style="display:inline-block;margin:0 0 12px;color:var(--green);font-weight:700;text-decoration:none;border-bottom:1px solid var(--green);">🔗 Відкрити сторінку товару →</a>' : '')
+        + imgHtml
+        + annotHtml
+        + '<div style="display:flex;gap:10px;margin-top:4px;position:sticky;bottom:0;background:#fff;padding-top:12px;box-shadow:0 -8px 10px -8px rgba(0,0,0,0.15);">'
+        +   addBtnHtml
+        +   '<button onclick="closeProductCard()" style="padding:13px 18px;background:#f0f0f0;color:#555;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:pointer;">Закрити</button>'
+        + '</div>'
+        + '</div>';
+
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeProductCard(); });
+};
+
+window.addFromSchemeModal = function(idx) {
+    var p = productRegistry[idx];
+    if (!p || p.inStock === false) return;
+    var CART_KEY = 'agronom_cart';
+    var cart;
+    try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch(e) { cart = []; }
+    var item = cart.find(function(i) { return i.n === p.n; });
+    if (item) { item.q++; } else { cart.push({ n: p.n, p: p.p, q: 1 }); }
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+
+    // оновити лічильник плаваючої кнопки
+    var total = cart.reduce(function(s, i) { return s + i.q; }, 0);
+    var countEl = document.getElementById('cart-count');
+    var fltEl   = document.getElementById('cart-float');
+    if (countEl) countEl.textContent = total;
+    if (fltEl)   fltEl.style.display = total > 0 ? 'flex' : 'none';
+
+    // оновити бейдж "у кошику" в модалці
+    var qtyEl = document.getElementById('scheme-modal-qty');
+    if (qtyEl) { var t = schemeQtyBadgeText(p.n); qtyEl.textContent = t; qtyEl.style.display = t ? '' : 'none'; }
+
+    // фідбек на кнопці
+    var btn = document.getElementById('scheme-modal-add-btn');
+    if (btn) {
+        btn.textContent = '✓ Додано!';
+        btn.style.background = '#1a3a1a';
+        setTimeout(function() {
+            btn.textContent = '🛒 Додати в кошик';
+            btn.style.background = 'var(--green)';
+        }, 1000);
+    }
+};
+
+window.closeProductCard = function() {
+    var m = document.getElementById('scheme-product-modal');
+    if (m) m.remove();
+};
+</script>
+<div id="site-footer"></div>
+<script src="/site-config"></script>
+<script src="seo-jsonld.js"></script>
+<script src="footer.js"></script>
+</body>
+</html>
