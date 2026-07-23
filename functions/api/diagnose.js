@@ -122,7 +122,7 @@ export async function onRequestPost(context) {
               COALESCE(c.active_ingredient,'') ai
        FROM products p LEFT JOIN product_content c ON c.pid=p.pid
        WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 150`
+       ORDER BY p.name LIMIT 100`
     ).all().catch(()=>({results:[]}))).results || [];
 
     const prodList = prods.map(p => p.name + (p.ai ? ' ('+p.ai+')' : '')).join('\n');
@@ -144,13 +144,6 @@ export async function onRequestPost(context) {
       const r = await callGemini(geminiKey, sys, prompt, image_b64, image_type);
       rawText = r.text || '';
       lastErr = r.error || '';
-      if (!rawText) {
-        const geminiKey2 = await getOneKey(env.DB, 'gemini_api_key');
-        if (geminiKey2 && geminiKey2 !== geminiKey) {
-          const r2 = await callGemini(geminiKey2, sys, prompt, image_b64, image_type);
-          if (r2.text) { rawText = r2.text; } else { lastErr = r2.error || lastErr; }
-        }
-      }
     } else {
       lastErr = 'Немає ключів Gemini у site_settings';
     }
@@ -158,15 +151,8 @@ export async function onRequestPost(context) {
     if (!rawText) {
       const orKey = await getOneKey(env.DB, 'openrouter_api_key');
       if (orKey) {
-        const r3 = await callOpenRouter(orKey, sys, prompt, image_b64, image_type);
-        if (r3.text) { rawText = r3.text; } else { lastErr = r3.error || lastErr; }
-        if (!rawText) {
-          const orKey2 = await getOneKey(env.DB, 'openrouter_api_key');
-          if (orKey2 && orKey2 !== orKey) {
-            const r4 = await callOpenRouter(orKey2, sys, prompt, image_b64, image_type);
-            if (r4.text) { rawText = r4.text; } else { lastErr = r4.error || lastErr; }
-          }
-        }
+        const r2 = await callOpenRouter(orKey, sys, prompt, image_b64, image_type);
+        if (r2.text) { rawText = r2.text; } else { lastErr = r2.error || lastErr; }
       }
     }
 
