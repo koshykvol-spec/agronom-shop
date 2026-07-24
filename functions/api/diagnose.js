@@ -18,11 +18,10 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.agronom.pp.ua",
 ]);
 
-// ---- Deno KV ----------------------------------------------------------------
-
-const kv = await Deno.openKv();
-
-// ---- Ротація API-ключів ------------------------------------------------------
+// ---- Ротація API-ключів (проста in-memory, без зовнішньої БД) ------------------
+// Примітка: лічильник живе в пам'яті процесу і скидається при холодному старті /
+// новому інстансі. Для нечастих запитів (кілька разів на день) це не проблема —
+// ключі просто чергуються по колу поки процес живий.
 
 function collectKeys(prefix) {
   const keys = [];
@@ -36,12 +35,12 @@ function collectKeys(prefix) {
 const GEMINI_KEYS = collectKeys("GEMINI_API_KEY");
 const OPENROUTER_KEYS = collectKeys("OPENROUTER_API_KEY");
 
-async function nextKey(poolName, keys) {
+const rotationCounters = { gemini: 0, openrouter: 0 };
+
+function nextKey(poolName, keys) {
   if (keys.length === 0) return null;
-  const counterKey = ["key_rotation", poolName];
-  const res = await kv.get(counterKey);
-  const idx = ((res.value ?? 0) + 1) % keys.length;
-  await kv.set(counterKey, idx);
+  const idx = rotationCounters[poolName] % keys.length;
+  rotationCounters[poolName] += 1;
   return keys[idx];
 }
 
@@ -57,16 +56,26 @@ function corsHeaders(origin) {
   };
 }
 
-// ---- Rate limiting (за IP, ліміт на добу) -------------------------------------
+// ---- Rate limiting (за IP, ліміт на добу, in-memory) ---------------------------
+// Зберігається в Map, доки живий процес. Записи старші за KV_TTL_MS ігноруються
+// і перезаписуються — окремого очищення не потрібно для такого масштабу навантаження.
 
-async function checkRateLimit(ip) {
-  const key = ["rate_limit", ip];
-  const res = await kv.get(key);
-  const count = res.value ?? 0;
-  if (count >= MAX_REQUESTS_PER_DAY_PER_IP) {
+const rateLimitMap = new Map(); // ip -> { count, windowStart }
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now - entry.windowStart > KV_TTL_MS) {
+    rateLimitMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (entry.count >= MAX_REQUESTS_PER_DAY_PER_IP) {
     return false;
   }
-  await kv.set(key, count + 1, { expireIn: KV_TTL_MS });
+
+  entry.count += 1;
   return true;
 }
 
@@ -251,17 +260,17 @@ async function notifyTelegram(diagnosis, ip) {
   }
 }
 
-// ---- Логування у Deno KV --------------------------------------------------------
+// ---- Логування (просто в консоль Deno Deploy, без окремого сховища) -------------
 
-async function logDiagnosis(ip, diagnosis) {
-  const key = ["logs", Date.now(), crypto.randomUUID()];
-  await kv.set(key, {
+function logDiagnosis(ip, diagnosis) {
+  console.log(JSON.stringify({
+    event: "diagnosis",
     ip,
     type: diagnosis.type,
     name_uk: diagnosis.name_uk,
     confidence: diagnosis.confidence,
     timestamp: new Date().toISOString(),
-  });
+  }));
 }
 
 // ---- Основний обробник -----------------------------------------------------------
@@ -271,7 +280,7 @@ async function handleDiagnose(req, origin) {
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     "unknown";
 
-  const allowed = await checkRateLimit(ip);
+  const allowed = checkRateLimit(ip);
   if (!allowed) {
     return jsonResponse(
       { error: "Перевищено ліміт запитів на сьогодні. Спробуйте завтра." },
@@ -300,7 +309,7 @@ async function handleDiagnose(req, origin) {
   let lastError = null;
 
   for (let attempt = 0; attempt < GEMINI_KEYS.length; attempt++) {
-    const key = await nextKey("gemini", GEMINI_KEYS);
+    const key = nextKey("gemini", GEMINI_KEYS);
     if (!key) break;
     try {
       rawText = await callGemini(key, cleanBase64, finalMimeType);
@@ -313,7 +322,7 @@ async function handleDiagnose(req, origin) {
 
   if (!rawText) {
     for (let attempt = 0; attempt < OPENROUTER_KEYS.length; attempt++) {
-      const key = await nextKey("openrouter", OPENROUTER_KEYS);
+      const key = nextKey("openrouter", OPENROUTER_KEYS);
       if (!key) break;
       try {
         rawText = await callOpenRouter(key, cleanBase64, finalMimeType);
@@ -345,8 +354,9 @@ async function handleDiagnose(req, origin) {
   const keywords = Array.isArray(diagnosis.treatment_keywords) ? diagnosis.treatment_keywords : [];
   const matchedProducts = matchProducts(products, keywords);
 
-  // Асинхронно логуємо і сповіщаємо, не блокуючи відповідь користувачу
-  logDiagnosis(ip, diagnosis).catch((e) => console.error("logDiagnosis failed:", e));
+  // Логуємо синхронно (просто console.log), сповіщення в Telegram — асинхронно,
+  // не блокуючи відповідь користувачу
+  logDiagnosis(ip, diagnosis);
   notifyTelegram(diagnosis, ip).catch((e) => console.error("notifyTelegram failed:", e));
 
   return jsonResponse(
