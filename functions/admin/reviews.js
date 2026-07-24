@@ -91,7 +91,7 @@ ${context}
 - Автор відгуку СУВОРО: "${chosenName}"
 - Рейтинг відгуку СУВОРО: ${randomRating}`;
 
-  const keys = await getRotatedKeys(env.DB, 'gemini_api_key');
+  const keys = (await getRotatedKeys(env.DB, 'gemini_api_key')).slice(0, 2);
   if (keys.length === 0) throw new Error('Брак ключа Gemini API у site_settings.');
 
   const reqBody = JSON.stringify({
@@ -180,7 +180,7 @@ export async function onRequestGet(context){
     let dbErrorMsg = '';
 
     try {
-      const batchSize = 9; 
+      const batchSize = 5; 
       // Використовуємо просту вибірку без c.annotation, щоб точно ніде не зрізало
       const rawRes = await db.prepare(
         `SELECT p.pid, p.name, p.category, p.brand
@@ -297,7 +297,7 @@ export async function onRequestGet(context){
 
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
-    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 9)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (9 шт)</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 5)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (5 шт)</a>` : ''}
     ${aiPending > 0 ? `<span class="muted">🤖 На модерації: <b>${aiPending}</b></span><a class="btn del" href="/admin/reviews?delai=1" onclick="return confirm('Видалити ВСІ ${aiPending} AI-відгуки, що на модерації?')">🗑 Скасувати AI-відгуки</a>` : ''}
   </div>`;
 
