@@ -1,192 +1,395 @@
-export async function onRequestGet() {
-  return new Response(JSON.stringify({ok:true,msg:'diagnose worker is alive'}), {
-    headers: {'content-type':'application/json','access-control-allow-origin':'*'}
-  });
-}
+// ============================================================================
+// agro-diagnose — Deno Deploy version
+// Фото-діагностика хвороб/шкідників/бур'янів через Gemini API
+// Заміна Cloudflare Worker (agro-diagnose.ruslanchyk.workers.dev)
+// ============================================================================
 
-export async function onRequestOptions() {
-  return new Response(null, { headers: {
-    'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
-  }});
-}
+// ---- Конфіг ----------------------------------------------------------------
 
-const J = (o, s) => new Response(JSON.stringify(o), {
-  status: s || 200,
-  headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
-});
+const PRODUCTS_URL = "https://agronom.pp.ua/products.json";
+const GEMINI_MODEL = "gemini-2.5-flash"; // єдина підтверджена робоча модель (07.2026)
+const MAX_REQUESTS_PER_DAY_PER_IP = 20;
+const KV_TTL_MS = 24 * 60 * 60 * 1000; // 24 години для rate-limit ключів
+const PRODUCTS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 хв кеш каталогу товарів
 
-// Бере перший непорожній ключ з пулу (gemini_api_key_1..6 або openrouter_api_key_1..6),
-// зсуваючи лічильник ротації в site_settings — щоб різні запити починали з різних ключів.
-async function getOneKey(db, prefix) {
-  const rows = (await db.prepare(
-    `SELECT key, value FROM site_settings WHERE key LIKE '${prefix}%'`
-  ).all().catch(() => ({ results: [] }))).results || [];
+// CORS — дозволяємо запити з основного сайту (і локальної розробки за потреби)
+const ALLOWED_ORIGINS = new Set([
+  "https://agronom.pp.ua",
+  "https://www.agronom.pp.ua",
+]);
 
+// ---- Deno KV ----------------------------------------------------------------
+
+const kv = await Deno.openKv();
+
+// ---- Ротація API-ключів ------------------------------------------------------
+
+function collectKeys(prefix) {
   const keys = [];
   for (let i = 1; i <= 6; i++) {
-    const row = rows.find(r => r.key === `${prefix}_${i}`);
-    if (row && row.value) keys.push(row.value.trim());
+    const v = Deno.env.get(`${prefix}_${i}`);
+    if (v) keys.push(v);
   }
-  if (keys.length === 0) {
-    const legacy = rows.find(r => r.key === prefix);
-    if (legacy && legacy.value) keys.push(legacy.value.trim());
-  }
+  return keys;
+}
+
+const GEMINI_KEYS = collectKeys("GEMINI_API_KEY");
+const OPENROUTER_KEYS = collectKeys("OPENROUTER_API_KEY");
+
+async function nextKey(poolName, keys) {
   if (keys.length === 0) return null;
-
-  const idxKey = `${prefix}_rotation_idx`;
-  let idx = 0;
-  try {
-    const cur = await db.prepare(`SELECT value FROM site_settings WHERE key=?`).bind(idxKey).first();
-    idx = cur && cur.value ? (parseInt(cur.value, 10) || 0) : 0;
-  } catch (e) {}
-  const nextIdx = (idx + 1) % keys.length;
-  try {
-    await db.prepare(`INSERT OR REPLACE INTO site_settings(key,value) VALUES(?,?)`)
-      .bind(idxKey, String(nextIdx)).run();
-  } catch (e) {}
-
-  return keys[idx % keys.length];
+  const counterKey = ["key_rotation", poolName];
+  const res = await kv.get(counterKey);
+  const idx = ((res.value ?? 0) + 1) % keys.length;
+  await kv.set(counterKey, idx);
+  return keys[idx];
 }
 
-async function callGemini(apiKey, sys, prompt, image_b64, image_type) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: sys }] },
-        contents: [{ role: 'user', parts: [
-          { text: prompt },
-          { inline_data: { mime_type: image_type || 'image/jpeg', data: image_b64 } }
-        ]}],
-        generationConfig: { temperature: 0.4 }
-      })
-    }
-  );
-  if (!res.ok) {
-    const errText = await res.text().catch(()=> '');
-    return { error: 'Gemini '+res.status+': '+errText.slice(0,300) };
+// ---- CORS --------------------------------------------------------------------
+
+function corsHeaders(origin) {
+  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://agronom.pp.ua";
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+// ---- Rate limiting (за IP, ліміт на добу) -------------------------------------
+
+async function checkRateLimit(ip) {
+  const key = ["rate_limit", ip];
+  const res = await kv.get(key);
+  const count = res.value ?? 0;
+  if (count >= MAX_REQUESTS_PER_DAY_PER_IP) {
+    return false;
   }
-  const data = await res.json();
-  const text = ((data.candidates||[])[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
-  if (!text) return { error: 'Gemini: порожня відповідь' };
-  return { text };
+  await kv.set(key, count + 1, { expireIn: KV_TTL_MS });
+  return true;
 }
 
-async function callOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey,
-      'HTTP-Referer': 'https://agronom.pp.ua',
-      'X-Title': 'Agronom Diagnose',
+// ---- Кеш каталогу товарів ------------------------------------------------------
+
+let productsCache = { data: null, fetchedAt: 0 };
+
+async function getProducts() {
+  const now = Date.now();
+  if (productsCache.data && now - productsCache.fetchedAt < PRODUCTS_CACHE_TTL_MS) {
+    return productsCache.data;
+  }
+  try {
+    const resp = await fetch(PRODUCTS_URL);
+    if (!resp.ok) throw new Error(`products.json fetch failed: ${resp.status}`);
+    const data = await resp.json();
+    productsCache = { data, fetchedAt: now };
+    return data;
+  } catch (e) {
+    console.error("Failed to fetch products.json:", e);
+    return productsCache.data ?? [];
+  }
+}
+
+// Проста keyword-відповідність назви препарату/діючої речовини до товарів каталогу
+function matchProducts(products, keywords, limit = 5) {
+  if (!Array.isArray(products) || keywords.length === 0) return [];
+  const lowerKeywords = keywords.map((k) => k.toLowerCase());
+  const scored = [];
+
+  for (const p of products) {
+    const name = (p.name ?? p.title ?? "").toLowerCase();
+    if (!name) continue;
+    let score = 0;
+    for (const kw of lowerKeywords) {
+      if (name.includes(kw)) score += 2;
+      else {
+        // Часткова відповідність по словах
+        const words = kw.split(/\s+/);
+        for (const w of words) {
+          if (w.length > 3 && name.includes(w)) score += 1;
+        }
+      }
+    }
+    if (score > 0) scored.push({ product: p, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((s) => s.product);
+}
+
+// ---- Виклик Gemini API -----------------------------------------------------------
+
+const DIAGNOSIS_PROMPT = `Ти — досвідчений агроном. Проаналізуй фото рослини і визнач, що на ньому зображено:
+хвороба, шкідник чи бур'ян. Дай відповідь СУВОРО у форматі JSON, без markdown-обгортки, за схемою:
+
+{
+  "type": "disease" | "pest" | "weed" | "healthy" | "unknown",
+  "name_uk": "українська назва проблеми",
+  "name_latin": "латинська назва збудника/виду (якщо відома)",
+  "confidence": "high" | "medium" | "low",
+  "description": "короткий опис ознак українською (2-3 речення)",
+  "treatment_keywords": ["список", "ключових", "слів", "для", "пошуку", "препаратів"],
+  "recommendation": "коротка агрономічна рекомендація українською"
+}
+
+Якщо на фото немає рослини або зображення нечітке — постав "type": "unknown" і поясни чому в "description".
+Відповідай лише JSON, нічого зайвого.`;
+
+async function callGemini(apiKey, base64Image, mimeType) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+  const body = {
+    contents: [
+      {
+        parts: [
+          { text: DIAGNOSIS_PROMPT },
+          { inline_data: { mime_type: mimeType, data: base64Image } },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 800,
     },
-    body: JSON.stringify({
-      model: 'google/gemma-4-31b-it:free',
-      messages: [
-        { role: 'system', content: sys },
-        { role: 'user', content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${image_type||'image/jpeg'};base64,${image_b64}` } }
-        ]}
-      ]
-    })
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(()=> '');
-    return { error: 'OpenRouter '+res.status+': '+errText.slice(0,300) };
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API error ${resp.status}: ${errText}`);
   }
-  const data = await res.json();
-  const text = (data.choices||[])[0]?.message?.content || '';
-  if (!text) return { error: 'OpenRouter: порожня відповідь' };
-  return { text };
+
+  const data = await resp.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini API: empty response");
+  return text;
 }
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
+// Резервний виклик через OpenRouter (якщо всі ключі Gemini вичерпані/впали)
+async function callOpenRouter(apiKey, base64Image, mimeType) {
+  const url = "https://openrouter.ai/api/v1/chat/completions";
+  const body = {
+    model: "google/gemini-2.0-flash-exp:free",
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: DIAGNOSIS_PROMPT },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
+        ],
+      },
+    ],
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`OpenRouter API error ${resp.status}: ${errText}`);
+  }
+
+  const data = await resp.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("OpenRouter API: empty response");
+  return text;
+}
+
+function parseAiJson(rawText) {
+  // Видаляємо можливі markdown-огорожі ```json ... ```
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
   try {
-    let body;
-    try { body = await request.json(); }
-    catch(e) { return J({ok:false, error:'Invalid JSON body: '+e.message}, 400); }
-
-    const { image_b64, image_type } = body;
-    if (!image_b64) return J({ok:false, error:'No image_b64 provided'}, 400);
-
-    const prods = (await env.DB.prepare(
-      `SELECT COALESCE(NULLIF(c.display_name,''),p.name) name,
-              COALESCE(c.slug,'') slug, p.price,
-              COALESCE(c.active_ingredient,'') ai
-       FROM products p LEFT JOIN product_content c ON c.pid=p.pid
-       WHERE COALESCE(c.visible,1)=1 AND p.in_stock=1
-       ORDER BY p.name LIMIT 100`
-    ).all().catch(()=>({results:[]}))).results || [];
-
-    const prodList = prods.map(p => p.name + (p.ai ? ' ('+p.ai+')' : '')).join('\n');
-
-    const sys = 'You are an agronomist for a Ukrainian garden shop. '
-      + 'Identify plant diseases, pests, or weeds from photos. '
-      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language.\n\nCATALOG:\n' + prodList;
-
-    const prompt = 'Identify what is in this photo. Return JSON only:\n'
-      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
-      + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
-      + '"advice":"treatment advice in Ukrainian",'
-      + '"products":["exact name from catalog"]}';
-
-    let rawText = '', lastErr = '';
-
-    const geminiKey = await getOneKey(env.DB, 'gemini_api_key');
-    if (geminiKey) {
-      const r = await callGemini(geminiKey, sys, prompt, image_b64, image_type);
-      rawText = r.text || '';
-      lastErr = r.error || '';
-    } else {
-      lastErr = 'Немає ключів Gemini у site_settings';
-    }
-
-    if (!rawText) {
-      const orKey = await getOneKey(env.DB, 'openrouter_api_key');
-      if (orKey) {
-        const r2 = await callOpenRouter(orKey, sys, prompt, image_b64, image_type);
-        if (r2.text) { rawText = r2.text; } else { lastErr = r2.error || lastErr; }
+    return JSON.parse(cleaned);
+  } catch {
+    // Спроба витягти перший { ... } блок
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        // fall through
       }
     }
-
-    if (!rawText) return J({ok:false, error:'Усі провайдери недоступні: '+lastErr}, 502);
-
-    let diag;
-    try {
-      const clean = rawText.replace(/^```[\w]*\n?/,'').replace(/\n?```$/,'').trim();
-      diag = JSON.parse(clean);
-    } catch(e) {
-      return J({ok:false, error:'JSON parse: '+e.message, raw:rawText.slice(0,200)}, 502);
-    }
-
-    const matched = [];
-    if (Array.isArray(diag.products)) {
-      for (const pname of diag.products) {
-        const nl = pname.toLowerCase().split(',')[0].trim();
-        if (!nl) continue;
-        const found = prods.find(p => p.name.toLowerCase().startsWith(nl));
-        if (found && found.slug) matched.push({n:found.name, slug:found.slug, p:found.price});
-      }
-    }
-
-    return J({
-      ok: true,
-      type: diag.type || 'unknown',
-      name: diag.name || '',
-      confidence: diag.confidence || 'medium',
-      description: diag.description || '',
-      advice: diag.advice || '',
-      products: matched,
-    });
-
-  } catch(e) {
-    return J({ok:false, error:'Worker error: '+String(e.message||e)}, 500);
+    throw new Error("Не вдалося розпарсити відповідь AI як JSON");
   }
 }
+
+// ---- Telegram-сповіщення (опційно) -----------------------------------------------
+
+async function notifyTelegram(diagnosis, ip) {
+  const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
+  const chatId = Deno.env.get("TELEGRAM_CHAT_ID");
+  if (!token || !chatId) return;
+
+  const text =
+    `🔍 Нова діагностика (Deno)\n` +
+    `Тип: ${diagnosis.type}\n` +
+    `Назва: ${diagnosis.name_uk}\n` +
+    `Впевненість: ${diagnosis.confidence}\n` +
+    `IP: ${ip}`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (e) {
+    console.error("Telegram notify failed:", e);
+  }
+}
+
+// ---- Логування у Deno KV --------------------------------------------------------
+
+async function logDiagnosis(ip, diagnosis) {
+  const key = ["logs", Date.now(), crypto.randomUUID()];
+  await kv.set(key, {
+    ip,
+    type: diagnosis.type,
+    name_uk: diagnosis.name_uk,
+    confidence: diagnosis.confidence,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ---- Основний обробник -----------------------------------------------------------
+
+async function handleDiagnose(req, origin) {
+  const ip = req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown";
+
+  const allowed = await checkRateLimit(ip);
+  if (!allowed) {
+    return jsonResponse(
+      { error: "Перевищено ліміт запитів на сьогодні. Спробуйте завтра." },
+      429,
+      origin,
+    );
+  }
+
+  let payload;
+  try {
+    payload = await req.json();
+  } catch {
+    return jsonResponse({ error: "Некоректний JSON у запиті" }, 400, origin);
+  }
+
+  const { image, mimeType } = payload;
+  if (!image || typeof image !== "string") {
+    return jsonResponse({ error: "Поле 'image' (base64) є обов'язковим" }, 400, origin);
+  }
+
+  const cleanBase64 = image.includes(",") ? image.split(",")[1] : image;
+  const finalMimeType = mimeType || "image/jpeg";
+
+  // Пробуємо ключі Gemini по черзі, потім OpenRouter як резерв
+  let rawText = null;
+  let lastError = null;
+
+  for (let attempt = 0; attempt < GEMINI_KEYS.length; attempt++) {
+    const key = await nextKey("gemini", GEMINI_KEYS);
+    if (!key) break;
+    try {
+      rawText = await callGemini(key, cleanBase64, finalMimeType);
+      break;
+    } catch (e) {
+      lastError = e;
+      console.error("Gemini attempt failed:", e.message);
+    }
+  }
+
+  if (!rawText) {
+    for (let attempt = 0; attempt < OPENROUTER_KEYS.length; attempt++) {
+      const key = await nextKey("openrouter", OPENROUTER_KEYS);
+      if (!key) break;
+      try {
+        rawText = await callOpenRouter(key, cleanBase64, finalMimeType);
+        break;
+      } catch (e) {
+        lastError = e;
+        console.error("OpenRouter attempt failed:", e.message);
+      }
+    }
+  }
+
+  if (!rawText) {
+    return jsonResponse(
+      { error: "Сервіс діагностики тимчасово недоступний. Спробуйте пізніше.", detail: lastError?.message },
+      502,
+      origin,
+    );
+  }
+
+  let diagnosis;
+  try {
+    diagnosis = parseAiJson(rawText);
+  } catch (e) {
+    return jsonResponse({ error: "Не вдалося обробити відповідь AI", detail: e.message }, 502, origin);
+  }
+
+  // Продукти-рекомендації з каталогу
+  const products = await getProducts();
+  const keywords = Array.isArray(diagnosis.treatment_keywords) ? diagnosis.treatment_keywords : [];
+  const matchedProducts = matchProducts(products, keywords);
+
+  // Асинхронно логуємо і сповіщаємо, не блокуючи відповідь користувачу
+  logDiagnosis(ip, diagnosis).catch((e) => console.error("logDiagnosis failed:", e));
+  notifyTelegram(diagnosis, ip).catch((e) => console.error("notifyTelegram failed:", e));
+
+  return jsonResponse(
+    {
+      ...diagnosis,
+      recommended_products: matchedProducts.map((p) => ({
+        name: p.name ?? p.title,
+        url: p.url ?? p.slug ?? null,
+        price: p.price ?? null,
+      })),
+    },
+    200,
+    origin,
+  );
+}
+
+function jsonResponse(obj, status, origin) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...corsHeaders(origin),
+    },
+  });
+}
+
+// ---- Точка входу Deno Deploy -------------------------------------------------------
+
+Deno.serve(async (req) => {
+  const origin = req.headers.get("origin") ?? "";
+  const url = new URL(req.url);
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  }
+
+  if (url.pathname === "/diagnose" && req.method === "POST") {
+    return handleDiagnose(req, origin);
+  }
+
+  if (url.pathname === "/health") {
+    return jsonResponse({ status: "ok", model: GEMINI_MODEL }, 200, origin);
+  }
+
+  return jsonResponse({ error: "Not found" }, 404, origin);
+});
