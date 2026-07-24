@@ -128,15 +128,18 @@ Deno.serve(async (req) => {
 
     const prodList = prods.map(p => p.n).join('\n');
 
-    const sys = 'You are an agronomist for a Ukrainian garden shop. '
-      + 'Identify plant diseases, pests, or weeds from photos. '
-      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language.\n\nCATALOG:\n' + prodList;
+    const sys = 'You are an experienced Ukrainian agronomist working for a Ukrainian garden/agrochemical shop. '
+      + 'Identify plant diseases, pests, or weeds from photos using STANDARD, WIDELY-RECOGNIZED Ukrainian agronomic terminology '
+      + '(e.g. "борошниста роса", "фітофтороз", "колорадський жук", "попелиця") — never invent, transliterate, or guess a name; '
+      + 'if uncertain of the exact Ukrainian term, describe the visible symptoms precisely instead of naming a specific disease. '
+      + 'Never output non-Ukrainian words, transliterations, or invented terms in the "name" field. '
+      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language for all text fields.\n\nCATALOG:\n' + prodList;
 
     const prompt = 'Identify what is in this photo. Return JSON only:\n'
-      + '{"type":"disease|pest|weed|unknown","name":"Ukrainian name",'
-      + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian",'
-      + '"advice":"treatment advice in Ukrainian",'
-      + '"products":["exact name from catalog"]}';
+      + '{"type":"disease|pest|weed|unknown","name":"correct standard Ukrainian agronomic name only — no invented or transliterated words",'
+      + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian, using accurate agronomic terms",'
+      + '"advice":"treatment advice in Ukrainian, mentioning active ingredient classes where relevant",'
+      + '"products":["exact name from catalog, only if a genuinely relevant match exists — otherwise omit"]}';
 
     let rawText = '', geminiErr = '', orErr = '';
 
