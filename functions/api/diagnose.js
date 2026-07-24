@@ -138,13 +138,13 @@ Deno.serve(async (req) => {
       + '"advice":"treatment advice in Ukrainian",'
       + '"products":["exact name from catalog"]}';
 
-    let rawText = '', lastErr = '';
+    let rawText = '', geminiErr = '', orErr = '';
 
     const geminiKeys = getKeys('GEMINI_API_KEY');
     for (const key of geminiKeys) {
       const r = await callGemini(key, sys, prompt, image_b64, image_type);
       if (r.text) { rawText = r.text; break; }
-      lastErr = r.error;
+      geminiErr = r.error;
     }
 
     if (!rawText) {
@@ -152,11 +152,11 @@ Deno.serve(async (req) => {
       for (const key of orKeys) {
         const r = await callOpenRouter(key, sys, prompt, image_b64, image_type);
         if (r.text) { rawText = r.text; break; }
-        lastErr = r.error;
+        orErr = r.error;
       }
     }
 
-    if (!rawText) return J({ ok: false, error: 'Усі провайдери недоступні: ' + lastErr }, 502);
+    if (!rawText) return J({ ok: false, error: 'Усі провайдери недоступні. Gemini: ' + (geminiErr || 'н/д') + ' | OpenRouter: ' + (orErr || 'н/д') }, 502);
 
     let diag;
     try {
