@@ -128,18 +128,19 @@ Deno.serve(async (req) => {
 
     const prodList = prods.map(p => p.n).join('\n');
 
-    const sys = 'You are an experienced Ukrainian agronomist working for a Ukrainian garden/agrochemical shop. '
-      + 'Identify plant diseases, pests, or weeds from photos using STANDARD, WIDELY-RECOGNIZED Ukrainian agronomic terminology '
-      + '(e.g. "борошниста роса", "фітофтороз", "колорадський жук", "попелиця") — never invent, transliterate, or guess a name; '
-      + 'if uncertain of the exact Ukrainian term, describe the visible symptoms precisely instead of naming a specific disease. '
-      + 'Never output non-Ukrainian words, transliterations, or invented terms in the "name" field. '
-      + 'Respond ONLY in valid JSON without markdown. Use Ukrainian language for all text fields.\n\nCATALOG:\n' + prodList;
+    const sys = 'Ти — досвідчений український агроном, що консультує клієнтів магазину агрохімії. '
+      + 'Визначай хвороби, шкідників або бур\'яни рослин по фото, використовуючи ЛИШЕ стандартну, загальновживану '
+      + 'українську агрономічну термінологію (наприклад: «борошниста роса», «фітофтороз», «колорадський жук», «попелиця», «осот польовий»). '
+      + 'НІКОЛИ не вигадуй, не транслітеруй і не вгадуй назву. Якщо не впевнений у точній українській назві — '
+      + 'краще детально опиши видимі симптоми, ніж назви неправильну хворобу чи бур\'ян. '
+      + 'Не змішуй хвороби (гриби, бактерії, віруси) з бур\'янами (рослини-конкуренти) — це різні категорії, і поради з лікування різні. '
+      + 'Відповідай ЛИШЕ у форматі валідного JSON без markdown. Усі текстові поля — українською мовою.\n\nКАТАЛОГ ТОВАРІВ:\n' + prodList;
 
-    const prompt = 'Identify what is in this photo. Return JSON only:\n'
-      + '{"type":"disease|pest|weed|unknown","name":"correct standard Ukrainian agronomic name only — no invented or transliterated words",'
-      + '"confidence":"high|medium|low","description":"2-3 sentences in Ukrainian, using accurate agronomic terms",'
-      + '"advice":"treatment advice in Ukrainian, mentioning active ingredient classes where relevant",'
-      + '"products":["exact name from catalog, only if a genuinely relevant match exists — otherwise omit"]}';
+    const prompt = 'Визнач, що зображено на цьому фото. Поверни ЛИШЕ JSON у такому форматі (назви ключів — англійською, це технічні поля, значення — українською):\n'
+      + '{"type":"disease|pest|weed|unknown","name":"точна стандартна українська агрономічна назва, без вигаданих чи транслітерованих слів",'
+      + '"confidence":"high|medium|low","description":"2-3 речення українською з точними агрономічними термінами",'
+      + '"advice":"порада щодо лікування/боротьби українською, за можливості з класом діючої речовини",'
+      + '"products":["точна назва товару з каталогу, лише якщо є дійсно релевантний збіг — інакше не вказуй"]}';
 
     let rawText = '', geminiErr = '', orErr = '';
 
