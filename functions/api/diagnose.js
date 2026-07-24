@@ -141,13 +141,13 @@ Deno.serve(async (req) => {
     let rawText = '', geminiErr = '', orErr = '';
 
     const geminiKeys = getKeys('GEMINI_API_KEY');
-    for (const model of ['gemini-3.5-flash', 'gemini-2.5-flash']) {
+    for (let attempt = 0; attempt < 2 && !rawText; attempt++) {
+      if (attempt > 0) await new Promise(res => setTimeout(res, 1500)); // коротка пауза перед повторною хвилею спроб
       for (const key of geminiKeys) {
-        const r = await callGemini(key, sys, prompt, image_b64, image_type, model);
+        const r = await callGemini(key, sys, prompt, image_b64, image_type, 'gemini-3.5-flash');
         if (r.text) { rawText = r.text; break; }
         geminiErr = r.error;
       }
-      if (rawText) break;
     }
 
     if (!rawText) {
