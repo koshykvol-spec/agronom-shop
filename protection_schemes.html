@@ -461,9 +461,9 @@
 
        <!-- ── Діагностика по фото ── -->
 <!-- Інпут 1: Примусова Камера -->
-<input type="file" id="diagnose-camera" accept="image/*" capture="environment" ">
+<input type="file" id="diagnose-camera" accept="image/*" capture="environment" style="display:none;">
 <!-- Інпут 2: Галерея / Файли -->
-<input type="file" id="diagnose-file" accept="image/*" ">
+<input type="file" id="diagnose-file" accept="image/*" style="display:none;">
 
 <!-- ТИМЧАСОВО ВІДКЛЮЧЕНО: display:none приховує блок, код лишається для швидкого повернення -->
 <div id="diagnose-bar" background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
@@ -482,7 +482,7 @@
       </button>
     </div>
   </div>
-  <div id="diagnose-result" margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
+  <div id="diagnose-result" style="display:none;margin-top:14px;border-top:1px solid #cde8cd;padding-top:12px;"></div>
 </div>
 
         <script>
