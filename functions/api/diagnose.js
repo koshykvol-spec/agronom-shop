@@ -39,9 +39,9 @@ function getKeys(prefix) {
   return [...keys.slice(start), ...keys.slice(0, start)];
 }
 
-async function callGemini(apiKey, sys, prompt, image_b64, image_type) {
+async function callGemini(apiKey, sys, prompt, image_b64, image_type, model) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -141,10 +141,13 @@ Deno.serve(async (req) => {
     let rawText = '', geminiErr = '', orErr = '';
 
     const geminiKeys = getKeys('GEMINI_API_KEY');
-    for (const key of geminiKeys) {
-      const r = await callGemini(key, sys, prompt, image_b64, image_type);
-      if (r.text) { rawText = r.text; break; }
-      geminiErr = r.error;
+    for (const model of ['gemini-3.5-flash', 'gemini-2.5-flash']) {
+      for (const key of geminiKeys) {
+        const r = await callGemini(key, sys, prompt, image_b64, image_type, model);
+        if (r.text) { rawText = r.text; break; }
+        geminiErr = r.error;
+      }
+      if (rawText) break;
     }
 
     if (!rawText) {
