@@ -75,7 +75,7 @@ async function callOpenRouter(apiKey, sys, prompt, image_b64, image_type) {
       'X-Title': 'Agronom Diagnose',
     },
     body: JSON.stringify({
-      model: 'google/gemma-4-31b-it:free',
+      models: ['nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', 'google/gemma-4-31b-it:free'],
       messages: [
         { role: 'system', content: sys },
         { role: 'user', content: [
