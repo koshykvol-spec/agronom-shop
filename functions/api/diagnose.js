@@ -24,9 +24,12 @@ const D1_DATABASE_ID = 'b5d676d5-53a5-4b81-8888-4c77a967cf32';
 async function logDiagnosis(type, name, confidence, productsFound) {
   const accountId = Deno.env.get('CF_ACCOUNT_ID');
   const apiToken = Deno.env.get('CF_API_TOKEN');
-  if (!accountId || !apiToken) return;
+  if (!accountId || !apiToken) {
+    console.error('logDiagnosis: CF_ACCOUNT_ID or CF_API_TOKEN not set');
+    return;
+  }
   try {
-    await fetch(
+    const res = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${D1_DATABASE_ID}/query`,
       {
         method: 'POST',
@@ -40,7 +43,13 @@ async function logDiagnosis(type, name, confidence, productsFound) {
         }),
       }
     );
-  } catch (e) { /* логування не критичне — ігноруємо помилки */ }
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('logDiagnosis: D1 API error', res.status, text.slice(0, 500));
+    } else {
+      console.log('logDiagnosis: OK', text.slice(0, 200));
+    }
+  } catch (e) { console.error('logDiagnosis: fetch threw', String(e && e.message || e)); }
 }
 
 function corsHeaders() {
