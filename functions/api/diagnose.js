@@ -17,6 +17,32 @@ const DISEASE_PEST_NAMES = ["Іржа", "Іржа хвойних", "Агрусо
 
 const WEED_NAMES = ["Амброзія полинолиста", "Березка польова", "Вероніка польова", "Волошка синя", "Галінсога дрібноквіткова", "Горець польовий", "Грицики звичайні", "Гірчиця польова", "Деревій звичайний", "Дурман звичайний", "Зірочник середній (Мокриця)", "Конюшина повзуча", "Кульбаба звичайна", "Лобода біла", "Лобода біла (нові посіви)", "Мак-самосійка", "Метлюг звичайний", "Мишій сизий", "Осот польовий", "Паслін чорний", "Пирій повзучий", "Плоскуха звичайна", "Подорожник великий", "Підмаренник чіпкий", "Редька дика", "Ромашка непахуча", "Талабан польовий", "Щавель кислий", "Щириця звичайна"];
 
+const D1_DATABASE_ID = 'b5d676d5-53a5-4b81-8888-4c77a967cf32';
+
+// Пише запис у diagnose_log через Cloudflare D1 REST API (Deno не має прямого D1-байндингу).
+// Не критично для відповіді користувачу — помилки логування ігноруються.
+async function logDiagnosis(type, name, confidence, productsFound) {
+  const accountId = Deno.env.get('CF_ACCOUNT_ID');
+  const apiToken = Deno.env.get('CF_API_TOKEN');
+  if (!accountId || !apiToken) return;
+  try {
+    await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${D1_DATABASE_ID}/query`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Authorization': 'Bearer ' + apiToken,
+        },
+        body: JSON.stringify({
+          sql: `INSERT INTO diagnose_log (type, name, confidence, products_found, created_at) VALUES (?, ?, ?, ?, datetime('now'))`,
+          params: [type, name, confidence, productsFound],
+        }),
+      }
+    );
+  } catch (e) { /* логування не критичне — ігноруємо помилки */ }
+}
+
 function corsHeaders() {
   return {
     'access-control-allow-origin': ALLOWED_ORIGIN,
@@ -193,6 +219,10 @@ Deno.serve(async (req) => {
         if (found && found.slug) matched.push({ n: found.n, slug: found.slug, p: found.p });
       }
     }
+
+    // Логування статистики — чекаємо завершення (недовго, ~100-300мс), щоб Deno не обірвав
+    // фонове виконання одразу після відповіді; помилки логування самі по собі ігноруються
+    await logDiagnosis(diag.type || 'unknown', diag.name || '', diag.confidence || 'medium', matched.length);
 
     return J({
       ok: true,
