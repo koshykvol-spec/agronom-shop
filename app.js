@@ -2,7 +2,7 @@
 // ЗАВАНТАЖЕННЯ ТОВАРІВ З JSON (замість хардкоду)
 // ==========================================
 
-const SITE_VERSION = '20260529'; // оновлювати при зміні товарів
+const SITE_VERSION = '20260727'; // оновлювати при зміні товарів
 
 // Прапорець діагностичних логів (Task 18). Інформаційні console.log/warn — лише при DEBUG.
 const DEBUG = false;
@@ -791,8 +791,7 @@ function render(arr) {
                     "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
                     "merchantReturnDays": returnDays,
                     "returnMethod": "https://schema.org/ReturnByMail",
-                    "returnFees": "https://schema.org/ReturnShippingFees",
-                    "returnShippingFeesAmount": {"@type": "MonetaryAmount", "value": 0, "currency": "UAH"}
+                    "returnFees": "https://schema.org/FreeReturnShippingFees"
                 },
                 "shippingDetails": {
                     "@type": "OfferShippingDetails",
