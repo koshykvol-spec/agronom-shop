@@ -178,6 +178,10 @@ async function generateReview(product) {
   if (!content) throw new Error(lastErr || 'Порожня відповідь від усіх провайдерів');
 
   content = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  // Резервні "reasoning"-моделі (напр. NVIDIA Nemotron) іноді пишуть роздуми
+  // перед самим JSON — тому виокремлюємо лише сам JSON-об'єкт з тексту.
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) content = jsonMatch[0];
   const rev = JSON.parse(content);
   return {
     author: rev.author || chosenName,
