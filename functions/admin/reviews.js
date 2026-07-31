@@ -108,7 +108,7 @@ ${context}
 - Автор відгуку СУВОРО: "${chosenName}"
 - Рейтинг відгуку СУВОРО: ${randomRating}`;
 
-  const keys = (await getRotatedKeys(env.DB, 'gemini_api_key')).slice(0, 2);
+  const keys = (await getRotatedKeys(env.DB, 'gemini_api_key')).slice(0, 1);
   if (keys.length === 0) throw new Error('Брак ключа Gemini API у site_settings.');
 
   const reqBody = JSON.stringify({
@@ -153,7 +153,7 @@ ${context}
 
   if (!content) {
     // Резерв: OpenRouter (NVIDIA Nemotron -> Google Gemma), якщо всі ключі Gemini не спрацювали
-    const orKeys = (await getRotatedKeys(env.DB, 'openrouter_api_key')).slice(0, 2);
+    const orKeys = (await getRotatedKeys(env.DB, 'openrouter_api_key')).slice(0, 1);
     for (const apiKey of orKeys) {
       let response;
       try {
@@ -230,7 +230,7 @@ export async function onRequestGet(context){
     let dbErrorMsg = '';
 
     try {
-      const batchSize = 8; 
+      const batchSize = 4; 
       // Використовуємо просту вибірку без c.annotation, щоб точно ніде не зрізало
       const rawRes = await db.prepare(
         `SELECT p.pid, p.name, p.category, p.brand
@@ -253,7 +253,7 @@ export async function onRequestGet(context){
 
     for (let i = 0; i < noRevProducts.length; i++) {
       const product = noRevProducts[i];
-      if (i > 0) await sleep(2200); 
+      if (i > 0) await sleep(1500); 
 
       try {
         const rev = await generateSingleReviewWithAI(context.env, product);
@@ -347,7 +347,8 @@ export async function onRequestGet(context){
 
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
-    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 8)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (8 шт)</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 4)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (4 шт)</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn bulk" href="https://agronom-shop-78.koshykvol-spec.deno.net/?token=Z1p6EGyGSelQjCemqyK9FNnFmtgrjU6ZxvLS7jIxNXw&count=20" target="_blank" rel="noopener">🚀 Масова генерація (Deno, до 20 шт)</a>` : ''}
     ${aiPending > 0 ? `<span class="muted">🤖 На модерації: <b>${aiPending}</b></span><a class="btn del" href="/admin/reviews?delai=1" onclick="return confirm('Видалити ВСІ ${aiPending} AI-відгуки, що на модерації?')">🗑 Скасувати AI-відгуки</a>` : ''}
   </div>`;
 
