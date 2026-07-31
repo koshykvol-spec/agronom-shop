@@ -188,6 +188,10 @@ ${context}
 
   // Очищаємо контент від можливих блоків ```json ... ```
   content = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  // Резервні "reasoning"-моделі іноді пишуть роздуми перед самим JSON —
+  // виокремлюємо лише сам JSON-об'єкт.
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) content = jsonMatch[0];
 
   try {
     const rev = JSON.parse(content);
