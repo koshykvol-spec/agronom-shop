@@ -147,35 +147,9 @@ async function generateReview(product) {
     lastErr = 'Gemini: порожня відповідь';
   }
 
-  if (!content) {
-    for (const apiKey of getKeys('OPENROUTER_API_KEY').slice(0, 2)) {
-      let res;
-      try {
-        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'Authorization': 'Bearer ' + apiKey,
-            'HTTP-Referer': ALLOWED_ORIGIN,
-            'X-Title': 'Agronom Reviews',
-          },
-          body: JSON.stringify({
-            models: ['nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', 'google/gemma-4-31b-it:free'],
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
-      } catch (e) { lastErr = 'OpenRouter: ' + String(e?.message || e); continue; }
-      if (!res.ok) {
-        const err = await res.text().catch(() => '');
-        lastErr = `OpenRouter ${res.status}: ${err.slice(0, 200)}`;
-        continue;
-      }
-      const data = await res.json();
-      content = data.choices?.[0]?.message?.content || '';
-      if (content) break;
-      lastErr = 'OpenRouter: порожня відповідь';
-    }
-  }
+  // Резерв на OpenRouter навмисно прибрано: слабші безкоштовні моделі часом
+  // видавали суржик/русизми чи безглузді фрази у клієнтських відгуках — товар
+  // краще пропустити (спробувати іншим ключем Gemini пізніше), ніж опублікувати таке.
 
   if (!content) throw new Error(lastErr || 'Порожня відповідь від усіх провайдерів');
 
