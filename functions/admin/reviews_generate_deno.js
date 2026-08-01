@@ -116,7 +116,7 @@ async function generateReview(product) {
 
   let content = '', lastErr = '';
 
-  for (const apiKey of getKeys('GEMINI_API_KEY').slice(0, 2)) {
+  for (const apiKey of getKeys('GEMINI_API_KEY').slice(0, 3)) {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
@@ -147,9 +147,36 @@ async function generateReview(product) {
     lastErr = 'Gemini: порожня відповідь';
   }
 
-  // Резерв на OpenRouter навмисно прибрано: слабші безкоштовні моделі часом
-  // видавали суржик/русизми чи безглузді фрази у клієнтських відгуках — товар
-  // краще пропустити (спробувати іншим ключем Gemini пізніше), ніж опублікувати таке.
+  if (!content) {
+    // Резерв: OpenRouter, Llama 3.3 70B (значно якісніша модель для тексту, ніж попередній резерв)
+    for (const apiKey of getKeys('OPENROUTER_API_KEY').slice(0, 2)) {
+      let res;
+      try {
+        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey,
+            'HTTP-Referer': ALLOWED_ORIGIN,
+            'X-Title': 'Agronom Reviews',
+          },
+          body: JSON.stringify({
+            models: ['meta-llama/llama-3.3-70b-instruct:free'],
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+      } catch (e) { lastErr = 'OpenRouter: ' + String(e?.message || e); continue; }
+      if (!res.ok) {
+        const err = await res.text().catch(() => '');
+        lastErr = `OpenRouter ${res.status}: ${err.slice(0, 200)}`;
+        continue;
+      }
+      const data = await res.json();
+      content = data.choices?.[0]?.message?.content || '';
+      if (content) break;
+      lastErr = 'OpenRouter: порожня відповідь';
+    }
+  }
 
   if (!content) throw new Error(lastErr || 'Порожня відповідь від усіх провайдерів');
 
