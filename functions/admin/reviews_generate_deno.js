@@ -161,7 +161,7 @@ async function generateReview(product) {
             'X-Title': 'Agronom Reviews',
           },
           body: JSON.stringify({
-            models: ['meta-llama/llama-3.3-70b-instruct:free'],
+            models: ['openai/gpt-oss-120b:free', 'openai/gpt-oss-20b:free'],
             messages: [{ role: 'user', content: prompt }],
           }),
         });
