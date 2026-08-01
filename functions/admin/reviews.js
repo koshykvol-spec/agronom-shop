@@ -153,6 +153,39 @@ ${context}
     lastErr = 'Порожня відповідь від нейромережі';
   }
 
+  if (!content) {
+    // Резерв: OpenRouter, Llama 3.3 70B (значно якісніша модель для тексту, ніж попередній резерв)
+    const orKeys = (await getRotatedKeys(env.DB, 'openrouter_api_key')).slice(0, 1);
+    for (const apiKey of orKeys) {
+      let response;
+      try {
+        response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey,
+            'HTTP-Referer': 'https://agronom.pp.ua',
+            'X-Title': 'Agronom Reviews',
+          },
+          body: JSON.stringify({
+            models: ['meta-llama/llama-3.3-70b-instruct:free'],
+            messages: [{ role: 'user', content: prompt + '\n\nВідповідай ЛИШЕ у форматі JSON: {"author":"...","rating":N,"text":"..."}' }]
+          })
+        });
+      } catch (e) { lastErr = 'OpenRouter: ' + String(e && e.message || e); continue; }
+
+      if (!response.ok) {
+        const err = await response.text().catch(() => '');
+        lastErr = `OpenRouter API Error: ${response.status} ${err.slice(0, 100)}`;
+        continue;
+      }
+      const data = await response.json();
+      content = data.choices?.[0]?.message?.content || '';
+      if (content) break;
+      lastErr = 'OpenRouter: порожня відповідь';
+    }
+  }
+
   if (!content) throw new Error(lastErr || 'Порожня відповідь від нейромережі');
 
   // Очищаємо контент від можливих блоків ```json ... ```
