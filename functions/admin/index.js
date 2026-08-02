@@ -37,6 +37,7 @@ function navGrid() {
       ['/admin/keys', '🔑', 'Ключі'], ['/admin/np-sender', '📦', 'Відправник НП'] ] },
     { h: '🛠 Каталог', items: [
       ['/admin/import', '⬆️', 'Імпорт 1С'], ['/admin/anno', '✍️', 'Анотації (масово)'],
+      ['/admin/reviews-bulk', '💬', 'Відгуки (масово)'],
       ['/admin/dedup', '🔀', 'Дублі SKU'], ['/admin/merge', '🔗', 'Злити товари (колізії)'],
       ['/admin/groups', '📦', 'Групування фасовок'], ['/admin/ingredients', '🧪', 'Діючі речовини'],
       ['/admin/aifill', '🤖', 'AI: дозування / діючі'], ['/admin/keywords', '🔑', 'Ключові слова (масово)'],
