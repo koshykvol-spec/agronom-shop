@@ -116,7 +116,7 @@ async function generateReview(product) {
 
   let content = '', lastErr = '';
 
-  for (const apiKey of getKeys('GEMINI_API_KEY').slice(0, 3)) {
+  for (const apiKey of getKeys('GEMINI_API_KEY').slice(0, 2)) {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
@@ -149,7 +149,7 @@ async function generateReview(product) {
 
   if (!content) {
     // Резерв: OpenRouter, Llama 3.3 70B (значно якісніша модель для тексту, ніж попередній резерв)
-    for (const apiKey of getKeys('OPENROUTER_API_KEY').slice(0, 2)) {
+    for (const apiKey of getKeys('OPENROUTER_API_KEY').slice(0, 1)) {
       let res;
       try {
         res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     return J({ ok: false, error: 'Unauthorized' }, 401);
   }
 
-  const count = Math.max(1, Math.min(50, parseInt(url.searchParams.get('count') || '10', 10)));
+  const count = Math.max(1, Math.min(50, parseInt(url.searchParams.get('count') || '5', 10)));
 
   try {
     const products = await d1Query(
