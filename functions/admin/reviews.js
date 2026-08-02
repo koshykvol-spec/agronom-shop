@@ -354,7 +354,7 @@ export async function onRequestGet(context){
   const actionBar = `<div class="bar">
     <span class="muted">Товарів без відгуків: <b>${noRevTotal}</b></span>
     ${noRevTotal > 0 ? `<a class="btn gen" href="/admin/reviews?gen=1" onclick="return confirm('Згенерувати по 1 відгуку Gemini для ${Math.min(noRevTotal, 4)} товарів? Відгуки будуть на модерації.')">🤖 Згенерувати відгуки Gemini (4 шт)</a>` : ''}
-    ${noRevTotal > 0 ? `<a class="btn bulk" href="https://agronom-shop-78.koshykvol-spec.deno.net/?token=Z1p6EGyGSelQjCemqyK9FNnFmtgrjU6ZxvLS7jIxNXw&count=10" target="_blank" rel="noopener">🚀 Масова генерація (Deno, до 10 шт)</a>` : ''}
+    ${noRevTotal > 0 ? `<a class="btn bulk" href="https://agronom-shop-78.koshykvol-spec.deno.net/?token=Z1p6EGyGSelQjCemqyK9FNnFmtgrjU6ZxvLS7jIxNXw&count=5" target="_blank" rel="noopener">🚀 Масова генерація (Deno, до 5 шт)</a>` : ''}
     ${aiPending > 0 ? `<span class="muted">🤖 На модерації: <b>${aiPending}</b></span><a class="btn del" href="/admin/reviews?delai=1" onclick="return confirm('Видалити ВСІ ${aiPending} AI-відгуки, що на модерації?')">🗑 Скасувати AI-відгуки</a>` : ''}
   </div>`;
 
