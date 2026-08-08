@@ -46,7 +46,7 @@ def li(p):
         href = "p/" + slug                       # сторінка товару (SEO)
     else:
         key = CAT_KEY.get(p.get("c", ""), "")
-        href = "category.html?cat=" + quote(key) if key else "index.html"
+        href = "/category?cat=" + quote(key) if key else "/"
     name = html.escape(str(p["n"]))
     price = html.escape(str(p["p"]))
     return f'<li><a href="{href}">{name} — {price} грн</a></li>'
@@ -55,7 +55,7 @@ def li(p):
 # (functions/sitemap.xml.js, з D1). Так головна легша на ~310КБ. CAT_KEY: назва → ?cat=key.
 cat_items = sorted(set(CAT_KEY.items()))
 items = "".join(
-    f'<li><a href="category.html?cat={quote(k)}">{html.escape(n)}</a></li>' for n, k in cat_items
+    f'<li><a href="/category?cat={quote(k)}">{html.escape(n)}</a></li>' for n, k in cat_items
 )
 # + посилання на HTML-карту каталогу — щоб Googlebot знайшов усі товарні /p/ сторінки
 items += '<li><a href="/katalog">Повний каталог товарів</a></li>'

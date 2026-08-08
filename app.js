@@ -100,17 +100,17 @@ const currentPath = window.location.pathname.split("/").pop();
 
 let NAV_ITEMS = [
     { href: 'index.html',                  label: 'Всі товари',           cat: null                },
-    { href: 'category.html?cat=chemicals', label: 'АГРОХІМІКАТИ',         cat: 'chemicals'         },
-    { href: 'category.html?cat=import',    label: 'НАСІННЯ ІМПОРТНЕ',     cat: 'import'            },
-    { href: 'category.html?cat=domestic',  label: 'НАСІННЯ ВІТЧИЗНЯНЕ',   cat: 'domestic'          },
-    { href: 'category.html?cat=weight',    label: 'НАСІННЯ ВАГОВЕ',       cat: 'weight'            },
-    { href: 'category.html?cat=materials', label: 'МАТЕРІАЛИ',            cat: 'materials'         },
-    { href: 'category.html?cat=drops',     label: 'КРАПЕЛЬНЕ ЗРОШУВАННЯ', cat: 'drops'             },
-    { href: 'category.html?cat=soil',      label: 'ГРУНТ',                cat: 'soil'              },
-    { href: 'category.html?cat=pots',      label: 'ГОРЩИКИ',              cat: 'pots'              },
-    { href: 'category.html?cat=insects',   label: 'ПРОТИ КОМАХ',          cat: 'insects'           },
-    { href: 'category.html?cat=animals',   label: 'ДЛЯ ТВАРИН',          cat: 'animals'           },
-    { href: 'category.html?cat=sprouts',  label: 'РОЗСАДА',              cat: 'sprouts'           },
+    { href: '/category?cat=chemicals', label: 'АГРОХІМІКАТИ',         cat: 'chemicals'         },
+    { href: '/category?cat=import',    label: 'НАСІННЯ ІМПОРТНЕ',     cat: 'import'            },
+    { href: '/category?cat=domestic',  label: 'НАСІННЯ ВІТЧИЗНЯНЕ',   cat: 'domestic'          },
+    { href: '/category?cat=weight',    label: 'НАСІННЯ ВАГОВЕ',       cat: 'weight'            },
+    { href: '/category?cat=materials', label: 'МАТЕРІАЛИ',            cat: 'materials'         },
+    { href: '/category?cat=drops',     label: 'КРАПЕЛЬНЕ ЗРОШУВАННЯ', cat: 'drops'             },
+    { href: '/category?cat=soil',      label: 'ГРУНТ',                cat: 'soil'              },
+    { href: '/category?cat=pots',      label: 'ГОРЩИКИ',              cat: 'pots'              },
+    { href: '/category?cat=insects',   label: 'ПРОТИ КОМАХ',          cat: 'insects'           },
+    { href: '/category?cat=animals',   label: 'ДЛЯ ТВАРИН',          cat: 'animals'           },
+    { href: '/category?cat=sprouts',  label: 'РОЗСАДА',              cat: 'sprouts'           },
 ];
 
 // Малює горизонтальну навігацію з активним станом поточної категорії
@@ -189,7 +189,7 @@ async function loadCategories(){
         if (!d.cats || !d.cats.length) return;
         const cats = d.cats.slice().sort(function(a,b){ return (a.sort||0)-(b.sort||0); });
         NAV_ITEMS = [{ href:'index.html', label:'Всі товари', cat:null }].concat(cats.map(function(c){
-            return { href:'category.html?cat=' + c.key, label:c.nav_label, cat:c.key };
+            return { href:'/category?cat=' + c.key, label:c.nav_label, cat:c.key };
         }));
         const pm = {}, ic = {}, sm = {}, ws = [], hs = [], seo = {};
         cats.forEach(function(c){
