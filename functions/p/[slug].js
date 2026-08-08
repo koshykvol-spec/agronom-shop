@@ -117,14 +117,24 @@ export async function onRequest(context) {
 
   const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
   const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
+  const hasBrand = !!(p.brand && String(p.brand).trim());
+  // Google вимагає brand+mpn (або gtin) для "глобального ідентифікатора" товару.
+  // Коли бренду немає (розфасовка/вагові товари без виробника на етикетці) — офіційний
+  // спосіб Google прибрати попередження "Немає глобального ідентифікатора":
+  // additionalProperty identifier_exists=false замість вигаданого бренду.
+  const identifierAdditionalProperty = hasBrand
+    ? undefined
+    : [{ '@type': 'PropertyValue', name: 'identifier_exists', value: 'no' }];
 
   const jsonld = {
     '@context': 'https://schema.org', '@type': 'Product',
     name: displayName,
     sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
     mpn: safeMpn,
-    category: p.category,
-    brand: p.brand ? { '@type': 'Brand', name: p.brand } : undefined,
+    // Порожній/NULL category в D1 інакше потрапляв у JSON-LD як null → GSC "Недійсне значення в полі category".
+    category: (p.category && String(p.category).trim()) ? String(p.category).trim() : undefined,
+    brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
+    additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
     description: ldDesc,
     offers: {
@@ -137,7 +147,9 @@ export async function onRequest(context) {
         returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
         merchantReturnDays: seoReturnDays,
         returnMethod: 'https://schema.org/ReturnByMail',
-        returnFees: 'https://schema.org/FreeReturnShippingFees'
+        // Google приймає ТІЛЬКИ https://schema.org/FreeReturn для безкоштовного повернення —
+        // "FreeReturnShippingFees" не є валідним enum-значенням і саме це GSC відзначав.
+        returnFees: 'https://schema.org/FreeReturn'
       },
       shippingDetails: {
         '@type': 'OfferShippingDetails',

@@ -772,13 +772,20 @@ function render(arr) {
         var imgAbs = toAbsImageUrl(p.img, origin);
         var desc = p.annot || p.n;
         var safeMpn = (p.slug && String(p.slug).trim()) ? String(p.slug).trim().slice(0, 70) : undefined;
+        var hasBrand = !!(p.b && String(p.b).trim());
+        // Той самий фікс, що на серверній /p/<slug> сторінці: без бренду Google просить
+        // явно позначити відсутність глобального ідентифікатора, а не вигадувати бренд.
+        var identifierAdditionalProperty = hasBrand
+            ? undefined
+            : [{"@type": "PropertyValue", "name": "identifier_exists", "value": "no"}];
         return {
             "@context": "https://schema.org", "@type": "Product",
             "name": p.n,
             "mpn": safeMpn,
             "description": desc,
             "image": imgAbs || undefined,
-            "brand": p.b ? {"@type": "Brand", "name": p.b} : undefined,
+            "brand": hasBrand ? {"@type": "Brand", "name": p.b} : undefined,
+            "additionalProperty": identifierAdditionalProperty,
             "offers": {
                 "@type": "Offer",
                 "price": effPrice,
@@ -791,7 +798,7 @@ function render(arr) {
                     "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
                     "merchantReturnDays": returnDays,
                     "returnMethod": "https://schema.org/ReturnByMail",
-                    "returnFees": "https://schema.org/FreeReturnShippingFees"
+                    "returnFees": "https://schema.org/FreeReturn"
                 },
                 "shippingDetails": {
                     "@type": "OfferShippingDetails",
