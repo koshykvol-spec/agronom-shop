@@ -6,28 +6,17 @@
   Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
   Content-Security-Policy: default-src 'self'; img-src 'self' data: https://www.google-analytics.com https://*.clarity.ms; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com https://www.clarity.ms https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; form-action 'self' https://www.liqpay.ua; connect-src 'self' https://*.workers.dev https://*.deno.net https://cloudflareinsights.com https://www.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com
 
+# ПЕРЕВІРЕНО ЕМПІРИЧНО (09.08.26): Cloudflare Pages форсує власний Cache-Control
+# (public, max-age=14400, must-revalidate — 4 год) для .js/.css незалежно від того,
+# що написано тут у _headers — інші заголовки (CSP, X-Frame-Options тощо) з _headers
+# застосовуються коректно, а саме Cache-Control для цих розширень — ні. Спроба
+# перекрити його через _headers (як радить загальна документація Cloudflare для
+# Workers Static Assets — це ІНШИЙ продукт) не спрацювала на практиці.
+#
 # Продакшн-деплой іде напряму через Git-інтеграцію Cloudflare Pages (push у main),
-# а НЕ через deploy.sh — тому ?v=<час деплою>, який мав додавати deploy.sh, ніколи
-# не застосовується, і index.html/category.html підключають app.js БЕЗ версії.
-# Cloudflare Pages кешує статику за розширенням файла на своїй CDN на кілька годин.
-# Раніше вважалося, що _headers не може це перекрити — це невірно (офіційна
-# документація Cloudflare Pages підтверджує підтримку Cache-Control у _headers).
-# Тому для файлів, які редагуються найчастіше (JS/CSS логіки сайту), примусово
-# вимикаємо тривале кешування: must-revalidate змушує браузер/CDN звірятись
-# з origin (дешевий 304, якщо файл не змінився) замість сліпого показу старої копії.
-/app.js
-  Cache-Control: public, max-age=0, must-revalidate
-/cart.js
-  Cache-Control: public, max-age=0, must-revalidate
-/seo-jsonld.js
-  Cache-Control: public, max-age=0, must-revalidate
-/seasonal-helper.js
-  Cache-Control: public, max-age=0, must-revalidate
-/footer.js
-  Cache-Control: public, max-age=0, must-revalidate
-/style.css
-  Cache-Control: public, max-age=0, must-revalidate
-/recipes.css
-  Cache-Control: public, max-age=0, must-revalidate
-/md-render.js
-  Cache-Control: public, max-age=0, must-revalidate
+# без збірного скрипта — тому deploy.sh (і його авто-версіонування ?v=) НЕ виконується.
+# Єдиний робочий спосіб кеш-бастингу зараз: вручну міняти ?v=<щось нове> у
+# src="app.js?v=..." в index.html/category.html при кожній зміні app.js.
+# TODO: якщо буде повертатись до цього — розглянути Cloudflare Pages "Build command"
+# у налаштуваннях проєкту (dashboard), який міг би генерувати версію автоматично
+# при кожному git push, без ручного редагування HTML.
