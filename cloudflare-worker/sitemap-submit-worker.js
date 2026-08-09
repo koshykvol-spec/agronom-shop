@@ -8,7 +8,9 @@
 //                        "-----BEGIN PRIVATE KEY-----" / "-----END PRIVATE KEY-----")
 //
 // Сайт і файл sitemap — константи нижче, міняти тут, якщо колись зміняться.
-const SITE_URL = 'https://agronom.pp.ua/';
+// Властивість у Search Console зареєстрована як "Домен" (не URL-prefix) —
+// підтверджено через sites.list: siteUrl = "sc-domain:agronom.pp.ua".
+const SITE_URL = 'sc-domain:agronom.pp.ua';
 const SITEMAP_URL = 'https://agronom.pp.ua/sitemap-main.xml';
 
 function base64url(bytes) {
@@ -83,23 +85,6 @@ async function submitSitemap(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.searchParams.get('debug') === '1') {
-      const raw = env.GSC_PRIVATE_KEY || '';
-      const info = {
-        length: raw.length,
-        startsWithQuote: raw.startsWith('"'),
-        endsWithQuote: raw.endsWith('"'),
-        hasBegin: raw.includes('BEGIN PRIVATE KEY'),
-        hasEnd: raw.includes('END PRIVATE KEY'),
-        literalBackslashN: (raw.match(/\\n/g) || []).length,
-        realNewlines: (raw.match(/\n/g) || []).length,
-        first20: JSON.stringify(raw.slice(0, 20)),
-        last20: JSON.stringify(raw.slice(-20)),
-        clientEmailLength: (env.GSC_CLIENT_EMAIL || '').length,
-        clientEmailPreview: (env.GSC_CLIENT_EMAIL || '').slice(0, 15) + '...'
-      };
-      return new Response(JSON.stringify(info, null, 2), { headers: { 'content-type': 'application/json' } });
-    }
     if (url.searchParams.get('debug') === '2') {
       try {
         const token = await getAccessToken(env);
