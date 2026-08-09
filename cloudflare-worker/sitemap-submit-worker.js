@@ -21,7 +21,8 @@ function pemToArrayBuffer(pem) {
   const b64 = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, '')
     .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s+/g, '');
+    .replace(/\\n/g, '')   // літеральні "\n" (два символи) — так виглядає perенос рядка, скопійований прямо з JSON-файлу
+    .replace(/\s+/g, '');  // справжні пробіли/переноси рядків (якщо ключ вставили вже "розгорнутим")
   const bin = atob(b64);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
