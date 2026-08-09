@@ -166,11 +166,14 @@ export async function onRequest(context) {
 
   let reviews = [];
   try { reviews = (await env.DB.prepare(`SELECT name,rating,text,img,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
-  const revCount = reviews.length;
-  const revAvg = revCount ? (reviews.reduce((a,r)=>a+(r.rating||0),0)/revCount) : 0;
+  // Тільки відгуки з валідною оцінкою 1-5 йдуть у структуровані дані — reviewRating.ratingValue=0/null
+  // Google трактує як недійсне значення (не просто попередження).
+  const ratedReviews = reviews.filter(r => Number(r.rating) >= 1 && Number(r.rating) <= 5);
+  const revCount = ratedReviews.length;
+  const revAvg = revCount ? (ratedReviews.reduce((a,r)=>a+Number(r.rating),0)/revCount) : 0;
   if (revCount){
     jsonld.aggregateRating = { '@type':'AggregateRating', ratingValue: Math.round(revAvg*10)/10, reviewCount: revCount };
-    jsonld.review = reviews.slice(0,5).map(r=>({ '@type':'Review', author:{ '@type':'Person', name:r.name||'Покупець' }, reviewRating:{ '@type':'Rating', ratingValue:r.rating, bestRating:5 }, reviewBody:(r.text||'').slice(0,500) }));
+    jsonld.review = ratedReviews.slice(0,5).map(r=>({ '@type':'Review', author:{ '@type':'Person', name:r.name||'Покупець' }, reviewRating:{ '@type':'Rating', ratingValue:Number(r.rating), bestRating:5 }, reviewBody:(r.text||'').slice(0,500) }));
   }
   let related = [];
   try {
