@@ -81,9 +81,25 @@ async function submitSitemap(env) {
 }
 
 export default {
-  // Ручний виклик для перевірки: GET/POST на сам воркер (не вимагає авторизації —
-  // якщо треба захистити, можна додати перевірку секретного query-параметра).
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.searchParams.get('debug') === '1') {
+      const raw = env.GSC_PRIVATE_KEY || '';
+      const info = {
+        length: raw.length,
+        startsWithQuote: raw.startsWith('"'),
+        endsWithQuote: raw.endsWith('"'),
+        hasBegin: raw.includes('BEGIN PRIVATE KEY'),
+        hasEnd: raw.includes('END PRIVATE KEY'),
+        literalBackslashN: (raw.match(/\\n/g) || []).length,
+        realNewlines: (raw.match(/\n/g) || []).length,
+        first20: JSON.stringify(raw.slice(0, 20)),
+        last20: JSON.stringify(raw.slice(-20)),
+        clientEmailLength: (env.GSC_CLIENT_EMAIL || '').length,
+        clientEmailPreview: (env.GSC_CLIENT_EMAIL || '').slice(0, 15) + '...'
+      };
+      return new Response(JSON.stringify(info, null, 2), { headers: { 'content-type': 'application/json' } });
+    }
     try {
       const result = await submitSitemap(env);
       return new Response(JSON.stringify(result), { headers: { 'content-type': 'application/json' } });
