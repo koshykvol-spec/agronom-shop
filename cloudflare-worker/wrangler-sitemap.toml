@@ -1,0 +1,8 @@
+name = "agro-sitemap-submit"
+main = "sitemap-submit-worker.js"
+compatibility_date = "2024-11-01"
+
+# Щодня о 3:00 UTC (6:00 за київським часом влітку) — sitemap рідко
+# змінюється частіше, і Google все одно не обробляє submit миттєво.
+[triggers]
+crons = ["0 3 * * *"]
