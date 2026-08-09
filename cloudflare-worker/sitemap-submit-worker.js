@@ -100,6 +100,18 @@ export default {
       };
       return new Response(JSON.stringify(info, null, 2), { headers: { 'content-type': 'application/json' } });
     }
+    if (url.searchParams.get('debug') === '2') {
+      try {
+        const token = await getAccessToken(env);
+        const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
+          headers: { authorization: 'Bearer ' + token }
+        });
+        const data = await res.json();
+        return new Response(JSON.stringify({ status: res.status, data }, null, 2), { headers: { 'content-type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: { 'content-type': 'application/json' } });
+      }
+    }
     try {
       const result = await submitSitemap(env);
       return new Response(JSON.stringify(result), { headers: { 'content-type': 'application/json' } });
