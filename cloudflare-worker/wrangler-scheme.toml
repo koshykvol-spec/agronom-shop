@@ -1,0 +1,8 @@
+name = "agro-telegram-scheme-poster"
+main = "telegram-scheme-poster-worker.js"
+compatibility_date = "2024-11-01"
+
+# 11:00 за київським часом (UTC+3 влітку) = 08:00 UTC — між ранковим (06:00)
+# і денним (11:00) товарними постами, щоб не збігалось.
+[triggers]
+crons = ["0 8 * * *"]
