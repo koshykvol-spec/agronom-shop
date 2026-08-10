@@ -10,6 +10,29 @@ function isWeight(p) {
   return p.category === 'НАСІННЯ ВАГОВЕ' || n.includes(', кг') || n.includes(' ваговий') || n.endsWith(',кг');
 }
 
+// Google для JSON-LD Product.category офіційно приймає власну таксономію (не обов'язково
+// свою англомовну), АЛЕ вимагає ієрархічного формату "Рівень1 > Рівень2 > ...".
+// Наші p.category з D1 — пласкі однорівневі назви (АГРОХІМІКАТИ, КРАПЕЛЬНЕ ЗРОШУВАННЯ...) —
+// саме це GSC й позначав як "Недійсне значення в полі category" (навіть коли поле не пусте).
+const CATEGORY_HIERARCHY = {
+  'АГРОХІМІКАТИ': 'Агротовари > Агрохімікати',
+  'НАСІННЯ ІМПОРТНЕ': 'Агротовари > Насіння > Імпортне',
+  'НАСІННЯ ВІТЧИЗНЯНЕ': 'Агротовари > Насіння > Вітчизняне',
+  'НАСІННЯ ВАГОВЕ': 'Агротовари > Насіння > Вагове',
+  'МАТЕРІАЛИ': 'Агротовари > Матеріали',
+  'КРАПЕЛЬНЕ ЗРОШУВАННЯ': 'Агротовари > Полив > Крапельне зрошування',
+  'ГРУНТ': 'Агротовари > Ґрунти та субстрати',
+  'ГОРЩИКИ': 'Агротовари > Горщики та касети',
+  'ПРОТИ КОМАХ': 'Агротовари > Засоби від шкідників > Проти комах',
+  'ДЛЯ ТВАРИН': 'Агротовари > Товари для тварин',
+  'РОЗСАДА': 'Агротовари > Розсада'
+};
+function hierCategory(raw) {
+  const v = (raw && String(raw).trim()) ? String(raw).trim() : '';
+  if (!v) return undefined;
+  return CATEGORY_HIERARCHY[v.toUpperCase()] || ('Агротовари > ' + v);
+}
+
 export async function onRequest(context) {
   const { params, env, request } = context;
   const slug = params.slug;
@@ -132,7 +155,7 @@ export async function onRequest(context) {
     sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
     mpn: safeMpn,
     // Порожній/NULL category в D1 інакше потрапляв у JSON-LD як null → GSC "Недійсне значення в полі category".
-    category: (p.category && String(p.category).trim()) ? String(p.category).trim() : undefined,
+    category: hierCategory(p.category),
     brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
     additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
