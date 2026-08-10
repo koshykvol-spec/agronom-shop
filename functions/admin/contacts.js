@@ -19,10 +19,11 @@ const SETTING_LABELS = {
   city:'Місто (м. …)', locality:'Населений пункт (для JSON-LD)', region:'Область',
   phoneDisplay:'Телефон (показ)', phoneIntl:'Телефон (+380…)', viberPhone:'Viber (380…)',
   telegram:'Telegram (URL, порожньо = ховати)', email:'E-mail (порожньо = ховати)',
+  telegramChannel:'Telegram-канал (URL, напр. https://t.me/agronom_novynky; порожньо = ховати кнопку)',
   address:'Основна адреса', hours:'Основні години',
   np_placeholder:'Плейсхолдер «місто/відділення НП» у формі замовлення'
 };
-const SETTING_ORDER = ['name','network','fop','city','locality','region','phoneDisplay','phoneIntl','viberPhone','telegram','email','address','hours','np_placeholder'];
+const SETTING_ORDER = ['name','network','fop','city','locality','region','phoneDisplay','phoneIntl','viberPhone','telegram','telegramChannel','email','address','hours','np_placeholder'];
 
 export async function onRequestGet(context){
   const db = context.env.DB;

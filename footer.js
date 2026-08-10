@@ -69,6 +69,7 @@
       + '      <a class="footer-line" href="tel:' + esc(c.phoneIntl || '') + '">📞 ' + esc(c.phoneDisplay || '') + '</a>'
       + '      <a class="footer-line" href="' + esc(viberHref) + '">📲 Viber</a>'
       + (c.telegram ? '      <a class="footer-line" href="' + esc(c.telegram) + '" target="_blank" rel="noopener">✈️ Telegram</a>' : '')
+      + (c.telegramChannel ? '      <a class="footer-line" href="' + esc(c.telegramChannel) + '" target="_blank" rel="noopener" style="color:#0088cc;font-weight:700;">📢 Наш Telegram-канал</a>' : '')
       + (c.email ? '      <a class="footer-line" href="mailto:' + esc(c.email) + '">✉️ ' + esc(c.email) + '</a>' : '')
       + '    </div>'
       + '    <div class="footer-col">'
