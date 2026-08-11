@@ -691,6 +691,7 @@ export async function onRequest(context) {
   <a href="/index.html" class="bn-item"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
   <a href="/index.html" class="bn-item"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
   <a href="/index.html#cart" class="bn-item"><span class="bn-ico">🛒</span><span class="bn-lbl">Кошик</span></a>
+  <a href="/account.html" class="bn-item"><span class="bn-ico">👤</span><span class="bn-lbl">Кабінет</span></a>
   <a href="/contacts.html" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
 </nav>
 <div id="site-footer"></div>

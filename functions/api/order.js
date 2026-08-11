@@ -1,10 +1,13 @@
 // /api/order — єдина точка входу замовлення:
 //   1) перевіряє Turnstile (анти-спам), 2) зберігає в D1 із серверною валідацією суми,
 //   3) пересилає в Telegram через воркер довіреним каналом (X-Order-Auth = secrets.order_internal_key).
+//   Якщо клієнт залогінений (сесійний cookie) — замовлення прив'язується до його акаунта.
+import { getCustomerIdFromRequest } from '../_lib/session.js';
 const J = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: { 'content-type': 'application/json; charset=utf-8' } });
 
 export async function onRequestPost(context) {
   const db = context.env.DB;
+  const customerId = await getCustomerIdFromRequest(context.env, context.request);
   let b = {};
   try { b = await context.request.json(); } catch (e) {}
 
@@ -67,10 +70,10 @@ export async function onRequestPost(context) {
   try {
     const res = await db.prepare(
       `INSERT INTO orders(created_at,name,phone,address,delivery,comment,items,total,status,
-                          np_service,np_city_ref,np_city_name,np_wh_ref,np_wh_name,np_street,np_house,np_flat)
-       VALUES(?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?)`
+                          np_service,np_city_ref,np_city_name,np_wh_ref,np_wh_name,np_street,np_house,np_flat,customer_id)
+       VALUES(?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?,?)`
     ).bind(new Date().toISOString(), name, phone, address, delivery, comment, items, total,
-           npService, npCityRef, npCityName, npWhRef, npWhName, npStreet, npHouse, npFlat).run();
+           npService, npCityRef, npCityName, npWhRef, npWhName, npStreet, npHouse, npFlat, customerId).run();
     const id = res.meta && res.meta.last_row_id;
     if (id) no = String(1000 + id);   // людиніший номер (1001, 1002, …)
   } catch (e) { console.error('[order] D1 insert failed:', e && e.message, '| body:', JSON.stringify({ name, phone, total })); }

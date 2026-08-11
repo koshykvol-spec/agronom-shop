@@ -9,6 +9,7 @@ const FALLBACK = {
   city: 'м. Володимир', locality: 'Володимир', region: 'Волинська область',
   phoneDisplay: '063 462 52 06', phoneIntl: '+380634625206', viberPhone: '380634625206',
   telegram: '', telegramChannel: '', email: '',
+  googleClientId: '', tgLoginBotUsername: '',
   address: 'вул. Ковельська, 253П, м. Володимир',
   hours: 'Пн–Пт 9:00–18:00 · Сб 9:00–16:00 · Нд 10:00–16:00',
   stores: [

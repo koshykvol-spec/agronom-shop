@@ -20,10 +20,12 @@ const SETTING_LABELS = {
   phoneDisplay:'Телефон (показ)', phoneIntl:'Телефон (+380…)', viberPhone:'Viber (380…)',
   telegram:'Telegram (URL, порожньо = ховати)', email:'E-mail (порожньо = ховати)',
   telegramChannel:'Telegram-канал (URL, напр. https://t.me/agronom_novynky; порожньо = ховати кнопку)',
+  googleClientId:'Google Client ID (для кнопки "Увійти через Google", публічний, не секрет)',
+  tgLoginBotUsername:'Username бота для Telegram Login (без @, напр. agronom_shop_bot)',
   address:'Основна адреса', hours:'Основні години',
   np_placeholder:'Плейсхолдер «місто/відділення НП» у формі замовлення'
 };
-const SETTING_ORDER = ['name','network','fop','city','locality','region','phoneDisplay','phoneIntl','viberPhone','telegram','telegramChannel','email','address','hours','np_placeholder'];
+const SETTING_ORDER = ['name','network','fop','city','locality','region','phoneDisplay','phoneIntl','viberPhone','telegram','telegramChannel','googleClientId','tgLoginBotUsername','email','address','hours','np_placeholder'];
 
 export async function onRequestGet(context){
   const db = context.env.DB;
