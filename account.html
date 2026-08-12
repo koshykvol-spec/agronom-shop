@@ -140,13 +140,21 @@ function renderOrders(orders){
   }).join('');
 }
 
-async function boot(){
-  await new Promise(function(resolve){
-    var sc = document.createElement('script'); sc.src = '/site-config';
+function loadScript(src){
+  return new Promise(function(resolve){
+    var sc = document.createElement('script'); sc.src = src;
     sc.onload = resolve; sc.onerror = resolve;
     document.head.appendChild(sc);
   });
+}
+
+async function boot(){
+  // Спершу site-config (ставить window.SITE_CONFIG), тільки ПОТІМ footer.js —
+  // footer.js читає window.SITE_CONFIG синхронно при старті, без очікування,
+  // тому порядок тут критичний (інакше футер рендериться з порожніми даними).
+  await loadScript('/site-config');
   var cfg = window.SITE_CONFIG || {};
+  await loadScript('/footer.js');
 
   const meRes = await fetch('/api/auth/me').then(function(r){ return r.json(); }).catch(function(){ return {ok:false}; });
   document.getElementById('acc-loading').style.display = 'none';
@@ -166,7 +174,5 @@ async function boot(){
 }
 boot();
 </script>
-<script src="/footer.js"></script>
 </body>
 </html>
-
