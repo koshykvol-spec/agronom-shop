@@ -465,7 +465,7 @@ export async function onRequest(context) {
 <header><nav>
   <a href="/index.html" class="logo">АГРОНОМ</a>
   <a href="/protection_schemes.html" class="nav-link">🌿 Порадник</a>
-  <a href="/account.html" class="nav-link">👤 Кабінет</a>
+  <a href="/account.html" class="nav-link" id="nav-account-link">👤 Кабінет</a>
   <div class="nav-right">
     <a href="tel:+380634625206" data-site-phone class="nav-phone">м. Володимир<br><strong>063 462 52 06</strong></a>
     <a href="tel:+380634625206" data-site-call class="nav-call" aria-label="Подзвонити в магазин">☎ Подзвонити</a>
@@ -793,6 +793,16 @@ markRelInCart();
 </script>
 <script src="/site-config"></script>
 <script src="/footer.js"></script>
+<script>
+(function(){
+  fetch('/api/auth/me').then(function(r){ return r.json(); }).then(function(d){
+    if(d.ok && d.customer){
+      var el = document.getElementById('nav-account-link');
+      if(el) el.textContent = '👤 ' + ((d.customer.name||'Кабінет').split(' ')[0]);
+    }
+  }).catch(function(){});
+})();
+</script>
 </body>
 </html>`;
 
