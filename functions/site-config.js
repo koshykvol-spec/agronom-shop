@@ -31,11 +31,30 @@ function emit(cfg) {
   });
 }
 
+// Публічний білий список — ЛИШЕ ці ключі з site_settings можуть потрапити в публічну
+// відповідь /site-config. Таблиця site_settings — спільна для публічних реквізитів І
+// секретних API-ключів (Anthropic/Gemini/OpenRouter для AI-діагностики, Turnstile secret
+// тощо) — раніше сюди віддавалось ВСЕ підряд без фільтрації, тобто секретні ключі були
+// доступні будь-кому просто за адресою /site-config. Якщо додаєш нове публічне поле —
+// впиши його ключ і сюди теж, інакше воно не потрапить у відповідь (це навмисно "safe by
+// default": пропущений новий секретний ключ просто не покажеться, а не навпаки).
+const PUBLIC_KEYS = new Set([
+  'name', 'network', 'fop', 'city', 'locality', 'region',
+  'phoneDisplay', 'phoneIntl', 'viberPhone',
+  'telegram', 'telegramChannel', 'googleClientId', 'tgLoginBotUsername',
+  'email', 'address', 'hours', 'np_placeholder',
+  'turnstile_sitekey',   // публічний site key Turnstile-віджета (НЕ turnstile_secret!)
+  'ukrposhta_on',        // просто перемикач фічі, не секрет
+  'ga4_id', 'clarity_id' // ID аналітики — публічні за своєю природою, і так видно в HTML
+]);
+
 export async function onRequestGet(context) {
   const db = context.env.DB;
   try {
     const cfg = {};
-    for (const r of (await db.prepare(`SELECT key,value FROM site_settings`).all()).results || []) cfg[r.key] = r.value;
+    for (const r of (await db.prepare(`SELECT key,value FROM site_settings`).all()).results || []) {
+      if (PUBLIC_KEYS.has(r.key)) cfg[r.key] = r.value;
+    }
     const sRows = (await db.prepare(`SELECT name,street,address,hours,lat,lng,map,oh_json FROM stores ORDER BY sort,id`).all()).results || [];
     if (!Object.keys(cfg).length && !sRows.length) return emit(FALLBACK);
     cfg.stores = sRows.map(s => {
