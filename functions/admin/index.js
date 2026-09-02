@@ -5,6 +5,41 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 const PAGE_SIZES = [30, 60, 120, 240];
 const DEFAULT_PAGE_SIZE = 60;
 
+// ── кеш дашборд-статистики (5 хв) — прибирає 3 важких запити на кожне відкриття /admin ──
+const STATS_TTL_MS = 5 * 60 * 1000;
+async function getStats(db) {
+  const cached = await db.prepare(`SELECT * FROM admin_stats_cache WHERE id=1`).first();
+  const fresh = cached && (Date.now() - cached.updated_at) < STATS_TTL_MS;
+  if (fresh) {
+    return {
+      totalC: { n: cached.total, noa: cached.noa, noimg: cached.noimg, nodosage: cached.nodosage,
+                noai: cached.noai, nokw: cached.nokw, noseo: cached.noseo },
+      noRevTotal: cached.norev,
+      catRows: { results: JSON.parse(cached.cat_json) }
+    };
+  }
+  const catRows = await db.prepare(`SELECT category c, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC`).all();
+  const totalC = await db.prepare(`SELECT COUNT(*) n,
+                                     SUM(CASE WHEN COALESCE(c.annotation,'')='' THEN 1 ELSE 0 END) noa,
+                                     SUM(CASE WHEN COALESCE(c.image_ok, 0)=0 THEN 1 ELSE 0 END) noimg,
+                                     SUM(CASE WHEN (c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) nodosage,
+                                     SUM(CASE WHEN (c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) noai,
+                                     SUM(CASE WHEN c.keywords IS NULL OR c.keywords='' THEN 1 ELSE 0 END) nokw,
+                                     SUM(CASE WHEN COALESCE(c.meta_title,'')='' OR COALESCE(c.meta_desc,'')='' THEN 1 ELSE 0 END) noseo
+                                     FROM products p JOIN product_content c ON c.pid=p.pid`).first();
+  const noRevTotal = (((await db.prepare(`SELECT COUNT(*) n FROM products p WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid=p.pid)`).first()) || {}).n) | 0;
+
+  await db.prepare(`INSERT INTO admin_stats_cache (id, total, noa, noimg, nodosage, noai, nokw, noseo, norev, cat_json, updated_at)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET total=excluded.total, noa=excluded.noa, noimg=excluded.noimg,
+       nodosage=excluded.nodosage, noai=excluded.noai, nokw=excluded.nokw, noseo=excluded.noseo,
+       norev=excluded.norev, cat_json=excluded.cat_json, updated_at=excluded.updated_at`)
+    .bind(totalC.n, totalC.noa, totalC.noimg, totalC.nodosage, totalC.noai, totalC.nokw, totalC.noseo, noRevTotal, JSON.stringify(catRows.results || []), Date.now())
+    .run();
+
+  return { totalC, noRevTotal, catRows };
+}
+
 const PAGE = (title, body) => `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
 <title>${esc(title)}</title><style>
@@ -338,18 +373,8 @@ export async function onRequestGet(context) {
     return new Response(PAGE('Редагування: ' + p.name, body), { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
 
-  // ── категорії ──
-  const catRows = await db.prepare(`SELECT category c, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC`).all();
-  const totalC = await db.prepare(`SELECT COUNT(*) n,
-                                     SUM(CASE WHEN COALESCE(c.annotation,'')='' THEN 1 ELSE 0 END) noa,
-                                     SUM(CASE WHEN COALESCE(c.image_ok, 0)=0 THEN 1 ELSE 0 END) noimg,
-                                     SUM(CASE WHEN (c.dosage IS NULL OR c.dosage='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) nodosage,
-                                     SUM(CASE WHEN (c.active_ingredient IS NULL OR c.active_ingredient='') AND p.category='АГРОХІМІКАТИ' THEN 1 ELSE 0 END) noai,
-                                     SUM(CASE WHEN c.keywords IS NULL OR c.keywords='' THEN 1 ELSE 0 END) nokw,
-                                     SUM(CASE WHEN COALESCE(c.meta_title,'')='' OR COALESCE(c.meta_desc,'')='' THEN 1 ELSE 0 END) noseo
-                                     FROM products p JOIN product_content c ON c.pid=p.pid`).first();
-  // товари без жодного відгуку в базі (незалежно від модерації)
-  const noRevTotal = (((await db.prepare(`SELECT COUNT(*) n FROM products p WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid=p.pid)`).first()) || {}).n) | 0;
+  // ── категорії (тепер із кешу, а не наживо на кожен запит) ──
+  const { catRows, totalC, noRevTotal } = await getStats(db);
   const catNav = '<div class="cats">' +
     `<a class="cat${!cat&&!q&&!noa&&!noimg&&!noseo&&!norev?' active':''}" href="/admin">Усі <b>${totalC.n}</b></a>` +
     `<a class="cat${noa?' active':''}" href="/admin?noa=1">Без опису <b>${totalC.noa}</b></a>` +
@@ -365,7 +390,7 @@ export async function onRequestGet(context) {
   // ── вибірка ──
   let where = '0', binds = [];
   if (q) {
-    where = '1'; // витягуємо всі, фільтруємо smartScore нижче
+    where = '1'; // передфільтр робиться в SQL нижче (name_lower/sku_lower), smartScore ранжує кандидатів
   }
   else if (noa) { where = "COALESCE(c.annotation,'')=''"; }
   else if (noimg) { where = "COALESCE(c.image_ok,0)=0"; }
@@ -419,11 +444,17 @@ export async function onRequestGet(context) {
   if (where !== '0') {
     if (q) {
       const qtokens = normS(q).split(' ').filter(Boolean);
-      const allRows = (await db.prepare(
+      // SQL-передфільтр по name_lower/sku_lower — звужує вибірку до кандидатів,
+      // де хоч один токен присутній як підрядок, замість вичитувати всю таблицю.
+      const likeConds = qtokens.map(() => `(p.name_lower LIKE ? OR p.sku_lower LIKE ?)`).join(' OR ');
+      const likeBinds = qtokens.flatMap(t => [`%${t}%`, `%${t}%`]);
+      const candidates = (await db.prepare(
         `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(COALESCE(c.annotation,'')!='') hasA,c.visible,c.image_ok
            FROM products p JOIN product_content c ON c.pid=p.pid
-          ORDER BY COALESCE(NULLIF(c.display_name,''), p.name)`).all()).results || [];
-      const scored = allRows
+          WHERE ${likeConds}
+          LIMIT 500`
+      ).bind(...likeBinds).all()).results || [];
+      const scored = candidates
         .map(r => ({ r, sc: smartScore(r.name || '', r.sku || '', qtokens) }))
         .filter(x => x.sc > 0)
         .sort((a, b) => b.sc - a.sc);

@@ -150,9 +150,10 @@ export async function onRequestPost(context) {
     }
   } catch (e) {}
 
-  const Up = db.prepare(`UPDATE products SET name=?,price=?,category=?,brand=?,in_stock=?,updated_at=? WHERE pid=?`);
+  // name_lower/sku_lower додано в UPDATE та INSERT — для швидкого пошуку без сканування всієї таблиці
+  const Up = db.prepare(`UPDATE products SET name=?,price=?,category=?,brand=?,in_stock=?,updated_at=?,name_lower=? WHERE pid=?`);
   const ZeroMissing = db.prepare(`UPDATE products SET in_stock=0,updated_at=? WHERE pid=?`);
-  const InP = db.prepare(`INSERT INTO products(pid,sku,name,price,category,brand,in_stock,updated_at) VALUES(?,?,?,?,?,?,?,?)`);
+  const InP = db.prepare(`INSERT INTO products(pid,sku,name,price,category,brand,in_stock,updated_at,name_lower,sku_lower) VALUES(?,?,?,?,?,?,?,?,?,?)`);
   const InC = db.prepare(`INSERT INTO product_content(pid,slug,meta_title,visible) VALUES(?,?,?,1)`);
   const InI = db.prepare(`INSERT INTO product_images(pid,path,sort) VALUES(?,?,0)`);
 
@@ -170,13 +171,13 @@ export async function onRequestPost(context) {
       if ((o.in_stock | 0) === 0 && inStock === 1) rep.stockRestored.push({ sku: r.sku, n: r.n });
       if (o.price != null && Math.abs(Number(o.price) - Number(r.p)) > 0.009) rep.priceChanges.push({ sku: r.sku, n: r.n, old: Number(o.price), neu: Number(r.p) });
       if ((o.category || '') !== (r.c || '') || (o.brand || '') !== (r.b || '')) rep.moved.push({ sku: r.sku, n: r.n, oldC: o.category || '', newC: r.c || '', oldB: o.brand || '', newB: r.b || '' });
-      stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, pid)); updated++;
+      stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, r.n.toLowerCase(), pid)); updated++;
     } else {
       pid = ++maxPid;
       let base = slugify(r.n), slug = base, k = 2;
       while (slugs.has(slug)) slug = base + '-' + (k++);
       slugs.add(slug);
-      stmts.push(InP.bind(pid, r.sku, r.n, r.p, r.c, r.b, inStock, r.updated_at));
+      stmts.push(InP.bind(pid, r.sku, r.n, r.p, r.c, r.b, inStock, r.updated_at, r.n.toLowerCase(), r.sku.toLowerCase()));
       stmts.push(InC.bind(pid, slug, r.n + ' — ' + _sName + ', ' + _sCity));
       if (r.img) stmts.push(InI.bind(pid, r.img));
       rep.createdList.push({ sku: r.sku, n: r.n, c: r.c || '' });
