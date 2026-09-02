@@ -11,6 +11,20 @@ export async function onRequestGet(context) {
   try {
     const row = await db.prepare(`SELECT id, name, avatar_url, email, phone FROM customers WHERE id=?`).bind(customerId).first();
     if (!row) return J({ ok: true, customer: null });
-    return J({ ok: true, customer: { id: row.id, name: row.name, avatar: row.avatar_url, email: row.email, phone: row.phone } });
+    // Останнє замовлення цього клієнта — щоб форму замовлення можна було підставити
+    // реальними ПІБ/телефоном, якими він уже колись оформлявся (не завжди збігається
+    // з іменем із Telegram/Google, тому окремо, а не з customers.name).
+    let lastOrder = null;
+    try {
+      lastOrder = await db.prepare(`SELECT name, phone FROM orders WHERE customer_id=? ORDER BY id DESC LIMIT 1`).bind(customerId).first();
+    } catch (e) {}
+    return J({
+      ok: true,
+      customer: {
+        id: row.id, name: row.name, avatar: row.avatar_url, email: row.email, phone: row.phone,
+        lastOrderName: lastOrder ? lastOrder.name : null,
+        lastOrderPhone: lastOrder ? lastOrder.phone : null
+      }
+    });
   } catch (e) { return J({ ok: true, customer: null }); }
 }

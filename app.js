@@ -1223,11 +1223,27 @@ function openOrderModal() {
     modal.addEventListener('click', e => { if (e.target === modal) closeOrderModal(); });
     lockModal(closeOrderModal);
     document.getElementById('ord-name').focus();
+    prefillOrderFromAccount();
     wireNpAutocomplete();
     renderTurnstile();
     renderOrderSummary();
     selectDelivery(firstDel);                       // синхронізувати адресні поля з дефолтною доставкою
     _payMethod = payCodOn ? 'cod' : 'card';         // дефолт оплати = перший доступний спосіб
+}
+
+// Якщо клієнт залогінений (Telegram/Google) — підставляємо ПІБ і телефон з останнього
+// його замовлення (якщо було), або хоча б ім'я з акаунта. Не перезаписує вже введене
+// людиною вручну (напр. якщо форму відкрили повторно й щось уже вписали).
+async function prefillOrderFromAccount() {
+    try {
+        const r = await fetch('/api/auth/me');
+        const d = await r.json();
+        if (!d.ok || !d.customer) return;
+        const nameEl = document.getElementById('ord-name');
+        const phoneEl = document.getElementById('ord-phone');
+        if (nameEl && !nameEl.value) nameEl.value = d.customer.lastOrderName || d.customer.name || '';
+        if (phoneEl && !phoneEl.value && d.customer.lastOrderPhone) phoneEl.value = d.customer.lastOrderPhone;
+    } catch (e) { /* тихо ігноруємо — форма й так лишається порожньою для ручного вводу */ }
 }
 
 // Рендер «Ваше замовлення» у формі checkout з кнопками −/+ (оновлює лише summary,

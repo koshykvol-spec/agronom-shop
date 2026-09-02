@@ -40,6 +40,7 @@
 <header><nav>
   <a href="/index.html" class="logo">АГРОНОМ</a>
   <a href="/protection_schemes.html" class="nav-link">🌿 Порадник</a>
+  <a href="/account.html" class="nav-link" id="nav-account-link">👤 Кабінет</a>
   <div class="nav-right">
     <a href="tel:+380634625206" data-site-phone class="nav-phone">м. Володимир<br><strong>063 462 52 06</strong></a>
     <a href="tel:+380634625206" data-site-call class="nav-call" aria-label="Подзвонити в магазин">☎ Подзвонити</a>
@@ -140,18 +141,28 @@ function renderOrders(orders){
   }).join('');
 }
 
-async function boot(){
-  await new Promise(function(resolve){
-    var sc = document.createElement('script'); sc.src = '/site-config';
+function loadScript(src){
+  return new Promise(function(resolve){
+    var sc = document.createElement('script'); sc.src = src;
     sc.onload = resolve; sc.onerror = resolve;
     document.head.appendChild(sc);
   });
+}
+
+async function boot(){
+  // Спершу site-config (ставить window.SITE_CONFIG), тільки ПОТІМ footer.js —
+  // footer.js читає window.SITE_CONFIG синхронно при старті, без очікування,
+  // тому порядок тут критичний (інакше футер рендериться з порожніми даними).
+  await loadScript('/site-config');
   var cfg = window.SITE_CONFIG || {};
+  await loadScript('/footer.js');
 
   const meRes = await fetch('/api/auth/me').then(function(r){ return r.json(); }).catch(function(){ return {ok:false}; });
   document.getElementById('acc-loading').style.display = 'none';
 
   if(meRes.ok && meRes.customer){
+    var navEl = document.getElementById('nav-account-link');
+    if(navEl) navEl.textContent = '👤 ' + ((meRes.customer.name||'Кабінет').split(' ')[0]);
     document.getElementById('acc-profile').style.display = 'block';
     document.getElementById('acc-name').textContent = meRes.customer.name || 'Клієнт';
     if(meRes.customer.avatar){ document.getElementById('acc-avatar').src = meRes.customer.avatar; }
@@ -166,6 +177,5 @@ async function boot(){
 }
 boot();
 </script>
-<script src="/footer.js"></script>
 </body>
 </html>
