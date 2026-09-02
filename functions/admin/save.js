@@ -1,6 +1,17 @@
 // POST /admin/save — зберегти обогащення товару у D1.
 import { slugify, baseOf } from './_grouputil.js';
 import { replaceProductIngredients } from './_ingredients.js';
+
+// Той самий normS, що й у /admin (index.js) та смарт-пошуку — критично, щоб name_lower/sku_lower
+// фолдились ІДЕНТИЧНО до того, як фолдиться пошуковий запит, інакше LIKE-передфільтр не збігається
+// (напр. "і" в назві товару vs "и" у фолдженому запиті — виявлена причина бага з "Гліфат").
+function normS(s) {
+  s = String(s == null ? '' : s).toLowerCase().replace(/[''`ʼ]/g, '');
+  const FOLD = [['ё','е'],['є','е'],['і','и'],['ї','и'],['ы','и'],['ґ','г']];
+  for (const [a,b] of FOLD) s = s.split(a).join(b);
+  return s.replace(/[^a-z0-9а-я]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   const db = env.DB;
@@ -19,7 +30,7 @@ export async function onRequestPost(context) {
   const newName = f.get('name') || '';
   await db.prepare(`UPDATE products SET sku=COALESCE(NULLIF(?,''), sku), name=?, price=?, category=?, brand=?, in_stock=?, name_lower=?, sku_lower=COALESCE(NULLIF(?,''), sku_lower) WHERE pid=?`)
     .bind(newSku, newName, num(f.get('price')), f.get('category') || null, f.get('brand') || null, f.get('in_stock') === '1' ? 1 : 0,
-          newName.toLowerCase(), newSku.toLowerCase(), pid).run();
+          normS(newName), normS(newSku), pid).run();
   // Обогащення + акція + фасадна назва + група фасовок (порожні = NULL)
   await db.prepare(
     `UPDATE product_content SET annotation=?, keywords=?, meta_title=?, meta_desc=?, visible=?, sale_price=?, sale_until=?, display_name=?, group_id=?, variant_label=?, active_ingredient=?, dosage=?, divisible=?, divisor=? WHERE pid=?`
