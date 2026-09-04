@@ -201,11 +201,14 @@ export async function onRequest(context) {
   let related = [];
   try {
     related = (await env.DB.prepare(
-      `SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock,
-              (SELECT path FROM product_images i WHERE i.pid=pr.pid ORDER BY sort LIMIT 1) AS img
-         FROM products pr JOIN product_content c ON c.pid=pr.pid
-        WHERE pr.category=? AND c.visible=1 AND pr.pid<>? AND (?='' OR c.group_id IS NULL OR c.group_id<>?)
-        ORDER BY pr.in_stock DESC, pr.pid LIMIT 8`
+      `WITH picked AS (
+         SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock
+           FROM products pr JOIN product_content c ON c.pid=pr.pid
+          WHERE pr.category=? AND c.visible=1 AND pr.pid<>? AND (?='' OR c.group_id IS NULL OR c.group_id<>?)
+          ORDER BY pr.in_stock DESC, pr.pid LIMIT 8
+       )
+       SELECT picked.*, (SELECT path FROM product_images i WHERE i.pid=picked.pid ORDER BY sort LIMIT 1) AS img
+         FROM picked`
     ).bind(p.category, p.pid, p.group_id||'', p.group_id||'').all()).results || [];
   } catch(e){}
 
