@@ -3,8 +3,7 @@ import { slugify, baseOf } from './_grouputil.js';
 import { replaceProductIngredients } from './_ingredients.js';
 
 // Той самий normS, що й у /admin (index.js) та смарт-пошуку — критично, щоб name_lower/sku_lower
-// фолдились ІДЕНТИЧНО до того, як фолдиться пошуковий запит, інакше LIKE-передфільтр не збігається
-// (напр. "і" в назві товару vs "и" у фолдженому запиті — виявлена причина бага з "Гліфат").
+// і FTS5-індекс фолдились ІДЕНТИЧНО до того, як фолдиться пошуковий запит.
 function normS(s) {
   s = String(s == null ? '' : s).toLowerCase().replace(/[''`ʼ]/g, '');
   const FOLD = [['ё','е'],['є','е'],['і','и'],['ї','и'],['ы','и'],['ґ','г']];
@@ -28,9 +27,15 @@ export async function onRequestPost(context) {
   // Поля з 1С (перезапишуться при наступному імпорті — очікувано). SKU редагований (порожнє = лишити старий).
   const newSku = (f.get('sku') || '').trim();
   const newName = f.get('name') || '';
+  const newNameLower = normS(newName);
   await db.prepare(`UPDATE products SET sku=COALESCE(NULLIF(?,''), sku), name=?, price=?, category=?, brand=?, in_stock=?, name_lower=?, sku_lower=COALESCE(NULLIF(?,''), sku_lower) WHERE pid=?`)
     .bind(newSku, newName, num(f.get('price')), f.get('category') || null, f.get('brand') || null, f.get('in_stock') === '1' ? 1 : 0,
-          normS(newName), normS(newSku), pid).run();
+          newNameLower, normS(newSku), pid).run();
+
+  // Синхронізація FTS5-індексу пошуку (products_fts) з новою назвою.
+  await db.prepare(`DELETE FROM products_fts WHERE rowid=?`).bind(pid).run();
+  await db.prepare(`INSERT INTO products_fts(rowid, name_lower) VALUES (?, ?)`).bind(pid, newNameLower).run();
+
   // Обогащення + акція + фасадна назва + група фасовок (порожні = NULL)
   await db.prepare(
     `UPDATE product_content SET annotation=?, keywords=?, meta_title=?, meta_desc=?, visible=?, sale_price=?, sale_until=?, display_name=?, group_id=?, variant_label=?, active_ingredient=?, dosage=?, divisible=?, divisor=? WHERE pid=?`

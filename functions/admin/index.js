@@ -390,7 +390,7 @@ export async function onRequestGet(context) {
   // ── вибірка ──
   let where = '0', binds = [];
   if (q) {
-    where = '1'; // передфільтр робиться в SQL нижче (name_lower/sku_lower), smartScore ранжує кандидатів
+    where = '1'; // передфільтр робиться через FTS5 + prefix-LIKE(sku) нижче, smartScore ранжує кандидатів
   }
   else if (noa) { where = "COALESCE(c.annotation,'')=''"; }
   else if (noimg) { where = "COALESCE(c.image_ok,0)=0"; }
@@ -444,16 +444,37 @@ export async function onRequestGet(context) {
   if (where !== '0') {
     if (q) {
       const qtokens = normS(q).split(' ').filter(Boolean);
-      // SQL-передфільтр по name_lower/sku_lower — звужує вибірку до кандидатів,
-      // де хоч один токен присутній як підрядок, замість вичитувати всю таблицю.
-      const likeConds = qtokens.map(() => `(p.name_lower LIKE ? OR p.sku_lower LIKE ?)`).join(' OR ');
-      const likeBinds = qtokens.flatMap(t => [`%${t}%`, `%${t}%`]);
-      const candidates = (await db.prepare(
-        `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(COALESCE(c.annotation,'')!='') hasA,c.visible,c.image_ok
-           FROM products p JOIN product_content c ON c.pid=p.pid
-          WHERE ${likeConds}
-          LIMIT 500`
-      ).bind(...likeBinds).all()).results || [];
+
+      // ── індексований пошук кандидатів (FTS5 по назві + prefix-LIKE по SKU) ──
+      // На відміну від LIKE '%tok%' (завжди повне сканування таблиці незалежно
+      // від індексів через leading wildcard), обидва шляхи нижче дійсно
+      // використовують індекс — FTS5 інвертований для назви, B-tree range scan
+      // для SKU (LIKE 'tok%' без початкового wildcard).
+      let candidatePids = [];
+      if (qtokens.length) {
+        const ftsQuery = qtokens.map(t => t.replace(/"/g, '') + '*').join(' ');
+        let ftsPids = [];
+        try {
+          ftsPids = (await db.prepare(`SELECT rowid AS pid FROM products_fts WHERE products_fts MATCH ?`).bind(ftsQuery).all()).results.map(r => r.pid);
+        } catch (e) { ftsPids = []; } // FTS5-запит з порожнім/невалідним рядком — просто нема кандидатів з цього шляху
+
+        const skuConds = qtokens.map(() => `sku_lower LIKE ?`).join(' OR ');
+        const skuBinds = qtokens.map(t => t + '%');
+        const skuPids = (await db.prepare(`SELECT pid FROM products WHERE ${skuConds} LIMIT 500`).bind(...skuBinds).all()).results.map(r => r.pid);
+
+        candidatePids = Array.from(new Set([...ftsPids, ...skuPids])).slice(0, 500);
+      }
+
+      let candidates = [];
+      if (candidatePids.length) {
+        const placeholders = candidatePids.map(() => '?').join(',');
+        candidates = (await db.prepare(
+          `SELECT p.pid, p.sku AS sku, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category,(COALESCE(c.annotation,'')!='') hasA,c.visible,c.image_ok
+             FROM products p JOIN product_content c ON c.pid=p.pid
+            WHERE p.pid IN (${placeholders})`
+        ).bind(...candidatePids).all()).results || [];
+      }
+
       const scored = candidates
         .map(r => ({ r, sc: smartScore(r.name || '', r.sku || '', qtokens) }))
         .filter(x => x.sc > 0)

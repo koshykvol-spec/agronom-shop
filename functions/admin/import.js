@@ -6,8 +6,7 @@ const TR = {'а':'a','б':'b','в':'v','г':'g','ґ':'g','д':'d','е':'e','є':
 function slugify(n){let s=(n||'').toLowerCase();let o='';for(const ch of s)o+=(TR[ch]!==undefined?TR[ch]:ch);o=o.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');return o.slice(0,80)||'tovar';}
 function fixNum(s){return String(s==null?'':s).replace(/[\s ]/g,'');}
 // Той самий normS, що й у /admin (index.js) та смарт-пошуку — критично, щоб name_lower/sku_lower
-// фолдились ІДЕНТИЧНО до того, як фолдиться пошуковий запит (напр. "і"→"и"), інакше LIKE-передфільтр
-// пропускає товари з "і" в назві (виявлена причина бага з пошуком "Гліфат").
+// і FTS5-індекс фолдились ІДЕНТИЧНО до того, як фолдиться пошуковий запит.
 function normS(s) {
   s = String(s == null ? '' : s).toLowerCase().replace(/[''`ʼ]/g, '');
   const FOLD = [['ё','е'],['є','е'],['і','и'],['ї','и'],['ы','и'],['ґ','г']];
@@ -165,6 +164,9 @@ export async function onRequestPost(context) {
   const InP = db.prepare(`INSERT INTO products(pid,sku,name,price,category,brand,in_stock,updated_at,name_lower,sku_lower) VALUES(?,?,?,?,?,?,?,?,?,?)`);
   const InC = db.prepare(`INSERT INTO product_content(pid,slug,meta_title,visible) VALUES(?,?,?,1)`);
   const InI = db.prepare(`INSERT INTO product_images(pid,path,sort) VALUES(?,?,0)`);
+  // Синхронізація FTS5-індексу пошуку (products_fts) — DELETE+INSERT на оновлення, INSERT на новий товар
+  const FtsDel = db.prepare(`DELETE FROM products_fts WHERE rowid=?`);
+  const FtsIns = db.prepare(`INSERT INTO products_fts(rowid, name_lower) VALUES(?, ?)`);
 
   const stmts = []; let created = 0, updated = 0;
   const rep = { createdList: [], stockZeroed: [], stockRestored: [], priceChanges: [], moved: [], disappeared: [] };
@@ -174,20 +176,24 @@ export async function onRequestPost(context) {
     const inStock = r.inStock === false ? 0 : 1;
     let pid = bySkuName.get(r.sku + '|' + r.n);
     if (pid == null) { const a = bySku.get(r.sku); if (a && a.length === 1) pid = a[0]; }
+    const nLower = normS(r.n);
     if (pid != null) {
       const o = pidInfo.get(pid) || {};
       if ((o.in_stock | 0) !== 0 && inStock === 0) rep.stockZeroed.push({ sku: r.sku, n: r.n });
       if ((o.in_stock | 0) === 0 && inStock === 1) rep.stockRestored.push({ sku: r.sku, n: r.n });
       if (o.price != null && Math.abs(Number(o.price) - Number(r.p)) > 0.009) rep.priceChanges.push({ sku: r.sku, n: r.n, old: Number(o.price), neu: Number(r.p) });
       if ((o.category || '') !== (r.c || '') || (o.brand || '') !== (r.b || '')) rep.moved.push({ sku: r.sku, n: r.n, oldC: o.category || '', newC: r.c || '', oldB: o.brand || '', newB: r.b || '' });
-      stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, normS(r.n), pid)); updated++;
+      stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, nLower, pid)); updated++;
+      stmts.push(FtsDel.bind(pid));
+      stmts.push(FtsIns.bind(pid, nLower));
     } else {
       pid = ++maxPid;
       let base = slugify(r.n), slug = base, k = 2;
       while (slugs.has(slug)) slug = base + '-' + (k++);
       slugs.add(slug);
-      stmts.push(InP.bind(pid, r.sku, r.n, r.p, r.c, r.b, inStock, r.updated_at, normS(r.n), normS(r.sku)));
+      stmts.push(InP.bind(pid, r.sku, r.n, r.p, r.c, r.b, inStock, r.updated_at, nLower, normS(r.sku)));
       stmts.push(InC.bind(pid, slug, r.n + ' — ' + _sName + ', ' + _sCity));
+      stmts.push(FtsIns.bind(pid, nLower));
       if (r.img) stmts.push(InI.bind(pid, r.img));
       rep.createdList.push({ sku: r.sku, n: r.n, c: r.c || '' });
       created++;
