@@ -5,7 +5,7 @@ const PAGE_ID = process.env.FB_PAGE_ID;
 const PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const products = JSON.parse(fs.readFileSync('./products.json', 'utf-8'));
+const products = JSON.parse(fs.readFileSync('./sample/products.json', 'utf-8'));
 const imgMap = JSON.parse(fs.readFileSync('./img-map.json', 'utf-8'));
 let posted = JSON.parse(fs.readFileSync('./posted-log.json', 'utf-8'));
 
