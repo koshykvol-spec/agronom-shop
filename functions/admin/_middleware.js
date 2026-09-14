@@ -1,5 +1,6 @@
-// Basic Auth для всіх /admin/* (логін: admin, пароль: env.ADMIN_PASSWORD).
+// Basic Auth для усіх /admin/* (логін: admin, пароль: env.ADMIN_PASSWORD).
 // + CSRF-захист дій, що змінюють стан, + заборона кешування адмін-відповідей.
+// + Автоматична інвалідація edge-кешу /api/products після будь-якого запису в адмінці.
 
 // GET-параметри, що ВИКОНУЮТЬ дію (а не просто показують сторінку).
 // Будь-який POST також вважається дією. Нові мутуючі GET-параметри додавати сюди.
@@ -50,6 +51,18 @@ export async function onRequest(context) {
 
   // Адмін-відповіді не кешувати ніде (браузер/проксі) — захист від випадкового збереження.
   const res = await next();
+
+  // Будь-яка успішна мутуюча дія в адмінці могла змінити дані товарів (ціну, наявність,
+  // фото, назву, group_id тощо) — чистимо edge-кеш публічного /api/products, щоб сайт
+  // не показував застарілі дані до природного закінчення max-age.
+  if (isMutating && res.status >= 200 && res.status < 400) {
+    try {
+      const cache = caches.default;
+      const productsUrl = new URL('/api/products', url.origin);
+      context.waitUntil(cache.delete(new Request(productsUrl)));
+    } catch (e) {}
+  }
+
   const h = new Headers(res.headers);
   h.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   h.set('Pragma', 'no-cache');
