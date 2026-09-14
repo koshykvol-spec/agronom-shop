@@ -42,8 +42,18 @@ const captionRes = await fetch('https://api.anthropic.com/v1/messages', {
     }],
   }),
 });
+if (!captionRes.ok) {
+  const errText = await captionRes.text();
+  console.error('Anthropic API помилка:', captionRes.status, errText);
+  process.exit(1);
+}
 const captionData = await captionRes.json();
-const caption = captionData.content.find(c => c.type === 'text').text;
+const textBlock = captionData.content && captionData.content.find(c => c.type === 'text');
+if (!textBlock) {
+  console.error('Неочікувана відповідь Anthropic API:', JSON.stringify(captionData));
+  process.exit(1);
+}
+const caption = textBlock.text;
 
 const photoPath = imgMap[candidate.n];
 const photoUrl = `https://agronom.pp.ua/${photoPath.split('/').map(encodeURIComponent).join('/')}`;
