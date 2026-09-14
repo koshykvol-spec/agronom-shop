@@ -14,8 +14,11 @@ const products = readJsonStripBom('./sample/products.json');
 const imgMap = readJsonStripBom('./img-map.json');
 let posted = readJsonStripBom('./posted-log.json');
 
-// Товар з фото, якого ще не публікували
-const candidate = products.find(p => !posted.includes(p.id) && imgMap[p.id]);
+// Товар в наявності, з фото (img-map.json індексується за назвою товару — полем n), якого ще не публікували
+const candidate = products.find(
+  p => p.inStock && !posted.includes(p.sku) && imgMap[p.n]
+);
+
 if (!candidate) {
   console.log('Усі товари вже опубліковані — скидаю лог і починаю заново');
   posted = [];
@@ -35,15 +38,15 @@ const captionRes = await fetch('https://api.anthropic.com/v1/messages', {
     max_tokens: 300,
     messages: [{
       role: 'user',
-      content: `Напиши короткий рекламний пост для Facebook (2-4 речення, з emoji, без вигаданих характеристик і дозувань) про товар: "${candidate.name}". Опис: ${candidate.description || ''}. Додай заклик перейти на сайт agronom.pp.ua.`
+      content: `Напиши короткий рекламний пост для Facebook (2-4 речення, з emoji, без вигаданих характеристик і дозувань) про товар: "${candidate.n}". Категорія: ${candidate.c || ''}. Бренд: ${candidate.b || ''}. Ціна: ${candidate.p} грн. Додай заклик перейти на сайт agronom.pp.ua.`
     }],
   }),
 });
 const captionData = await captionRes.json();
 const caption = captionData.content.find(c => c.type === 'text').text;
 
-const photoPath = imgMap[candidate.id];
-const photoUrl = `https://agronom.pp.ua/${photoPath}`;
+const photoPath = imgMap[candidate.n];
+const photoUrl = `https://agronom.pp.ua/${photoPath.split('/').map(encodeURIComponent).join('/')}`;
 
 const postRes = await fetch(`https://graph.facebook.com/v26.0/${PAGE_ID}/photos`, {
   method: 'POST',
@@ -53,9 +56,9 @@ const postRes = await fetch(`https://graph.facebook.com/v26.0/${PAGE_ID}/photos`
 const postResult = await postRes.json();
 
 if (postResult.id) {
-  posted.push(candidate.id);
+  posted.push(candidate.sku);
   fs.writeFileSync('./posted-log.json', JSON.stringify(posted, null, 2));
-  console.log('Опубліковано:', candidate.name);
+  console.log('Опубліковано:', candidate.n, '| фото:', photoUrl);
 } else {
   console.error('Помилка публікації:', postResult);
   process.exit(1);
