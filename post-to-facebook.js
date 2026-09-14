@@ -5,9 +5,14 @@ const PAGE_ID = process.env.FB_PAGE_ID;
 const PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const products = JSON.parse(fs.readFileSync('./sample/products.json', 'utf-8'));
-const imgMap = JSON.parse(fs.readFileSync('./img-map.json', 'utf-8'));
-let posted = JSON.parse(fs.readFileSync('./posted-log.json', 'utf-8'));
+function readJsonStripBom(path) {
+  const raw = fs.readFileSync(path, 'utf-8');
+  return JSON.parse(raw.replace(/^\uFEFF/, ''));
+}
+
+const products = readJsonStripBom('./sample/products.json');
+const imgMap = readJsonStripBom('./img-map.json');
+let posted = readJsonStripBom('./posted-log.json');
 
 // Товар з фото, якого ще не публікували
 const candidate = products.find(p => !posted.includes(p.id) && imgMap[p.id]);
