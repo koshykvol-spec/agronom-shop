@@ -1,7 +1,7 @@
 name: Daily Facebook Post
 on:
   schedule:
-    - cron: '0 6,9,12,15,18 * * *'
+    - cron: '55 4,7,10,13,16 * * *'
   workflow_dispatch:
 
 permissions:
