@@ -149,6 +149,33 @@ export async function onRequest(context) {
     ? undefined
     : [{ '@type': 'PropertyValue', name: 'identifier_exists', value: 'no' }];
 
+  const offer = {
+    '@type': 'Offer', price: effPrice, priceCurrency: 'UAH', url: canonical,
+    priceValidUntil: (onSale && p.sale_until) ? p.sale_until : undefined,
+    availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+  };
+  // Повернення та доставка — лише для товарів у наявності (для OutOfStock GSC дає помилку)
+  if (inStock) {
+    offer.hasMerchantReturnPolicy = {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'UA',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+      merchantReturnDays: seoReturnDays,
+      returnMethod: 'https://schema.org/ReturnByMail',
+      returnFees: 'https://schema.org/FreeReturn'
+    };
+    offer.shippingDetails = {
+      '@type': 'OfferShippingDetails',
+      shippingRate: { '@type': 'MonetaryAmount', value: seoShipCost, currency: 'UAH' },
+      shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'UA' },
+      deliveryTime: {
+        '@type': 'ShippingDeliveryTime',
+        handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
+        transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 3, unitCode: 'DAY' }
+      }
+    };
+  }
+
   const jsonld = {
     '@context': 'https://schema.org', '@type': 'Product',
     name: displayName,
@@ -160,31 +187,7 @@ export async function onRequest(context) {
     additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
     description: ldDesc,
-    offers: {
-      '@type': 'Offer', price: effPrice, priceCurrency: 'UAH', url: canonical,
-      priceValidUntil: (onSale && p.sale_until) ? p.sale_until : undefined,
-      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      hasMerchantReturnPolicy: {
-        '@type': 'MerchantReturnPolicy',
-        applicableCountry: 'UA',
-        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-        merchantReturnDays: seoReturnDays,
-        returnMethod: 'https://schema.org/ReturnByMail',
-        // Google приймає ТІЛЬКИ https://schema.org/FreeReturn для безкоштовного повернення —
-        // "FreeReturnShippingFees" не є валідним enum-значенням і саме це GSC відзначав.
-        returnFees: 'https://schema.org/FreeReturn'
-      },
-      shippingDetails: {
-        '@type': 'OfferShippingDetails',
-        shippingRate: { '@type': 'MonetaryAmount', value: seoShipCost, currency: 'UAH' },
-        shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'UA' },
-        deliveryTime: {
-          '@type': 'ShippingDeliveryTime',
-          handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
-          transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 3, unitCode: 'DAY' }
-        }
-      }
-    }
+    offers: offer
   };
 
   let reviews = [];
@@ -581,7 +584,7 @@ export async function onRequest(context) {
     <h2>📋 Опис</h2>
     <div class="p-desc" id="p-annotation"></div>
     <script>
-      window.__MD_ANNOTATION = ${JSON.stringify(p.annotation).replace(/</g,'\u003c')};
+      window.__MD_ANNOTATION = ${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
     </script>
     <script src="/md-render.js" defer onload="window.mdRender(window.__MD_ANNOTATION,'p-annotation')"></script>
   </div>` : ''}

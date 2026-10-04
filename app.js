@@ -778,39 +778,43 @@ function render(arr) {
         var identifierAdditionalProperty = hasBrand
             ? undefined
             : [{"@type": "PropertyValue", "name": "identifier_exists", "value": "no"}];
+        var inStock = p.inStock !== false;
+        var offer = {
+            "@type": "Offer",
+            "price": effPrice,
+            "priceCurrency": "UAH",
+            "url": p.slug ? (origin + '/p/' + p.slug) : canon,
+            "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+        };
+        // Умови повернення та доставки — лише для товарів у наявності
+        if (inStock) {
+            offer.hasMerchantReturnPolicy = {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "UA",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": returnDays,
+                "returnMethod": "https://schema.org/ReturnByMail",
+                "returnFees": "https://schema.org/FreeReturn"
+            };
+            offer.shippingDetails = {
+                "@type": "OfferShippingDetails",
+                "shippingRate": {"@type": "MonetaryAmount", "value": shipCost, "currency": "UAH"},
+                "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
+                "deliveryTime": {
+                    "@type": "ShippingDeliveryTime",
+                    "handlingTime": {"@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY"},
+                    "transitTime": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 3, "unitCode": "DAY"}
+                }
+            };
+        }
         return {
             "@context": "https://schema.org", "@type": "Product",
             "name": p.n,
-            "mpn": safeMpn,
             "description": desc,
             "image": imgAbs || undefined,
             "brand": hasBrand ? {"@type": "Brand", "name": p.b} : undefined,
             "additionalProperty": identifierAdditionalProperty,
-            "offers": {
-                "@type": "Offer",
-                "price": effPrice,
-                "priceCurrency": "UAH",
-                "url": p.slug ? (origin + '/p/' + p.slug) : canon,
-                "availability": p.inStock !== false ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                "hasMerchantReturnPolicy": {
-                    "@type": "MerchantReturnPolicy",
-                    "applicableCountry": "UA",
-                    "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-                    "merchantReturnDays": returnDays,
-                    "returnMethod": "https://schema.org/ReturnByMail",
-                    "returnFees": "https://schema.org/FreeReturn"
-                },
-                "shippingDetails": {
-                    "@type": "OfferShippingDetails",
-                    "shippingRate": {"@type": "MonetaryAmount", "value": shipCost, "currency": "UAH"},
-                    "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
-                    "deliveryTime": {
-                        "@type": "ShippingDeliveryTime",
-                        "handlingTime": {"@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY"},
-                        "transitTime": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 3, "unitCode": "DAY"}
-                    }
-                }
-            }
+            "offers": offer
         };
     })).replace(/</g, '\\u003c');
     document.head.appendChild(ld);
