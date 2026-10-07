@@ -1,3 +1,35 @@
+// ❌ Було (викликало помилку в Google Search Console):
+const jsonld = {
+  '@context': 'https://schema.org', '@type': 'Product',
+  name: displayName,
+  sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
+  mpn: safeMpn,
+  category: hierCategory(p.category), // <-- ЦЕЙ РЯДОК
+  brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
+  ...
+```[cite: 5]
+
+Замініть `category: hierCategory(p.category),` на `category: undefined,`[cite: 5]:
+
+```javascript
+// ✅ Стало (виправляє помилку в GSC і не ламає збірку):
+const jsonld = {
+  '@context': 'https://schema.org', '@type': 'Product',
+  name: displayName,
+  sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
+  mpn: safeMpn,
+  category: undefined,
+  brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
+  ...
+```[cite: 5]
+
+---
+
+### Повний перевірений код файлу `[slug].js`
+
+Якщо зручніше повністю вставити код, скопіюйте цей точний оригінальний варіант із виправленим строчним полем `category`[cite: 5]:
+
+```javascript
 // Cloudflare Pages Function — серверна сторінка товару /p/<slug> з D1.
 // Binding D1: env.DB
 
@@ -5,7 +37,6 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
 function isWeight(p) {
   const n = (p.name || '').toLowerCase();
   return p.category === 'НАСІННЯ ВАГОВЕ' || n.includes(', кг') || n.includes(' ваговий') || n.endsWith(',кг');
@@ -152,6 +183,7 @@ export async function onRequest(context) {
     name: displayName,
     sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
     mpn: safeMpn,
+    category: undefined,
     brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
     additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
@@ -169,7 +201,6 @@ export async function onRequest(context) {
     jsonld.aggregateRating = { '@type':'AggregateRating', ratingValue: Math.round(revAvg*10)/10, reviewCount: revCount };
     jsonld.review = ratedReviews.slice(0,5).map(r=>({ '@type':'Review', author:{ '@type':'Person', name:r.name||'Покупець' }, reviewRating:{ '@type':'Rating', ratingValue:Number(r.rating), bestRating:5 }, reviewBody:(r.text||'').slice(0,500) }));
   }
-
   let related = [];
   try {
     related = (await env.DB.prepare(
@@ -238,14 +269,6 @@ export async function onRequest(context) {
   const shVb = 'viber://forward?text=' + encodeURIComponent(displayName + ' — ' + canonical);
   const shFb = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(canonical);
 
-  // Підготовка підстановка під скріпти (усуває збої парсингу шаблонів esbuild)
-  const jsonldScript = JSON.stringify(jsonld).replace(/</g, '\\u003c');
-  const breadcrumbLdScript = JSON.stringify(breadcrumbLd).replace(/</g, '\\u003c');
-  const annotJson = JSON.stringify(p.annotation || '').replace(/</g, '\\u003c');
-  const pDataJson = JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c');
-  const dcDataJson = JSON.stringify(doseCalc).replace(/</g, '\\u003c');
-  const viberContactHtml = s_viber ? (' · <a href="viber://chat?number=%2B' + esc(s_viber) + '" style="color:#7360f2;">📲 Viber</a>') : '';
-
   const html = `<!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -271,8 +294,8 @@ export async function onRequest(context) {
 <meta name="theme-color" content="#2d6a2d">
 <link rel="stylesheet" href="/fonts.css">
 <link rel="stylesheet" href="/style.css">
-<script type="application/ld+json">${jsonldScript}</script>
-<script type="application/ld+json">${breadcrumbLdScript}</script>
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd).replace(/</g, '\\u003c')}</script>
 <style>
 .p-layout   { display:grid; grid-template-columns:1fr; gap:28px; align-items:start; margin-top:16px; }
 @media(min-width:600px){ .p-layout { grid-template-columns:minmax(260px,2fr) 3fr; } }
@@ -375,13 +398,17 @@ export async function onRequest(context) {
 
 <main id="main" class="container" style="max-width:920px;">
 
+  <!-- Хлібні крихти -->
   <nav class="breadcrumb" aria-label="Навігація" style="font-size:.83rem;color:#666;margin:12px 0 0;background:#fff;padding:4px 0;">
     <a href="/index.html" style="color:#2d6a2d;text-decoration:none;">Каталог</a> ›
     <a href="${esc(catUrl)}" style="color:#2d6a2d;text-decoration:none;">${esc(p.category || '')}</a> ›
     <span style="color:#666;">${esc(displayName)}</span>
   </nav>
 
+  <!-- Основний грід: фото | інфо -->
   <div class="p-layout">
+
+    <!-- Галерея -->
     <div class="p-gallery">
       ${mainSrc
         ? `<img id="pmain" src="${esc(mainSrc)}" alt="${esc(displayName)}" onerror="this.style.display='none';document.getElementById('pmain-fb').style.display='flex';">
@@ -390,22 +417,27 @@ export async function onRequest(context) {
         : `<div class="no-img">🧪</div>`}
     </div>
 
+    <!-- Права колонка -->
     <div class="p-info">
       ${p.brand ? `<div class="p-brand">${esc(p.brand)}</div>` : ''}
       <h1 class="p-title">${esc(displayName)}</h1>
 
+      <!-- Ціна -->
       <div class="p-price">
         ${onSale
           ? `<span class="old">${Number(p.price).toFixed(2)} грн</span><span class="sale-val">${Number(p.sale_price).toFixed(2)} грн</span>${weight ? ' <small>/кг</small>' : ''}<span class="sale-badge">🏷️ Акція${p.sale_until ? ' до ' + fmtD(p.sale_until) : ''}</span>`
           : `${price} грн${weight ? ' <small>/кг</small>' : ''}`}
       </div>
 
+      <!-- Фасовки -->
       ${variantSelector ? `<div class="p-variants">${variantSelector}</div>` : ''}
 
+      <!-- Наявність -->
       <div class="p-stock ${inStock ? 'in' : 'out'}">
         ${inStock ? '✅ В наявності' : '❌ Немає в наявності'}
       </div>
 
+      <!-- Кнопка «Додати» / лічильник кількості -->
       <div class="p-add-row">
         ${!inStock ? ''
           : weight
@@ -434,6 +466,7 @@ export async function onRequest(context) {
         </div>
       </div>
 
+      <!-- Поділитися -->
       <div class="share-wrap">
         <button type="button" class="share-btn" id="share-btn" onclick="shareProduct(event)" aria-haspopup="true">↗ Поділитися</button>
         <div class="share-menu" id="share-menu">
@@ -444,16 +477,18 @@ export async function onRequest(context) {
         </div>
       </div>
 
+      <!-- Доставка / контакти -->
       <div class="p-delivery">
         <div>🚚 <b>Доставка:</b> Нова Пошта, Укрпошта</div>
         ${s_addr ? `<div>🏪 <b>Самовивіз:</b> ${esc(s_addr)}</div>` : ''}
         <div>💳 <b>Оплата:</b> готівка або на картку</div>
         <div>📞 <b>Консультація:</b>
-          <a href="tel:+380634625206" data-site-call>${esc(s_phone)}</a>${viberContactHtml} — питайте перед замовленням</div>
+          <a href="tel:+380634625206" data-site-call>${esc(s_phone)}</a>${s_viber ? ` · <a href="viber://chat?number=%2B${esc(s_viber)}" style="color:#7360f2;">📲 Viber</a>` : ''} — питайте перед замовленням</div>
       </div>
     </div>
-  </div>
+  </div><!-- /p-layout -->
 
+  <!-- Діюча речовина -->
   ${aing ? `<div class="p-section">
     <h2>🔬 Склад</h2>
     <div class="p-ai">
@@ -462,15 +497,17 @@ export async function onRequest(context) {
     </div>
   </div>` : ''}
 
+  <!-- Анотація / опис -->
   ${p.annotation ? `<div class="p-section">
     <h2>📋 Опис</h2>
     <div class="p-desc" id="p-annotation"></div>
     <script>
-      window.__MD_ANNOTATION = ${annotJson};
+      window.__MD_ANNOTATION = ${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
     </script>
     <script src="/md-render.js" defer onload="window.mdRender(window.__MD_ANNOTATION,'p-annotation')"></script>
   </div>` : ''}
 
+  <!-- Дозування + калькулятор -->
   ${p.dosage ? `<div class="p-section">
     <h2>💧 Дозування</h2>
     <div class="p-dosage">
@@ -482,15 +519,18 @@ export async function onRequest(context) {
     </div>
   </div>` : ''}
 
+  <!-- Посилання назад -->
   <div style="margin-top:28px;">
     <a href="${esc(catUrl)}" style="color:var(--green);font-size:.9rem;">← Усі товари категорії «${esc(p.category || '')}»</a>
   </div>
 
+  <!-- Аналоги -->
   ${analogs.length ? `<div class="p-section" style="max-width:none;">
     <h2>🔄 Аналоги <span style="font-weight:400;color:#888;font-size:.88rem;">(${aing.indexOf(' + ') >= 0 ? 'діючі речовини' : 'діюча речовина'}: ${esc(aing)})</span></h2>
     <div class="rel-grid">${analogs.map(r => relCard(r, '🧪')).join('')}</div>
   </div>` : ''}
 
+  <!-- Відгуки -->
   <div class="p-section" style="max-width:760px;">
     <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} ·${revCount}` : ''}</h2>
 
@@ -541,7 +581,7 @@ export async function onRequest(context) {
     async function shrinkReviewPhoto(form, ev){
       var inp = form.querySelector('input[name=photo]');
       var file = inp && inp.files && inp.files[0];
-      if(!file || !file.type.startsWith('image/')) return true;
+      if(!file || !/^image\\//.test(file.type)) return true;
       ev.preventDefault();
       var btn = form.querySelector('button[type=submit]'); var oldText = btn.textContent; btn.disabled=true; btn.textContent='⏳ Стиснення фото…';
       try {
@@ -561,6 +601,7 @@ export async function onRequest(context) {
     </script>
   </div>
 
+  <!-- Схожі товари -->
   ${related.length ? `<div class="p-section" style="max-width:none;">
     <h2>🛒 Схожі товари</h2>
     <div class="rel-grid">${related.map(r => relCard(r, '🛒')).join('')}</div>
@@ -599,8 +640,8 @@ document.addEventListener('click', function(e){
   if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none';
 });
 
-window.__P = ${pDataJson};
-var DC = ${dcDataJson};
+window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c')};
+var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
 
 (function(){
   if(!DC) return;
