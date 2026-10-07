@@ -784,19 +784,16 @@ function render(arr) {
             "price": effPrice,
             "priceCurrency": "UAH",
             "url": p.slug ? (origin + '/p/' + p.slug) : canon,
-            "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
-        };
-        // Умови повернення та доставки — лише для товарів у наявності
-        if (inStock) {
-            offer.hasMerchantReturnPolicy = {
+            "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            "hasMerchantReturnPolicy": {
                 "@type": "MerchantReturnPolicy",
                 "applicableCountry": "UA",
                 "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
                 "merchantReturnDays": returnDays,
                 "returnMethod": "https://schema.org/ReturnByMail",
                 "returnFees": "https://schema.org/FreeReturn"
-            };
-            offer.shippingDetails = {
+            },
+            "shippingDetails": {
                 "@type": "OfferShippingDetails",
                 "shippingRate": {"@type": "MonetaryAmount", "value": shipCost, "currency": "UAH"},
                 "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
@@ -805,8 +802,8 @@ function render(arr) {
                     "handlingTime": {"@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY"},
                     "transitTime": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 3, "unitCode": "DAY"}
                 }
-            };
-        }
+            }
+        };
         return {
             "@context": "https://schema.org", "@type": "Product",
             "name": p.n,
@@ -2017,11 +2014,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { history.replaceState(null, '', location.pathname); } catch(e){}
     }
 });
-
-// (Нескінченний скрол прибрано на користь постраничної пагінації — div#catalog-pager.)
-
-// Стилі card-img перенесено у style.css (блокуючий) — резервують місце під
-// фото ДО рендеру, тож картки не стрибають (CLS≈0). Інжект через JS прибрано.
 
 // ==========================================
 // МОДАЛЬНЕ ВІКНО ТОВАРУ (фото + анотація)
