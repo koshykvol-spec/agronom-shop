@@ -10,29 +10,6 @@ function isWeight(p) {
   return p.category === 'НАСІННЯ ВАГОВЕ' || n.includes(', кг') || n.includes(' ваговий') || n.endsWith(',кг');
 }
 
-// Google для JSON-LD Product.category офіційно приймає власну таксономію (не обов'язково
-// свою англомовну), АЛЕ вимагає ієрархічного формату "Рівень1 > Рівень2 > ...".
-// Наші p.category з D1 — пласкі однорівневі назви (АГРОХІМІКАТИ, КРАПЕЛЬНЕ ЗРОШУВАННЯ...) —
-// саме це GSC й позначав як "Недійсне значення в полі category" (навіть коли поле не пусте).
-const CATEGORY_HIERARCHY = {
-  'АГРОХІМІКАТИ': 'Агротовари > Агрохімікати',
-  'НАСІННЯ ІМПОРТНЕ': 'Агротовари > Насіння > Імпортне',
-  'НАСІННЯ ВІТЧИЗНЯНЕ': 'Агротовари > Насіння > Вітчизняне',
-  'НАСІННЯ ВАГОВЕ': 'Агротовари > Насіння > Вагове',
-  'МАТЕРІАЛИ': 'Агротовари > Матеріали',
-  'КРАПЕЛЬНЕ ЗРОШУВАННЯ': 'Агротовари > Полив > Крапельне зрошування',
-  'ГРУНТ': 'Агротовари > Ґрунти та субстрати',
-  'ГОРЩИКИ': 'Агротовари > Горщики та касети',
-  'ПРОТИ КОМАХ': 'Агротовари > Засоби від шкідників > Проти комах',
-  'ДЛЯ ТВАРИН': 'Агротовари > Товари для тварин',
-  'РОЗСАДА': 'Агротовари > Розсада'
-};
-function hierCategory(raw) {
-  const v = (raw && String(raw).trim()) ? String(raw).trim() : '';
-  if (!v) return undefined;
-  return CATEGORY_HIERARCHY[v.toUpperCase()] || ('Агротовари > ' + v);
-}
-
 export async function onRequest(context) {
   const { params, env, request } = context;
   const slug = params.slug;
@@ -103,9 +80,7 @@ export async function onRequest(context) {
     if (sib && sib.path) imgList = [sib.path];
   }
   const img = imgList[0] || '';
-  // encodeURI НЕ кодує "( ) , '" (вважає їх "безпечними" за RFC 3986) — а саме ці символи
-  // трапляються в назвах файлів фото (напр. "Краспедія Соларіс 0,1г (GL Seeds).webp"),
-  // через що Google Search Console відхиляв image-URL як недійсні. Кодуємо кожен сегмент шляху окремо.
+
   const toAbs = pth => {
     if (!pth) return pth;
     if (pth.startsWith('http')) return pth;
@@ -141,10 +116,7 @@ export async function onRequest(context) {
   const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
   const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
   const hasBrand = !!(p.brand && String(p.brand).trim());
-  // Google вимагає brand+mpn (або gtin) для "глобального ідентифікатора" товару.
-  // Коли бренду немає (розфасовка/вагові товари без виробника на етикетці) — офіційний
-  // спосіб Google прибрати попередження "Немає глобального ідентифікатора":
-  // additionalProperty identifier_exists=false замість вигаданого бренду.
+
   const identifierAdditionalProperty = hasBrand
     ? undefined
     : [{ '@type': 'PropertyValue', name: 'identifier_exists', value: 'no' }];
@@ -154,7 +126,7 @@ export async function onRequest(context) {
     priceValidUntil: (onSale && p.sale_until) ? p.sale_until : undefined,
     availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
   };
-  // Повернення та доставка — лише для товарів у наявності (для OutOfStock GSC дає помилку)
+
   if (inStock) {
     offer.hasMerchantReturnPolicy = {
       '@type': 'MerchantReturnPolicy',
@@ -176,13 +148,12 @@ export async function onRequest(context) {
     };
   }
 
+  // Об'єкт Product JSON-LD без невідповідного поля category
   const jsonld = {
     '@context': 'https://schema.org', '@type': 'Product',
     name: displayName,
     sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
     mpn: safeMpn,
-    // Порожній/NULL category в D1 інакше потрапляв у JSON-LD як null → GSC "Недійсне значення в полі category".
-    category: hierCategory(p.category),
     brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
     additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
@@ -192,8 +163,7 @@ export async function onRequest(context) {
 
   let reviews = [];
   try { reviews = (await env.DB.prepare(`SELECT name,rating,text,img,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
-  // Тільки відгуки з валідною оцінкою 1-5 йдуть у структуровані дані — reviewRating.ratingValue=0/null
-  // Google трактує як недійсне значення (не просто попередження).
+
   const ratedReviews = reviews.filter(r => Number(r.rating) >= 1 && Number(r.rating) <= 5);
   const revCount = ratedReviews.length;
   const revAvg = revCount ? (ratedReviews.reduce((a,r)=>a+Number(r.rating),0)/revCount) : 0;
@@ -271,7 +241,7 @@ export async function onRequest(context) {
   const thanks = (rq === 'thanks');
   const robot = (rq === 'robot');
   const reviewsHtml = `<section style="margin-top:34px;max-width:760px">
-    <h2 style="font-size:1.2rem">Відгуки${revCount ? ` <span style="color:#f5a623">${stars(revAvg)}</span> ${revAvg.toFixed(1)} · ${revCount}` : ''}</h2>
+    <h2 style="font-size:1.2rem">Відгуки${revCount ? ` <span style="color:#f5a623">${stars(revAvg)}</span> ${revAvg.toFixed(1)} ·${revCount}` : ''}</h2>
     ${thanks ? '<div style="background:#eef6ee;border:1px solid #cfe3c0;border-radius:8px;padding:10px;margin:10px 0;color:var(--green)">✅ Дякуємо! Відгук зʼявиться після перевірки.</div>' : ''}
     ${robot ? '<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px;margin:10px 0;color:#922">⚠️ Не вдалося підтвердити, що ви не робот. Спробуйте ще раз.</div>' : ''}
     ${revCount ? reviews.map(r => `<div style="border-top:1px solid #eee;padding:10px 0"><div style="font-weight:700">${esc(r.name || 'Покупець')} <span style="color:#f5a623">${stars(r.rating)}</span> <span style="color:#aaa;font-size:.8rem">${esc(r.created_at || '')}</span></div><div style="color:#444;margin-top:3px;white-space:pre-wrap">${esc(r.text)}</div></div>`).join('') : ''}
@@ -614,7 +584,7 @@ export async function onRequest(context) {
 
   <!-- Відгуки -->
   <div class="p-section" style="max-width:760px;">
-    <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} · ${revCount}` : ''}</h2>
+    <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} ·${revCount}` : ''}</h2>
 
     ${thanks ? '<div style="background:#eef6ee;border:1px solid #cfe3c0;border-radius:8px;padding:10px;margin-bottom:10px;color:var(--green);">✅ Дякуємо! Відгук з\'явиться після перевірки.</div>' : ''}
     ${robot  ? '<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px;margin-bottom:10px;color:#922;">⚠️ Не вдалося підтвердити, що ви не робот. Спробуйте ще раз.</div>' : ''}
@@ -622,11 +592,10 @@ export async function onRequest(context) {
     ${revCount ? reviews.map(r => `<div class="p-review-card">
       <div>
         <span class="rc-author">${esc(r.name || 'Покупець')}</span>
-        <span class="rc-stars">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5-(r.rating||5))}</span>
+        <span class="rc-stars">${'★'.repeat(r.rating \vert{}\vert{} 5)}${'☆'.repeat(5-(r.rating||5))}</span>
         <span class="rc-date">${esc(r.created_at || '')}</span>
       </div>
-      <div class="rc-text">${esc(r.text)}</div>
-      ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank" rel="noopener"><img src="/thumb/${esc(r.img)}" alt="Фото від покупця" class="rc-photo" loading="lazy"></a>` : ''}
+      <div class="rc-text">${esc(r.text)}</div>${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank" rel="noopener"><img src="/thumb/${esc(r.img)}" alt="Фото від покупця" class="rc-photo" loading="lazy"></a>` : ''}
     </div>`).join('') : ''}
 
     <a href="#leave-review" class="p-review-cta">
@@ -661,12 +630,10 @@ export async function onRequest(context) {
     </form>
     ${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
     <script>
-    // Автостиснення фото відгуку в браузері перед відправкою (макс 900px, webp q75) — щоб трафік/сховище були мінімальними,
-    // але фото лишалось достатнім для перегляду. Той самий підхід, що й для товарних фото в адмінці.
     async function shrinkReviewPhoto(form, ev){
       var inp = form.querySelector('input[name=photo]');
       var file = inp && inp.files && inp.files[0];
-      if(!file || !/^image\\//.test(file.type)) return true;   // нема фото / не зображення → звичайний сабміт
+      if(!file || !/^image\//.test(file.type)) return true;
       ev.preventDefault();
       var btn = form.querySelector('button[type=submit]'); var oldText = btn.textContent; btn.disabled=true; btn.textContent='⏳ Стиснення фото…';
       try {
@@ -677,10 +644,10 @@ export async function onRequest(context) {
         cv.getContext('2d').drawImage(bmp,0,0,w,h);
         var blob = await new Promise(function(res){ cv.toBlob(res,'image/webp',0.75); });
         var fd = new FormData(form);
-        if (blob && blob.size < file.size) fd.set('photo', blob, 'review.webp');  // менше за оригінал → шлемо стиснене
+        if (blob && blob.size < file.size) fd.set('photo', blob, 'review.webp');
         var r = await fetch(form.action, {method:'POST', body:fd, redirect:'follow'});
         location.href = r.url || location.href;
-      } catch(e){ btn.disabled=false; btn.textContent=oldText; form.onsubmit=null; form.submit(); }  // fallback — звичайний сабміт оригіналу
+      } catch(e){ btn.disabled=false; btn.textContent=oldText; form.onsubmit=null; form.submit(); }
       return false;
     }
     </script>
@@ -704,7 +671,6 @@ export async function onRequest(context) {
 <div id="site-footer"></div>
 
 <script>
-// ── Мініатюри галереї ──
 function setThumb(el, src){
   var m=document.getElementById('pmain'); if(m){ m.src=src; m.style.display=''; }
   var fb=document.getElementById('pmain-fb'); if(fb) fb.style.display='none';
@@ -712,7 +678,6 @@ function setThumb(el, src){
   el.classList.add('active');
 }
 
-// ── Поділитися ──
 function shareProduct(e){ e.preventDefault();
   if(navigator.share){ navigator.share({title:document.title, url:location.href}).catch(function(){}); return; }
   var m=document.getElementById('share-menu'); if(m) m.style.display=(m.style.display==='block')?'none':'block';
@@ -727,11 +692,9 @@ document.addEventListener('click', function(e){
   if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none';
 });
 
-// ── Дані товару ──
 window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c')};
 var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
 
-// ── Калькулятор дозування ──
 (function(){
   if(!DC) return;
   var box=document.getElementById('dose-calc'); if(!box) return;
@@ -741,7 +704,6 @@ var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
   if(inp&&out){ inp.addEventListener('input',calc); calc(); box.style.display='flex'; }
 })();
 
-// ── Лічильник кількості ──
 function pqtyChange(dir){
   var step=window.__P.div||( window.__P.w ? 0.5 : 1 );
   var i=document.getElementById('pqty'); if(!i) return;
@@ -751,7 +713,6 @@ function pqtyChange(dir){
   i.value=v;
 }
 
-// ── Додати в кошик ──
 function addToCart(){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=window.__P.n, price=window.__P.p, q=1;
@@ -768,7 +729,6 @@ function addToCart(){
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
 }
 
-// ── Картки аналогів/супутніх ──
 function addRel(btn){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=btn.getAttribute('data-n'), price=parseFloat(btn.getAttribute('data-p'))||0;
