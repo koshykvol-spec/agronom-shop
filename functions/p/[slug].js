@@ -1,35 +1,3 @@
-// ❌ Було (викликало помилку в Google Search Console):
-const jsonld = {
-  '@context': 'https://schema.org', '@type': 'Product',
-  name: displayName,
-  sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
-  mpn: safeMpn,
-  category: hierCategory(p.category), // <-- ЦЕЙ РЯДОК
-  brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
-  ...
-```[cite: 5]
-
-Замініть `category: hierCategory(p.category),` на `category: undefined,`[cite: 5]:
-
-```javascript
-// ✅ Стало (виправляє помилку в GSC і не ламає збірку):
-const jsonld = {
-  '@context': 'https://schema.org', '@type': 'Product',
-  name: displayName,
-  sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
-  mpn: safeMpn,
-  category: undefined,
-  brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
-  ...
-```[cite: 5]
-
----
-
-### Повний перевірений код файлу `[slug].js`
-
-Якщо зручніше повністю вставити код, скопіюйте цей точний оригінальний варіант із виправленим строчним полем `category`[cite: 5]:
-
-```javascript
 // Cloudflare Pages Function — серверна сторінка товару /p/<slug> з D1.
 // Binding D1: env.DB
 
@@ -40,6 +8,29 @@ function esc(s) {
 function isWeight(p) {
   const n = (p.name || '').toLowerCase();
   return p.category === 'НАСІННЯ ВАГОВЕ' || n.includes(', кг') || n.includes(' ваговий') || n.endsWith(',кг');
+}
+
+// Google для JSON-LD Product.category офіційно приймає власну таксономію (не обов'язково
+// свою англомовну), АЛЕ вимагає ієрархічного формату "Рівень1 > Рівень2 > ...".
+// Наші p.category з D1 — пласкі однорівневі назви (АГРОХІМІКАТИ, КРАПЕЛЬНЕ ЗРОШУВАННЯ...) —
+// саме це GSC й позначав як "Недійсне значення в полі category" (навіть коли поле не пусте).
+const CATEGORY_HIERARCHY = {
+  'АГРОХІМІКАТИ': 'Агротовари > Агрохімікати',
+  'НАСІННЯ ІМПОРТНЕ': 'Агротовари > Насіння > Імпортне',
+  'НАСІННЯ ВІТЧИЗНЯНЕ': 'Агротовари > Насіння > Вітчизняне',
+  'НАСІННЯ ВАГОВЕ': 'Агротовари > Насіння > Вагове',
+  'МАТЕРІАЛИ': 'Агротовари > Матеріали',
+  'КРАПЕЛЬНЕ ЗРОШУВАННЯ': 'Агротовари > Полив > Крапельне зрошування',
+  'ГРУНТ': 'Агротовари > Ґрунти та субстрати',
+  'ГОРЩИКИ': 'Агротовари > Горщики та касети',
+  'ПРОТИ КОМАХ': 'Агротовари > Засоби від шкідників > Проти комах',
+  'ДЛЯ ТВАРИН': 'Агротовари > Товари для тварин',
+  'РОЗСАДА': 'Агротовари > Розсада'
+};
+function hierCategory(raw) {
+  const v = (raw && String(raw).trim()) ? String(raw).trim() : '';
+  if (!v) return undefined;
+  return CATEGORY_HIERARCHY[v.toUpperCase()] || ('Агротовари > ' + v);
 }
 
 export async function onRequest(context) {
@@ -112,7 +103,9 @@ export async function onRequest(context) {
     if (sib && sib.path) imgList = [sib.path];
   }
   const img = imgList[0] || '';
-
+  // encodeURI НЕ кодує "( ) , '" (вважає їх "безпечними" за RFC 3986) — а саме ці символи
+  // трапляються в назвах файлів фото (напр. "Краспедія Соларіс 0,1г (GL Seeds).webp"),
+  // через що Google Search Console відхиляв image-URL як недійсні. Кодуємо кожен сегмент шляху окремо.
   const toAbs = pth => {
     if (!pth) return pth;
     if (pth.startsWith('http')) return pth;
@@ -129,7 +122,9 @@ export async function onRequest(context) {
   const onSale = p.sale_price != null && p.sale_price > 0 && p.sale_price < (p.price || Infinity) && (!p.sale_until || p.sale_until >= today);
   const effPrice = onSale ? p.sale_price : p.price;
   const fmtD = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; };
-
+  const priceHtml = onSale
+    ? `<span style="color:#999;text-decoration:line-through;font-size:1rem;font-weight:400;">${Number(p.price).toFixed(2)} грн</span> <span style="color:#c0392b;">${Number(p.sale_price).toFixed(2)} грн</span>${weight ? ' <small>/кг</small>' : ''} <span style="background:#ff7a00;color:#fff;border-radius:8px;padding:2px 9px;font-size:.72rem;font-weight:800;vertical-align:middle;white-space:nowrap;">🏷️ Акція${p.sale_until ? (' до ' + fmtD(p.sale_until)) : ''}</span>`
+    : `${price} грн${weight ? ' <small>/кг</small>' : ''}`;
   const title = p.meta_title || (displayName + ' — ' + s_name + ', ' + s_city);
   const desc = (p.meta_desc || p.annotation || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 300);
   const canonical = origin + '/p/' + p.slug;
@@ -146,7 +141,10 @@ export async function onRequest(context) {
   const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
   const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
   const hasBrand = !!(p.brand && String(p.brand).trim());
-
+  // Google вимагає brand+mpn (або gtin) для "глобального ідентифікатора" товару.
+  // Коли бренду немає (розфасовка/вагові товари без виробника на етикетці) — офіційний
+  // спосіб Google прибрати попередження "Немає глобального ідентифікатора":
+  // additionalProperty identifier_exists=false замість вигаданого бренду.
   const identifierAdditionalProperty = hasBrand
     ? undefined
     : [{ '@type': 'PropertyValue', name: 'identifier_exists', value: 'no' }];
@@ -156,7 +154,7 @@ export async function onRequest(context) {
     priceValidUntil: (onSale && p.sale_until) ? p.sale_until : undefined,
     availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
   };
-
+  // Повернення та доставка — лише для товарів у наявності (для OutOfStock GSC дає помилку)
   if (inStock) {
     offer.hasMerchantReturnPolicy = {
       '@type': 'MerchantReturnPolicy',
@@ -183,7 +181,8 @@ export async function onRequest(context) {
     name: displayName,
     sku: (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : undefined,
     mpn: safeMpn,
-    category: undefined,
+    // Порожній/NULL category в D1 інакше потрапляв у JSON-LD як null → GSC "Недійсне значення в полі category".
+    category: hierCategory(p.category),
     brand: hasBrand ? { '@type': 'Brand', name: p.brand } : undefined,
     additionalProperty: identifierAdditionalProperty,
     image: ldImages.length ? ldImages : undefined,
@@ -193,7 +192,8 @@ export async function onRequest(context) {
 
   let reviews = [];
   try { reviews = (await env.DB.prepare(`SELECT name,rating,text,img,created_at FROM reviews WHERE pid=? AND approved=1 ORDER BY id DESC LIMIT 30`).bind(p.pid).all()).results || []; } catch(e){}
-
+  // Тільки відгуки з валідною оцінкою 1-5 йдуть у структуровані дані — reviewRating.ratingValue=0/null
+  // Google трактує як недійсне значення (не просто попередження).
   const ratedReviews = reviews.filter(r => Number(r.rating) >= 1 && Number(r.rating) <= 5);
   const revCount = ratedReviews.length;
   const revAvg = revCount ? (ratedReviews.reduce((a,r)=>a+Number(r.rating),0)/revCount) : 0;
@@ -236,15 +236,62 @@ export async function onRequest(context) {
         ${imgList.map((pth, i) => `<img src="${esc(toSrc(pth))}" alt="${esc(displayName)} — фото ${i + 1}" loading="lazy" onclick="var m=document.getElementById('pmain');m.src=this.src;m.style.display='';m.nextElementSibling.style.display='none';this.parentElement.querySelectorAll('img').forEach(function(t){t.style.borderColor='#ddd'});this.style.borderColor='var(--green)'" style="width:68px;height:68px;object-fit:contain;background:#f6f6f6;border:2px solid ${i === 0 ? 'var(--green)' : '#ddd'};border-radius:8px;cursor:pointer">`).join('')}
       </div>`
     : '';
+  const imgHtml = mainSrc
+    ? `<img id="pmain" src="${esc(mainSrc)}" alt="${esc(displayName)}" style="width:100%;max-height:min(360px,45vh);object-fit:contain;border-radius:12px;background:#f6f6f6;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+       <div style="display:none;aspect-ratio:4/3;background:#eef5ee;align-items:center;justify-content:center;font-size:3rem;border-radius:12px;">🧪</div>
+       ${thumbs}`
+    : `<div style="aspect-ratio:4/3;background:#eef5ee;display:flex;align-items:center;justify-content:center;font-size:3rem;border-radius:12px;">🧪</div>`;
 
   const divisible = p.divisible && Number(p.divisible) === 1;
   const divisor = divisible && p.divisor ? Number(p.divisor) : null;
+
+  const divStep = divisor || 1;
+  const divBlock = divisible && divisor ? `
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 14px;flex-wrap:wrap;">
+      <span style="color:#555;font-size:.95rem;">Кількість (кратно ${divStep}):</span>
+      <div style="display:flex;align-items:center;border:2px solid var(--green);border-radius:8px;overflow:hidden;">
+        <button type="button" onclick="pqtyChange(-1)" style="width:36px;height:38px;background:#f0f7f0;border:none;font-size:1.3rem;cursor:pointer;font-weight:bold;color:var(--green)">&#8722;</button>
+        <input id="pqty" type="number" value="${divStep}" step="${divStep}" min="${divStep}" style="width:70px;padding:6px 4px;border:none;border-left:1px solid #cde8cd;border-right:1px solid #cde8cd;font-weight:bold;text-align:center;font-size:1rem;">
+        <button type="button" onclick="pqtyChange(1)" style="width:36px;height:38px;background:#f0f7f0;border:none;font-size:1.3rem;cursor:pointer;font-weight:bold;color:var(--green)">+</button>
+      </div>
+    </div>` : '';
+
+  const addBlock = !inStock
+    ? `<div class="oos-badge" style="max-width:320px;">Немає в наявності</div>`
+    : (weight
+      ? `<div style="display:flex;align-items:center;gap:8px;margin:8px 0 14px;">
+           <span>Кількість:</span>
+           <input id="pqty" type="number" value="1" step="0.5" min="0.5" style="width:90px;padding:8px;border:2px solid var(--green);border-radius:8px;font-weight:bold;text-align:center;"> кг
+         </div>
+         <button class="btn" id="addbtn" onclick="addToCart()" style="max-width:320px;">🛒 Додати в кошик</button>`
+      : `${divBlock}<button class="btn" id="addbtn" onclick="addToCart()" style="max-width:320px;">🛒 Додати в кошик</button>`);
 
   const stars = n => { var f = Math.round(n); return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(0, 5 - f); };
   const rq = new URL(request.url).searchParams.get('r');
   const thanks = (rq === 'thanks');
   const robot = (rq === 'robot');
-
+  const reviewsHtml = `<section style="margin-top:34px;max-width:760px">
+    <h2 style="font-size:1.2rem">Відгуки${revCount ? ` <span style="color:#f5a623">${stars(revAvg)}</span> ${revAvg.toFixed(1)} · ${revCount}` : ''}</h2>
+    ${thanks ? '<div style="background:#eef6ee;border:1px solid #cfe3c0;border-radius:8px;padding:10px;margin:10px 0;color:var(--green)">✅ Дякуємо! Відгук зʼявиться після перевірки.</div>' : ''}
+    ${robot ? '<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px;margin:10px 0;color:#922">⚠️ Не вдалося підтвердити, що ви не робот. Спробуйте ще раз.</div>' : ''}
+    ${revCount ? reviews.map(r => `<div style="border-top:1px solid #eee;padding:10px 0"><div style="font-weight:700">${esc(r.name || 'Покупець')} <span style="color:#f5a623">${stars(r.rating)}</span> <span style="color:#aaa;font-size:.8rem">${esc(r.created_at || '')}</span></div><div style="color:#444;margin-top:3px;white-space:pre-wrap">${esc(r.text)}</div></div>`).join('') : ''}
+    <a href="#leave-review" style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;background:linear-gradient(135deg,#fff8e6,#fffdf7);border:1px solid #f0d98a;border-radius:10px;padding:12px 14px;text-decoration:none;color:#7a5b00">
+      <span style="font-size:1.6rem">⭐</span>
+      <span><b>${revCount ? 'Купували цей товар?' : 'Будьте першим!'}</b> Поділіться враженням — це 20 секунд і допоможе іншим садівникам. <b style="color:var(--green)">✍️ Написати відгук →</b></span>
+    </a>
+    <form id="leave-review" method="POST" action="/api/review" style="margin-top:8px;background:#fafcf8;border:1px solid #e3e9e0;border-radius:10px;padding:14px;scroll-margin-top:80px">
+      <input type="hidden" name="pid" value="${p.pid}"><input type="hidden" name="slug" value="${esc(p.slug)}">
+      <div style="font-weight:700;margin-bottom:8px">Залишити відгук</div>
+      <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input name="name" placeholder="Ваше імʼя" maxlength="80" style="padding:8px;border:1px solid #ccc;border-radius:6px">
+        <label>Оцінка: <select name="rating" style="padding:8px;border:1px solid #ccc;border-radius:6px"><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></label>
+      </div>
+      <textarea name="text" required placeholder="Ваш відгук про товар" maxlength="2000" rows="3" style="width:100%;margin-top:8px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box"></textarea>
+      ${s_tskey ? `<div class="cf-turnstile" data-sitekey="${esc(s_tskey)}" style="margin-top:8px"></div>` : ''}
+      <button type="submit" style="margin-top:8px;background:var(--green);color:#fff;border:0;padding:9px 16px;border-radius:8px;font-weight:700;cursor:pointer">Надіслати відгук</button>
+    </form>${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
+  </section>`;
   const relCard = (r, fallbackIco) => {
     const ri = r.img ? toSrc(r.img) : '';
     const oos = r.in_stock === 0;
@@ -259,6 +306,14 @@ export async function onRequest(context) {
         <div class="rc-price">${r.price != null ? Number(r.price).toFixed(2) + ' грн' : ''}</div>
       </a>${addBtn}</div>`;
   };
+  const analogsHtml = analogs.length ? `<section style="margin-top:34px"><h2 style="font-size:1.2rem">Аналоги <span style="font-weight:400;color:#777;font-size:.9rem">(${aing.indexOf(' + ') >= 0 ? 'діючі речовини' : 'діюча речовина'}: ${esc(aing)})</span></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:10px">
+    ${analogs.map(r => relCard(r, '🧪')).join('')}
+    </div></section>` : '';
+  const relatedHtml = related.length ? `<section style="margin-top:34px"><h2 style="font-size:1.2rem">Схожі товари</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:10px">
+    ${related.map(r => relCard(r, '🛒')).join('')}
+    </div></section>` : '';
 
   const bcItems = [{ '@type': 'ListItem', position: 1, name: 'Каталог', item: origin + '/' }];
   if (p.category) bcItems.push({ '@type': 'ListItem', position: 2, name: p.category, item: origin + catUrl });
@@ -268,6 +323,15 @@ export async function onRequest(context) {
   const shTg = 'https://t.me/share/url?url=' + encodeURIComponent(canonical) + '&text=' + encodeURIComponent(displayName);
   const shVb = 'viber://forward?text=' + encodeURIComponent(displayName + ' — ' + canonical);
   const shFb = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(canonical);
+  const shareBlock = `<div style="position:relative;display:inline-block;margin:0 0 12px">
+    <button type="button" id="share-btn" onclick="shareProduct(event)" aria-haspopup="true" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #cfe3cf;color:var(--green);font-weight:700;font-size:.85rem;padding:6px 14px;border-radius:18px;cursor:pointer">↗ Поділитися</button>
+    <div id="share-menu" style="display:none;position:absolute;z-index:30;left:0;top:112%;background:#fff;border:1px solid #cfe3cf;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.14);padding:6px;min-width:200px">
+      <a href="${shTg}" target="_blank" rel="noopener" style="display:block;padding:8px 10px;color:#0088cc;text-decoration:none;border-radius:6px">✈️ Telegram</a>
+      <a href="${shVb}" style="display:block;padding:8px 10px;color:#7360f2;text-decoration:none;border-radius:6px">📲 Viber</a>
+      <a href="${shFb}" target="_blank" rel="noopener" style="display:block;padding:8px 10px;color:#1877f2;text-decoration:none;border-radius:6px">f&nbsp; Facebook</a>
+      <a href="#" id="share-copy" onclick="shareCopy(event)" style="display:block;padding:8px 10px;color:#444;text-decoration:none;border-radius:6px">🔗 Копіювати посилання</a>
+    </div>
+  </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="uk">
@@ -297,13 +361,16 @@ export async function onRequest(context) {
 <script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd).replace(/</g, '\\u003c')}</script>
 <style>
+/* ── Сторінка товару ───────────────────────────────── */
 .p-layout   { display:grid; grid-template-columns:1fr; gap:28px; align-items:start; margin-top:16px; }
 @media(min-width:600px){ .p-layout { grid-template-columns:minmax(260px,2fr) 3fr; } }
+
 .p-gallery img { width:100%; max-height:360px; object-fit:contain; border-radius:14px; background:#f6f6f6; display:block; }
 .p-gallery .no-img { aspect-ratio:4/3; background:#eef5ee; display:flex; align-items:center; justify-content:center; font-size:3rem; border-radius:14px; }
 .p-thumbs  { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .p-thumbs img { width:64px; height:64px; object-fit:contain; background:#f6f6f6; border:2px solid #ddd; border-radius:8px; cursor:pointer; transition:border-color .15s; }
 .p-thumbs img.active { border-color:var(--green); }
+
 .p-info    { display:flex; flex-direction:column; gap:0; }
 .p-brand   { text-transform:uppercase; color:#aaa; font-size:.75rem; letter-spacing:.08em; margin-bottom:4px; }
 .p-title   { font-size:1.45rem; font-weight:800; color:var(--text); line-height:1.25; margin:0 0 10px; }
@@ -314,25 +381,33 @@ export async function onRequest(context) {
 .p-stock   { display:inline-flex; align-items:center; gap:5px; font-size:.82rem; font-weight:700; padding:4px 12px; border-radius:20px; margin-bottom:12px; }
 .p-stock.in  { background:#d4edda; color:#155724; }
 .p-stock.out { background:#f8d7da; color:#721c24; }
+
 .p-add-row { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
 .p-qty     { display:flex; align-items:center; gap:0; border:2px solid var(--green); border-radius:10px; overflow:hidden; width:fit-content; }
 .p-qty button { width:38px; height:40px; background:#f0f7f0; border:none; font-size:1.25rem; cursor:pointer; color:var(--green); font-weight:700; }
 .p-qty input  { width:72px; height:40px; border:none; border-left:1px solid #cde8cd; border-right:1px solid #cde8cd; text-align:center; font-weight:700; font-size:1rem; font-family:inherit; }
 .p-qty-label  { font-size:.88rem; color:#555; }
+
 .p-cta     { display:flex; flex-direction:column; gap:10px; }
 .p-cta .btn { width:100%; max-width:320px; font-size:1rem; padding:13px 0; text-align:center; border-radius:10px; }
 .p-after   { display:none; flex-wrap:wrap; gap:10px; align-items:center; margin-top:4px; }
 .p-after .btn { max-width:220px; font-size:.9rem; padding:10px 0; text-decoration:none; text-align:center; }
 .p-after .go  { color:var(--green); font-weight:700; text-decoration:none; font-size:.9rem; }
+
 .p-delivery { background:#f1f7ee; border:1px solid #d4e8d4; border-radius:12px; padding:13px 15px; margin-top:16px; font-size:.86rem; line-height:1.85; color:#2c3e2c; }
 .p-delivery b { color:#1a3e1a; }
 .p-delivery a { color:var(--green); font-weight:700; text-decoration:none; }
+
+/* ── Поділитися ── */
 .share-wrap { position:relative; display:inline-block; margin-bottom:12px; }
 .share-btn  { display:inline-flex; align-items:center; gap:5px; background:#fff; border:1.5px solid #cfe3cf; color:var(--green); font-weight:700; font-size:.82rem; padding:5px 13px; border-radius:18px; cursor:pointer; }
 .share-menu { display:none; position:absolute; z-index:30; left:0; top:110%; background:#fff; border:1px solid #d4e8d4; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.13); padding:5px; min-width:200px; }
 .share-menu a { display:block; padding:8px 10px; text-decoration:none; border-radius:6px; font-size:.88rem; }
+
+/* ── Секції опису ── */
 .p-section  { margin-top:28px; max-width:760px; }
 .p-section h2 { font-size:1.05rem; font-weight:800; color:var(--text); border-bottom:2px solid #e6f0e6; padding-bottom:6px; margin:0 0 12px; }
+
 .p-desc     { font-size:.96rem; line-height:1.75; color:#333; }
 .p-desc h1,.p-desc h2,.p-desc h3 { font-size:1rem; font-weight:700; margin:10px 0 4px; color:#1a3e1a; }
 .p-desc ul  { padding-left:1.3em; margin:6px 0; }
@@ -340,11 +415,14 @@ export async function onRequest(context) {
 .p-desc p   { margin:0 0 8px; }
 .p-ai       { display:inline-flex; align-items:center; gap:8px; background:#eef5ee; border:1px solid #cde8cd; border-radius:8px; padding:7px 13px; font-size:.88rem; color:#1a3e1a; }
 .p-ai strong { color:var(--green); }
+
 .p-dosage   { background:#fff9e6; border:1px solid #f0e0b0; border-radius:12px; padding:14px 16px; font-size:.92rem; line-height:1.65; color:#5a4a1a; }
 .p-dosage .dose-text { margin-bottom:8px; }
 .p-dose-calc { display:none; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:.9rem; }
 .p-dose-calc input { width:64px; padding:5px 6px; border:1.5px solid #d4b96a; border-radius:6px; text-align:center; font-weight:700; font-size:.92rem; font-family:inherit; }
 .p-dose-calc .result { font-weight:700; color:var(--green); font-size:1.05rem; }
+
+/* ── Варіанти фасовок ── */
 .p-variants      { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 14px; }
 .p-variants a,
 .p-variants > span { display:inline-flex; flex-direction:column; align-items:center; padding:7px 14px; border-radius:9px; border:2px solid #ccc; text-decoration:none; line-height:1.25; }
@@ -354,6 +432,8 @@ export async function onRequest(context) {
 .p-variants .v-price { font-size:.75rem; font-weight:700; color:#2d6a2d; margin-top:2px; }
 .p-variants > span .v-price { color:#dfeede; }
 .p-variants .oos { opacity:.5; }
+
+/* ── Картки аналогів/супутніх ── */
 .rel-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:12px; margin-top:12px; }
 .rel-card { position:relative; border:1px solid #eee; border-radius:10px; padding:10px; transition:box-shadow .15s; }
 .rel-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.1); }
@@ -365,6 +445,8 @@ export async function onRequest(context) {
 .rel-card .rc-add   { width:100%; margin-top:8px; background:var(--green); color:#fff; border:0; padding:7px; border-radius:7px; font-weight:700; font-size:.8rem; cursor:pointer; }
 .rel-card .rc-oos   { text-align:center; font-size:.77rem; color:#aaa; margin-top:7px; }
 .rel-badge { display:none; position:absolute; top:6px; left:6px; background:#ff7a00; color:#fff; border:2px solid #fff; border-radius:12px; padding:2px 8px; font-size:.78rem; font-weight:800; box-shadow:0 2px 6px rgba(0,0,0,.25); z-index:2; pointer-events:none; }
+
+/* ── Відгуки ── */
 .p-review-card { border-top:1px solid #eee; padding:12px 0; }
 .p-review-card .rc-author { font-weight:700; font-size:.92rem; }
 .p-review-card .rc-stars  { color:#f5a623; margin:0 4px; }
@@ -532,7 +614,7 @@ export async function onRequest(context) {
 
   <!-- Відгуки -->
   <div class="p-section" style="max-width:760px;">
-    <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} ·${revCount}` : ''}</h2>
+    <h2>⭐ Відгуки${revCount ? ` <span style="color:#f5a623;">${'★'.repeat(Math.round(revAvg))}${'☆'.repeat(5-Math.round(revAvg))}</span> ${revAvg.toFixed(1)} · ${revCount}` : ''}</h2>
 
     ${thanks ? '<div style="background:#eef6ee;border:1px solid #cfe3c0;border-radius:8px;padding:10px;margin-bottom:10px;color:var(--green);">✅ Дякуємо! Відгук з\'явиться після перевірки.</div>' : ''}
     ${robot  ? '<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px;margin-bottom:10px;color:#922;">⚠️ Не вдалося підтвердити, що ви не робот. Спробуйте ще раз.</div>' : ''}
@@ -540,10 +622,11 @@ export async function onRequest(context) {
     ${revCount ? reviews.map(r => `<div class="p-review-card">
       <div>
         <span class="rc-author">${esc(r.name || 'Покупець')}</span>
-        <span class="rc-stars">${'★'.repeat(r.rating \vert{}\vert{} 5)}${'☆'.repeat(5-(r.rating||5))}</span>
+        <span class="rc-stars">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5-(r.rating||5))}</span>
         <span class="rc-date">${esc(r.created_at || '')}</span>
       </div>
-      <div class="rc-text">${esc(r.text)}</div>${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank" rel="noopener"><img src="/thumb/${esc(r.img)}" alt="Фото від покупця" class="rc-photo" loading="lazy"></a>` : ''}
+      <div class="rc-text">${esc(r.text)}</div>
+      ${r.img ? `<a href="/thumb/${esc(r.img)}" target="_blank" rel="noopener"><img src="/thumb/${esc(r.img)}" alt="Фото від покупця" class="rc-photo" loading="lazy"></a>` : ''}
     </div>`).join('') : ''}
 
     <a href="#leave-review" class="p-review-cta">
@@ -578,10 +661,12 @@ export async function onRequest(context) {
     </form>
     ${s_tskey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
     <script>
+    // Автостиснення фото відгуку в браузері перед відправкою (макс 900px, webp q75) — щоб трафік/сховище були мінімальними,
+    // але фото лишалось достатнім для перегляду. Той самий підхід, що й для товарних фото в адмінці.
     async function shrinkReviewPhoto(form, ev){
       var inp = form.querySelector('input[name=photo]');
       var file = inp && inp.files && inp.files[0];
-      if(!file || !/^image\\//.test(file.type)) return true;
+      if(!file || !/^image\\//.test(file.type)) return true;   // нема фото / не зображення → звичайний сабміт
       ev.preventDefault();
       var btn = form.querySelector('button[type=submit]'); var oldText = btn.textContent; btn.disabled=true; btn.textContent='⏳ Стиснення фото…';
       try {
@@ -592,10 +677,10 @@ export async function onRequest(context) {
         cv.getContext('2d').drawImage(bmp,0,0,w,h);
         var blob = await new Promise(function(res){ cv.toBlob(res,'image/webp',0.75); });
         var fd = new FormData(form);
-        if (blob && blob.size < file.size) fd.set('photo', blob, 'review.webp');
+        if (blob && blob.size < file.size) fd.set('photo', blob, 'review.webp');  // менше за оригінал → шлемо стиснене
         var r = await fetch(form.action, {method:'POST', body:fd, redirect:'follow'});
         location.href = r.url || location.href;
-      } catch(e){ btn.disabled=false; btn.textContent=oldText; form.onsubmit=null; form.submit(); }
+      } catch(e){ btn.disabled=false; btn.textContent=oldText; form.onsubmit=null; form.submit(); }  // fallback — звичайний сабміт оригіналу
       return false;
     }
     </script>
@@ -619,6 +704,7 @@ export async function onRequest(context) {
 <div id="site-footer"></div>
 
 <script>
+// ── Мініатюри галереї ──
 function setThumb(el, src){
   var m=document.getElementById('pmain'); if(m){ m.src=src; m.style.display=''; }
   var fb=document.getElementById('pmain-fb'); if(fb) fb.style.display='none';
@@ -626,6 +712,7 @@ function setThumb(el, src){
   el.classList.add('active');
 }
 
+// ── Поділитися ──
 function shareProduct(e){ e.preventDefault();
   if(navigator.share){ navigator.share({title:document.title, url:location.href}).catch(function(){}); return; }
   var m=document.getElementById('share-menu'); if(m) m.style.display=(m.style.display==='block')?'none':'block';
@@ -640,9 +727,11 @@ document.addEventListener('click', function(e){
   if(m && m.style.display==='block' && !e.target.closest('#share-btn') && !e.target.closest('#share-menu')) m.style.display='none';
 });
 
+// ── Дані товару ──
 window.__P = ${JSON.stringify({ n: displayName, p: Number(effPrice) || 0, w: !!weight, pid: Number(p.pid) || null, div: divisible ? divisor : null }).replace(/</g, '\\u003c')};
 var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
 
+// ── Калькулятор дозування ──
 (function(){
   if(!DC) return;
   var box=document.getElementById('dose-calc'); if(!box) return;
@@ -652,6 +741,7 @@ var DC = ${JSON.stringify(doseCalc).replace(/</g, '\\u003c')};
   if(inp&&out){ inp.addEventListener('input',calc); calc(); box.style.display='flex'; }
 })();
 
+// ── Лічильник кількості ──
 function pqtyChange(dir){
   var step=window.__P.div||( window.__P.w ? 0.5 : 1 );
   var i=document.getElementById('pqty'); if(!i) return;
@@ -661,6 +751,7 @@ function pqtyChange(dir){
   i.value=v;
 }
 
+// ── Додати в кошик ──
 function addToCart(){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=window.__P.n, price=window.__P.p, q=1;
@@ -677,6 +768,7 @@ function addToCart(){
   var aa=document.getElementById('after-add'); if(aa) aa.style.display='flex';
 }
 
+// ── Картки аналогів/супутніх ──
 function addRel(btn){
   var KEY='agronom_cart', cart; try{cart=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){cart=[]}
   var name=btn.getAttribute('data-n'), price=parseFloat(btn.getAttribute('data-p'))||0;
