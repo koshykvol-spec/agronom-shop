@@ -1,8 +1,36 @@
 // /feed/prom.xml — YML-фід (Prom.ua / Rozetka) з D1. Кожна фасовка = окремий offer.
 function xesc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
+// Кеш через Cache API. Pages Function виконується ПЕРЕД CDN-кешем, тому самого
+// заголовка Cache-Control недостатньо: без цього кожен запит іде в D1.
+// Помилкові/деградовані відповіді (x-degraded) і не-200 в кеш не потрапляють.
+async function cached(context, render) {
+  const { request } = context;
+  if (request.method !== 'GET') return render(context);
+  const url = new URL(request.url);
+  const cache = caches.default;
+  const cacheKey = new Request(url.origin + url.pathname);
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+  const res = await render(context);
+  const ok = res.status === 200 && !res.headers.has('x-degraded');
+  if (ok) context.waitUntil(cache.put(cacheKey, res.clone()));
+  res.headers.delete('x-degraded');
+  res.headers.set('X-Cache', ok ? 'MISS' : 'BYPASS');
+  return res;
+}
+
 export async function onRequest(context) {
+  return cached(context, renderPromFeed);
+}
+
+async function renderPromFeed(context) {
   const db = context.env.DB;
+  let degraded = false;
   const origin = new URL(context.request.url).origin;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -29,7 +57,7 @@ export async function onRequest(context) {
         WHERE c.visible=1 AND c.slug IS NOT NULL AND c.slug<>''
         ORDER BY p.category, name`
     ).all()).results || [];
-  } catch (e) {}
+  } catch (e) { degraded = true; }
 
   const offers = [];
   for (const r of rows) {
@@ -60,5 +88,5 @@ export async function onRequest(context) {
     '<offers>' + offers.join('') + '</offers>' +
     '</shop></yml_catalog>\n';
 
-  return new Response(xml, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  return new Response(xml, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600', ...(degraded ? { 'x-degraded': '1' } : {}) } });
 }

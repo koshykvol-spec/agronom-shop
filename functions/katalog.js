@@ -3,9 +3,37 @@
 // noindex,follow — сама карта не в індексі, але передає краул на товарні сторінки.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// Кеш через Cache API. Pages Function виконується ПЕРЕД CDN-кешем, тому самого
+// заголовка Cache-Control недостатньо: без цього кожен запит іде в D1.
+// Помилкові/деградовані відповіді (x-degraded) і не-200 в кеш не потрапляють.
+async function cached(context, render) {
+  const { request } = context;
+  if (request.method !== 'GET') return render(context);
+  const url = new URL(request.url);
+  const cache = caches.default;
+  const cacheKey = new Request(url.origin + url.pathname);
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+  const res = await render(context);
+  const ok = res.status === 200 && !res.headers.has('x-degraded');
+  if (ok) context.waitUntil(cache.put(cacheKey, res.clone()));
+  res.headers.delete('x-degraded');
+  res.headers.set('X-Cache', ok ? 'MISS' : 'BYPASS');
+  return res;
+}
+
 export async function onRequest(context) {
+  return cached(context, renderKatalog);
+}
+
+async function renderKatalog(context) {
   const db = context.env.DB;
   let rows = [];
+  let degraded = false;
   try {
     const r = await db.prepare(
       `SELECT c.slug AS slug, COALESCE(NULLIF(c.display_name,''), p.name) AS name, p.category AS cat
@@ -14,7 +42,7 @@ export async function onRequest(context) {
         ORDER BY p.category, name`
     ).all();
     rows = r.results || [];
-  } catch (e) { /* порожня карта краще за 500 */ }
+  } catch (e) { degraded = true; /* порожня карта краще за 500, але її не кешуємо */ }
 
   // Групуємо за категорією
   const byCat = new Map();
@@ -55,6 +83,6 @@ export async function onRequest(context) {
 </body></html>`;
 
   return new Response(html, {
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' }
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600', ...(degraded ? { 'x-degraded': '1' } : {}) }
   });
 }

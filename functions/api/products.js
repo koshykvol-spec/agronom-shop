@@ -1,5 +1,32 @@
 // /api/products — каталог із D1 (slim). Фасовки з одним group_id колапсуються в одну картку «від X грн».
+// Кеш через Cache API. Pages Function виконується ПЕРЕД CDN-кешем, тому самого
+// заголовка Cache-Control недостатньо: без цього кожен запит іде в D1.
+// Помилкові/деградовані відповіді (x-degraded) і не-200 в кеш не потрапляють.
+async function cached(context, render) {
+  const { request } = context;
+  if (request.method !== 'GET') return render(context);
+  const url = new URL(request.url);
+  const cache = caches.default;
+  const cacheKey = new Request(url.origin + url.pathname);
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+  const res = await render(context);
+  const ok = res.status === 200 && !res.headers.has('x-degraded');
+  if (ok) context.waitUntil(cache.put(cacheKey, res.clone()));
+  res.headers.delete('x-degraded');
+  res.headers.set('X-Cache', ok ? 'MISS' : 'BYPASS');
+  return res;
+}
+
 export async function onRequestGet(context) {
+  return cached(context, renderProducts);
+}
+
+async function renderProducts(context) {
   const today = new Date().toISOString().slice(0, 10);
   let out = [];
   try {
@@ -50,6 +77,6 @@ export async function onRequestGet(context) {
   } catch (e) { return new Response('[]', { status: 500, headers: { 'content-type': 'application/json' } }); }
 
   return new Response(JSON.stringify(out), {
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=180' }
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=180, s-maxage=300' }
   });
 }

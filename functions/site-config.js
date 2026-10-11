@@ -22,11 +22,12 @@ const FALLBACK = {
   ]
 };
 
-function emit(cfg) {
+function emit(cfg, degraded) {
   return new Response('window.SITE_CONFIG = ' + JSON.stringify(cfg) + ';', {
     headers: {
       'content-type': 'application/javascript; charset=utf-8',
-      'cache-control': 'public, max-age=600, stale-while-revalidate=86400'
+      'cache-control': 'public, max-age=600, stale-while-revalidate=86400',
+      ...(degraded ? { 'x-degraded': '1' } : {})
     }
   });
 }
@@ -48,7 +49,34 @@ const PUBLIC_KEYS = new Set([
   'ga4_id', 'clarity_id' // ID аналітики — публічні за своєю природою, і так видно в HTML
 ]);
 
+// Кеш через Cache API. Pages Function виконується ПЕРЕД CDN-кешем, тому самого
+// заголовка Cache-Control недостатньо: без цього кожен запит іде в D1.
+// Помилкові/деградовані відповіді (x-degraded) і не-200 в кеш не потрапляють.
+async function cached(context, render) {
+  const { request } = context;
+  if (request.method !== 'GET') return render(context);
+  const url = new URL(request.url);
+  const cache = caches.default;
+  const cacheKey = new Request(url.origin + url.pathname);
+  const hit = await cache.match(cacheKey);
+  if (hit) {
+    const r = new Response(hit.body, hit);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+  const res = await render(context);
+  const ok = res.status === 200 && !res.headers.has('x-degraded');
+  if (ok) context.waitUntil(cache.put(cacheKey, res.clone()));
+  res.headers.delete('x-degraded');
+  res.headers.set('X-Cache', ok ? 'MISS' : 'BYPASS');
+  return res;
+}
+
 export async function onRequestGet(context) {
+  return cached(context, renderConfig);
+}
+
+async function renderConfig(context) {
   const db = context.env.DB;
   try {
     const cfg = {};
@@ -56,7 +84,7 @@ export async function onRequestGet(context) {
       if (PUBLIC_KEYS.has(r.key)) cfg[r.key] = r.value;
     }
     const sRows = (await db.prepare(`SELECT name,street,address,hours,lat,lng,map,oh_json FROM stores ORDER BY sort,id`).all()).results || [];
-    if (!Object.keys(cfg).length && !sRows.length) return emit(FALLBACK);
+    if (!Object.keys(cfg).length && !sRows.length) return emit(FALLBACK, true);
     cfg.stores = sRows.map(s => {
       let oh = [];
       try { oh = JSON.parse(s.oh_json || '[]'); } catch (e) {}
@@ -66,6 +94,6 @@ export async function onRequestGet(context) {
     });
     return emit(cfg);
   } catch (e) {
-    return emit(FALLBACK);
+    return emit(FALLBACK, true);
   }
 }
