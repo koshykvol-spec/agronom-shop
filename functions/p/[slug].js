@@ -27,6 +27,32 @@ const CATEGORY_HIERARCHY = {
   'ДЛЯ ТВАРИН': 'Агротовари > Товари для тварин',
   'РОЗСАДА': 'Агротовари > Розсада'
 };
+// Серверний рендер мінімального Markdown (дзеркало md-render.js), щоб опис був у HTML для Googlebot без JS.
+function mdToHtml(md) {
+  const inl = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
+  const lines = String(md || '').split(/\r?\n/);
+  let html = '', i = 0;
+  while (i < lines.length) {
+    const b = lines[i].trim();
+    if (!b) { i++; continue; }
+    if (/^### /.test(b)) { html += '<h4>' + esc(b.slice(4)) + '</h4>'; i++; continue; }
+    if (/^## /.test(b))  { html += '<h3>' + esc(b.slice(3)) + '</h3>'; i++; continue; }
+    if (/^# /.test(b))   { html += '<h3>' + esc(b.slice(2)) + '</h3>'; i++; continue; }
+    if (/^- /.test(b)) {
+      const items = [];
+      while (i < lines.length && /^- /.test(lines[i].trim())) { items.push('<li>' + inl(lines[i].trim().replace(/^-\s*/, '')) + '</li>'); i++; }
+      html += '<ul>' + items.join('') + '</ul>'; continue;
+    }
+    if (/^\d+\.\s/.test(b)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) { items.push('<li>' + inl(lines[i].trim().replace(/^\d+\.\s*/, '')) + '</li>'); i++; }
+      html += '<ol>' + items.join('') + '</ol>'; continue;
+    }
+    html += '<p>' + inl(b) + '</p>'; i++;
+  }
+  return html;
+}
+
 function hierCategory(raw) {
   const v = (raw && String(raw).trim()) ? String(raw).trim() : '';
   if (!v) return undefined;
@@ -658,11 +684,7 @@ async function renderProduct(context) {
   <!-- Анотація / опис -->
   ${p.annotation ? `<div class="p-section">
     <h2>📋 Опис</h2>
-    <div class="p-desc" id="p-annotation"></div>
-    <script>
-      window.__MD_ANNOTATION = ${JSON.stringify(p.annotation).replace(/</g,'\\u003c')};
-    </script>
-    <script src="/md-render.js" defer onload="window.mdRender(window.__MD_ANNOTATION,'p-annotation')"></script>
+    <div class="p-desc" id="p-annotation">${mdToHtml(p.annotation)}</div>
   </div>` : ''}
 
   <!-- Дозування + калькулятор -->
