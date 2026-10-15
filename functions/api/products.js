@@ -122,7 +122,7 @@ async function renderProducts(context) {
     out.sort((a, b) => String(a.n).localeCompare(String(b.n), 'uk'));
   } catch (e) { return new Response('[]', { status: 500, headers: { 'content-type': 'application/json' } }); }
 
-  return new Response(JSON.stringify(out), {
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=180, s-maxage=300' }
+ return new Response(JSON.stringify(out), {
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=300, s-maxage=1800' }
   });
 }
