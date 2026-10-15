@@ -305,16 +305,22 @@ async function renderProduct(context) {
   }
   let related = [];
   try {
+    // Для насіння першими показуємо ту саму культуру (перше слово назви: «Базилік», «Томат»…),
+    // решту місць добираємо з тієї ж категорії. Для інших категорій порядок не змінюється (pattern '' нічого не матчить).
+    const isSeed = /НАСІННЯ/i.test(String(p.category || ''));
+    const firstWord = String(displayName || '').trim().split(/\s+/)[0].replace(/[%_]/g, '');
+    const cultureLike = (isSeed && firstWord.length >= 3) ? (firstWord + ' %') : '';
     related = (await env.DB.prepare(
       `WITH picked AS (
          SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock
            FROM products pr JOIN product_content c ON c.pid=pr.pid
           WHERE pr.category=? AND c.visible=1 AND pr.pid<>? AND (?='' OR c.group_id IS NULL OR c.group_id<>?)
-          ORDER BY pr.in_stock DESC, pr.pid LIMIT 8
+          ORDER BY CASE WHEN ?<>'' AND COALESCE(NULLIF(c.display_name,''),pr.name) LIKE ? THEN 0 ELSE 1 END,
+                   pr.in_stock DESC, pr.pid LIMIT 8
        )
        SELECT picked.*, (SELECT path FROM product_images i WHERE i.pid=picked.pid ORDER BY sort LIMIT 1) AS img
          FROM picked`
-    ).bind(p.category, p.pid, p.group_id||'', p.group_id||'').all()).results || [];
+    ).bind(p.category, p.pid, p.group_id||'', p.group_id||'', cultureLike, cultureLike).all()).results || [];
   } catch(e){}
 
   let analogs = [];
