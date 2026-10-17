@@ -86,6 +86,7 @@ function renderReport(d,dry){
     +'<b>'+(dry?'🔎 Попередній перегляд':'✅ Імпорт виконано')+'</b> — з файлу '
     +(r.source&&r.source.records||d.total)+' записів'+(r.source&&r.source.file?' <span class=muted>('+esc(r.source.file)+')</span>':'')+'<br>'
     +'➕ '+(dry?'буде створено':'створено')+': <b>'+cr+'</b> &nbsp; 🔄 '+(dry?'буде оновлено':'оновлено')+': <b>'+up+'</b> &nbsp; '
+    +'⏸ без змін: <b>'+(d.willSkip!=null?d.willSkip:(d.unchanged||0))+'</b> &nbsp; '
     +'⛔ пропущено: <b>'+d.invalid+'</b> &nbsp; 🖼 шляхів фото виправлено: <b>'+(d.imgWarnings||0)+'</b></div>';
   h+=sect('➕ Додані (sku · назва → категорія)',r.created,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+' <span class=muted>→ '+esc(x.c||'—')+'</span></div>');
   h+=sect('📉 Стали недоступні (остаток 0, а в базі був ≠0)',r.stockZeroed,x=>'<div>'+esc(x.sku)+' · '+esc(x.n)+'</div>');
@@ -101,7 +102,7 @@ function renderReport(d,dry){
 async function verify(){if(!TEXT){alert('Оберіть файл');return;} $('s').textContent='перевірка…';
   const {ok,data}=await post(true); $('s').textContent='';
   $('o').innerHTML=renderReport(data,true);
-  $('imp').disabled=!(ok && data.ok && data.invalid===0 && (data.willCreate+data.willUpdate)>0);}
+  $('imp').disabled=!(ok && data.ok && data.invalid===0 && (data.willCreate+data.willUpdate+((data.report&&data.report.disappearedZeroed)||0))>0);}
 async function run(){$('s').textContent='імпорт…'; $('imp').disabled=true;
   const {ok,data}=await post(false); $('s').textContent=ok&&data.ok?'✅ Готово':'❌ Помилка';
   $('o').innerHTML=renderReport(data,false);}
@@ -139,7 +140,7 @@ export async function onRequestPost(context) {
   });
 
   // 2) план (матч з D1) + порівняння для звіту
-  const ex = await db.prepare(`SELECT pid,sku,name,price,category,brand,in_stock FROM products`).all();
+  const ex = await db.prepare(`SELECT pid,sku,name,price,category,brand,in_stock,name_lower FROM products`).all();
   const exRows = ex.results || [];
   const bySkuName = new Map(), bySku = new Map(), pidInfo = new Map(); let maxPid = 0;
   for (const r of exRows) {
@@ -168,7 +169,7 @@ export async function onRequestPost(context) {
   const FtsDel = db.prepare(`DELETE FROM products_fts WHERE rowid=?`);
   const FtsIns = db.prepare(`INSERT INTO products_fts(rowid, name_lower) VALUES(?, ?)`);
 
-  const stmts = []; let created = 0, updated = 0;
+  const stmts = []; let created = 0, updated = 0, unchanged = 0;
   const rep = { createdList: [], stockZeroed: [], stockRestored: [], priceChanges: [], moved: [], disappeared: [] };
   const importSkus = new Set();
   for (const r of valid) {
@@ -183,9 +184,24 @@ export async function onRequestPost(context) {
       if ((o.in_stock | 0) === 0 && inStock === 1) rep.stockRestored.push({ sku: r.sku, n: r.n });
       if (o.price != null && Math.abs(Number(o.price) - Number(r.p)) > 0.009) rep.priceChanges.push({ sku: r.sku, n: r.n, old: Number(o.price), neu: Number(r.p) });
       if ((o.category || '') !== (r.c || '') || (o.brand || '') !== (r.b || '')) rep.moved.push({ sku: r.sku, n: r.n, oldC: o.category || '', newC: r.c || '', oldB: o.brand || '', newB: r.b || '' });
-      stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, nLower, pid)); updated++;
-      stmts.push(FtsDel.bind(pid));
-      stmts.push(FtsIns.bind(pid, nLower));
+      // Пишемо в D1 лише змінений товар: UPDATE зачіпає індекси, а FTS5 DELETE+INSERT — десятки
+      // службових рядків на товар. Повний імпорт раніше переписував усі ~2 тис. товарів (+FTS).
+      // updated_at з 1С у перевірку змін свідомо НЕ входить (може змінюватись при кожній вигрузці).
+      const nameChanged = String(o.name == null ? '' : o.name) !== r.n;
+      const lowerChanged = (o.name_lower == null ? '' : o.name_lower) !== nLower;
+      const priceChanged = o.price == null || Math.abs(Number(o.price) - Number(r.p)) > 0.009;
+      const catBrandChanged = (o.category || '') !== (r.c || '') || (o.brand || '') !== (r.b || '');
+      const stockChanged = (o.in_stock | 0) !== inStock;
+      if (nameChanged || lowerChanged || priceChanged || catBrandChanged || stockChanged) {
+        stmts.push(Up.bind(r.n, r.p, r.c, r.b, inStock, r.updated_at, nLower, pid)); updated++;
+        // FTS-індекс залежить лише від name_lower — оновлюємо його тільки коли той змінився
+        if (lowerChanged) {
+          stmts.push(FtsDel.bind(pid));
+          stmts.push(FtsIns.bind(pid, nLower));
+        }
+      } else {
+        unchanged++;
+      }
     } else {
       pid = ++maxPid;
       let base = slugify(r.n), slug = base, k = 2;
@@ -222,6 +238,7 @@ export async function onRequestPost(context) {
   const cap = (a, n) => ({ total: a.length, sample: a.slice(0, n) });
   const report = {
     source: { file: srcFile || null, records: arr.length },
+    unchanged,
     created: cap(rep.createdList, 300),
     stockZeroed: cap(rep.stockZeroed, 300),
     stockRestored: cap(rep.stockRestored, 200),
@@ -233,8 +250,8 @@ export async function onRequestPost(context) {
   };
 
   if (dry) {
-    return json({ ok: true, dryrun: true, total: arr.length, valid: valid.length, invalid: invalid.length, willCreate: created, willUpdate: updated, sampleInvalid: invalid.slice(0, 10), imgWarnings: imgWarn.length, sampleImgWarnings: imgWarn.slice(0, 10), report });
+    return json({ ok: true, dryrun: true, total: arr.length, valid: valid.length, invalid: invalid.length, willCreate: created, willUpdate: updated, willSkip: unchanged, sampleInvalid: invalid.slice(0, 10), imgWarnings: imgWarn.length, sampleImgWarnings: imgWarn.slice(0, 10), report });
   }
   for (let i = 0; i < stmts.length; i += 80) await db.batch(stmts.slice(i, i + 80));
-  return json({ ok: true, total: arr.length, created, updated, invalid: invalid.length, sampleInvalid: invalid.slice(0, 10), imgWarnings: imgWarn.length, sampleImgWarnings: imgWarn.slice(0, 10), report });
+  return json({ ok: true, total: arr.length, created, updated, unchanged, invalid: invalid.length, sampleInvalid: invalid.slice(0, 10), imgWarnings: imgWarn.length, sampleImgWarnings: imgWarn.slice(0, 10), report });
 }
