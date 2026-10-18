@@ -77,6 +77,7 @@
       + '      <a class="footer-line" href="/delivery.html">Доставка і оплата</a>'
       + '      <a class="footer-line" href="/contacts.html">Контакти</a>'
       + '      <a class="footer-line" href="/returns.html">Повернення та оферта</a>'
+      + '      <a class="footer-line" href="/katalog">Повний каталог товарів</a>'
       + '    </div>'
       + '  </div>'
       + '  <div class="footer-legal">© ' + year + ' ' + esc(c.network || c.name || 'Агроном') + ' · ' + esc(c.fop || '') + ' · ' + esc(c.city || '') + (c.region ? ', ' + esc(c.region) : '') + '</div>'
