@@ -618,9 +618,13 @@
 
             let html = '<div class="treatment stage-detail">';
             html += '<div class="treatment-stage">' + escapeHtml(treatment.stage) + '</div>';
-            html += '<div class="treatment-date">' + treatment.date + '</div>';
-            html += '<div class="treatment-problem"><strong>🚨 Проблема:</strong> ' + escapeHtml(treatment.problem) + '</div>';
-            html += '<div class="treatment-prep-type"><strong>💊 Препарат:</strong> ' + treatment.products.map(escapeHtml).join(', ') + '</div>';
+            // Компактно: строк + проблема в один рядок, щоб препарати були одразу видні без прокрутки
+            html += '<div class="treatment-meta"><span class="treatment-date">' + treatment.date + '</span>'
+                  + '<span class="treatment-problem-inline">🚨 ' + escapeHtml(treatment.problem) + '</span></div>';
+            // Блок «Препарат:» дублює список товарів нижче — показуємо його лише коли товарів не знайдено
+            if (foundProducts.length === 0) {
+                html += '<div class="treatment-prep-type"><strong>💊 Препарат:</strong> ' + treatment.products.map(escapeHtml).join(', ') + '</div>';
+            }
 
             // Препарати
             html += '<div class="products-section"><div class="products-title">🛍️ Препарати:</div>';
