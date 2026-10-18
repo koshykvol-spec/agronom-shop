@@ -33,8 +33,8 @@
 
        <!-- ── Діагностика по фото ── -->
 <!-- Інпут 1: Примусова Камера -->
-<h2 style="font-size:1.15rem;color:#1a3e1a;margin:10px 0 4px;">Порадник — визначення хвороб, шкідників і бур'янів рослин по фото</h2>
-<p style="font-size:.88rem;color:#444;max-width:760px;margin:0 0 10px;line-height:1.5;">
+<h2 class="ps-intro" style="font-size:1.15rem;color:#1a3e1a;margin:10px 0 4px;">Порадник — визначення хвороб, шкідників і бур'янів рослин по фото</h2>
+<p class="ps-intro" style="font-size:.88rem;color:#444;max-width:760px;margin:0 0 10px;line-height:1.5;">
   Сфотографуйте уражену рослину — Порадник за допомогою штучного інтелекту визначить, що саме
   вражає культуру (хвороба, шкідник чи бур'ян), і підбере відповідний препарат з каталогу магазину
   Агроном. Нижче — 54 готові схеми захисту рослин для саду, городу й теплиці за культурою та стадією росту.
@@ -57,7 +57,7 @@
 <!-- Інпут 2: Галерея / Файли -->
 <input type="file" id="diagnose-file" accept="image/*" style="display:none;">
 
-<div id="diagnose-bar" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
+<div id="diagnose-bar" class="ps-intro" style="background:linear-gradient(135deg,#f0f8f0,#e8f5e8);border:1.5px solid #c8e0c8;border-radius:14px;padding:16px 18px;margin:14px 0 4px;max-width:760px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <span style="font-size:1.3rem">🔬</span>
     <div style="flex:1;min-width:200px">
@@ -532,6 +532,7 @@
 
             container.style.display = 'none';
             btnBack.classList.add('active');
+            document.body.classList.add('ps-in-scheme'); // ховаємо вступ і блок «по фото», щоб препарати були ближче
 
             // Якщо targetSchemeId — знайти індекс схеми
             const cat = protectionSchemes.protection_schemes[categoryKey];
@@ -696,6 +697,7 @@
             document.getElementById('categories').style.display = 'grid';
             document.getElementById('schemes-container').innerHTML = '';
             document.querySelector('.btn-back').classList.remove('active');
+            document.body.classList.remove('ps-in-scheme');
         }
         
         document.addEventListener('DOMContentLoaded', async () => {
@@ -719,6 +721,7 @@
 // switchTab — перемикання між трьома вкладками
 // ════════════════════════════════════════════════════
 function switchTab(name) {
+    document.body.classList.remove('ps-in-scheme');
     document.querySelectorAll('.main-tab').forEach(function(b, i) {
         var names = ['schemes','diseases','herbicides'];
         b.classList.toggle('active', names[i] === name);

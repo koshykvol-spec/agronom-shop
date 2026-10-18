@@ -438,3 +438,6 @@
 .scheme-tab { padding: 8px 14px; font-size: 0.9rem; }
 .stage-tabs { padding: 10px; gap: 6px; margin-bottom: 14px; }
 .stage-tab { padding: 6px 12px; }
+
+/* Під час перегляду схеми ховаємо вступ і блок «по фото» — препарати видно одразу */
+body.ps-in-scheme .ps-intro { display: none; }
