@@ -107,7 +107,7 @@ async function renderKatalog(context) {
 
   const html = `<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex,follow">
+<meta name="robots" content="index,follow">
 <title>Повний каталог товарів — Агроном, м. Володимир</title>
 <meta name="description" content="Повний перелік усіх товарів магазину Агроном: агрохімікати, насіння, добрива, полив.">
 <link rel="canonical" href="https://agronom.pp.ua/katalog">
