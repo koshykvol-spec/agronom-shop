@@ -218,7 +218,7 @@ nav { background: var(--green); padding: 1rem 1.5rem; position: sticky; top: 0; 
    не штовхало сітку вниз (CLS). Виміряно playwright на mobile. */
 #seasonal-helper-container { min-height: 88px; }
 #main-nav { min-height: 320px; }                 /* 12 категорій-чипів */
-.home #recipes-container { min-height: 830px; }  /* блок «Схеми захисту» (лише головна) */
+.home #recipes-container { min-height: 110px; }  /* блок «Схеми захисту» згорнутий за замовчуванням (лише головна) */
 @media (min-width: 760px) { #main-nav { min-height: 0; } .home #recipes-container { min-height: 0; } }
 
 /* Позначка кількості товару, що вже в кошику (на картці каталогу) */
@@ -275,4 +275,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     /* Checkout на весь екран на телефоні */
     #order-modal { padding: 0 !important; align-items: flex-start !important; overflow-y: auto !important; }
     #order-modal > div { max-width: 100% !important; min-height: 100vh; border-radius: 0 !important; overflow-y: visible !important; }
+}
+
+
+/* Мобільна головна: категорії в один рядок з горизонтальною прокруткою — товари ближче до верху */
+@media (max-width: 760px) {
+    .home #main-nav { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 8px; margin-bottom: 8px; scrollbar-width: none; min-height: 0; }
+    .home #main-nav::-webkit-scrollbar { display: none; }
 }

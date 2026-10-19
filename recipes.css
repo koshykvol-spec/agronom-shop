@@ -212,3 +212,12 @@
         padding: 5px 6px;
     }
 }
+
+
+/* Згортаний блок «Схеми захисту та вирощування» */
+details.recipes-section.schemes { padding: 10px 15px; }
+details.recipes-section.schemes > summary { cursor: pointer; list-style: none; margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+details.recipes-section.schemes > summary::-webkit-details-marker { display: none; }
+details.recipes-section.schemes > summary::after { content: '▾'; font-size: 1rem; }
+details.recipes-section.schemes[open] > summary::after { content: '▴'; }
+details.recipes-section.schemes[open] > summary { margin-bottom: 12px; }

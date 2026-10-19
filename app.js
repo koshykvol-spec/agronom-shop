@@ -421,7 +421,8 @@ function unlockModal(){
 // ==========================================
 
 let recipes = [];
-let searchFiltersExpanded = (localStorage.getItem('searchFiltersExpanded') !== 'false');
+// За замовчуванням чипи «Пошук товарів» згорнуті — щоб товари були ближче до верху (стан запам'ятовується)
+let searchFiltersExpanded = (localStorage.getItem('searchFiltersExpanded') === 'true');
 
 async function loadRecipes() {
     // Спершу з D1 (/api/recipes, керується в /admin/recipes); fallback — статичний recipes.json.
@@ -512,14 +513,15 @@ function renderRecipes() {
 
     // 1️⃣ СХЕМИ ЗАХИСТУ
     if (schemeItems.length) {
-        html += '<div class="recipes-section schemes">';
-        html += '<div class="recipes-section-title">📋 Схеми захисту та вирощування</div>';
+        // <details>: за замовчуванням згорнуто (посилання лишаються в DOM для пошукових ботів)
+        html += '<details class="recipes-section schemes">';
+        html += '<summary class="recipes-section-title">📋 Схеми захисту та вирощування</summary>';
         html += '<div class="recipes-grid">';
         schemeItems.forEach(function(r) {
             html += schemeBtn(r);
             if (synTarget(r)) html += synBtn(r);
         });
-        html += '</div></div>';
+        html += '</div></details>';
     }
 
     // 2️⃣ ПОШУКОВІ ФІЛЬТРИ (сворачиваемі)
