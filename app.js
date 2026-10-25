@@ -99,7 +99,7 @@ const currentPath = window.location.pathname.split("/").pop();
 // ==========================================
 
 let NAV_ITEMS = [
-    { href: 'index.html',                  label: 'Всі товари',           cat: null                },
+    { href: '/',                  label: 'Всі товари',           cat: null                },
     { href: '/category?cat=chemicals', label: 'АГРОХІМІКАТИ',         cat: 'chemicals'         },
     { href: '/category?cat=import',    label: 'НАСІННЯ ІМПОРТНЕ',     cat: 'import'            },
     { href: '/category?cat=domestic',  label: 'НАСІННЯ ВІТЧИЗНЯНЕ',   cat: 'domestic'          },
@@ -188,7 +188,7 @@ async function loadCategories(){
         const d = await r.json();
         if (!d.cats || !d.cats.length) return;
         const cats = d.cats.slice().sort(function(a,b){ return (a.sort||0)-(b.sort||0); });
-        NAV_ITEMS = [{ href:'index.html', label:'Всі товари', cat:null }].concat(cats.map(function(c){
+        NAV_ITEMS = [{ href:'/', label:'Всі товари', cat:null }].concat(cats.map(function(c){
             return { href:'/category?cat=' + c.key, label:c.nav_label, cat:c.key };
         }));
         const pm = {}, ic = {}, sm = {}, ws = [], hs = [], seo = {};
@@ -476,7 +476,7 @@ function renderRecipes() {
     if (!container) return;
 
     function toHref(target) {
-        return 'protection_schemes.html?category=' + target.replace('?scheme=', '&scheme=');
+        return '/protection_schemes?category=' + target.replace('?scheme=', '&scheme=');
     }
     // Цільовий URL схеми — з D1 (r.scheme_url), fallback на хардкод-мапу
     function schemeTarget(r){ return r.scheme_url || SCHEME_LINKS[r.id] || ''; }

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Порадник: визначити хворобу рослини по фото + схеми захисту — Агроном</title>
     <meta name="description" content="Порадник Агроном визначає хворобу, шкідника чи бур'ян рослини по фото за допомогою ШІ та підбирає препарат. Також 54 готові схеми захисту для саду, городу й теплиці. Володимир.">
-    <link rel="canonical" href="https://agronom.pp.ua/protection_schemes.html">
+    <link rel="canonical" href="https://agronom.pp.ua/protection_schemes">
     <meta property="og:title" content="Порадник по фото + схеми захисту рослин — Агроном">
     <meta property="og:image" content="https://agronom.pp.ua/android-chrome-512x512.png">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
@@ -48,7 +48,7 @@
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "Web",
   "description": "Визначення хвороби, шкідника або бур'яну рослини по фото за допомогою ШІ з підбором препарату із каталогу.",
-  "url": "https://agronom.pp.ua/protection_schemes.html#diagnose-bar",
+  "url": "https://agronom.pp.ua/protection_schemes#diagnose-bar",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "UAH" }
 }
 </script>
@@ -298,7 +298,7 @@
               });
               prods += '</div></div>';
             } else if (d.type !== 'unknown') {
-              prods = '<div style="margin-top:8px;font-size:.85rem;color:#888;">Препаратів у нашому каталозі не знайдено. <a href="/index.html" style="color:#2d6a2d;">Перейти до каталогу →</a></div>';
+              prods = '<div style="margin-top:8px;font-size:.85rem;color:#888;">Препаратів у нашому каталозі не знайдено. <a href="/" style="color:#2d6a2d;">Перейти до каталогу →</a></div>';
             }
 
             resultBox.innerHTML =
@@ -796,7 +796,7 @@ function searchPreparat(rawName) {
         return;
     }
 
-    window.location.href = '/index.html?search=' + encodeURIComponent(name);
+    window.location.href = '/?search=' + encodeURIComponent(name);
 }
 
 // ════════════════════════════════════════════════════
@@ -1812,7 +1812,7 @@ document.addEventListener('click', function(e) {
         };
 
         window.goToCart = function() {
-            window.location.href = 'index.html';
+            window.location.href = '/';
         };
 
         // Ініціалізація при завантаженні

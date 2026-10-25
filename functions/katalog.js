@@ -114,14 +114,14 @@ async function renderKatalog(context) {
 <link rel="stylesheet" href="/style.css">
 </head><body>
 <header><nav>
-  <a href="/index.html" class="logo">АГРОНОМ</a>
-  <a href="/protection_schemes.html" class="nav-link">🌿 Порадник</a>
+  <a href="/" class="logo">АГРОНОМ</a>
+  <a href="/protection_schemes" class="nav-link">🌿 Порадник</a>
 </nav></header>
 <main class="container">
   <h1 class="page-h1">Повний каталог товарів</h1>
   <p style="color:#555;margin-bottom:18px;">Усі ${rows.length} товарів магазину. Оберіть категорію або товар нижче.</p>
   ${body}
-  <p style="margin-top:24px;"><a href="/index.html" style="color:var(--green);font-weight:700;">← На головну</a></p>
+  <p style="margin-top:24px;"><a href="/" style="color:var(--green);font-weight:700;">← На головну</a></p>
 </main>
 <div id="site-footer"></div>
 <script src="/site-config"></script>

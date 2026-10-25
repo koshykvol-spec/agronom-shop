@@ -651,7 +651,7 @@
                  + '<div class="sh-stage-name">' + esc(stage.stage) + '</div>'
                  + '<div class="sh-date-badge">📅 ' + (stage.date || MONTH_NAMES[month]) + '</div>'
                  + '<div class="sh-warning">⛔ ' + esc(stage.problem) + '</div>'
-                 + '<a class="sh-btn-scheme" href="protection_schemes.html?category='
+                 + '<a class="sh-btn-scheme" href="/protection_schemes?category='
                  + culture.schemeCategory + '&scheme=' + culture.schemeId + '">📋 Повна схема</a>'
                  + '</div>';
         }
@@ -670,7 +670,7 @@
                  + item.name + '</button>';
         }).join('');
 
-        const href = 'protection_schemes.html?category=' + culture.schemeCategory
+        const href = '/protection_schemes?category=' + culture.schemeCategory
                    + '&scheme=' + culture.schemeId;
 
         return '<div class="sh-result">'

@@ -1,6 +1,6 @@
 // Sitemap для статичних сторінок і категорій (мала, 16-20 URL).
 const FALLBACK_CATS = ['chemicals','import','domestic','weight','materials','drops','soil','pots','insects','animals','sprouts'];
-const STATIC = ['', 'katalog','protection_schemes.html','delivery.html','contacts.html','returns.html'];
+const STATIC = ['', 'katalog','protection_schemes','delivery','contacts','returns'];
 
 export async function onRequest(context) {
   const origin = new URL(context.request.url).origin;

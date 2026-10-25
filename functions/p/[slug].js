@@ -246,7 +246,7 @@ async function renderProduct(context) {
     const ck = await env.DB.prepare(`SELECT key FROM categories WHERE db_name=? LIMIT 1`).bind(p.category).first();
     if (ck && ck.key) catKey = ck.key;
   } catch (e) {}
-  const catUrl = catKey ? ('/category.html?cat=' + catKey) : '/index.html';
+  const catUrl = catKey ? ('/category?cat=' + catKey) : '/';
 
   const ldImages = imgList.map(toAbs).filter(u => u && u.startsWith('http'));
   const ldDesc = (mdToPlain(p.annotation) || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
@@ -588,8 +588,8 @@ async function renderProduct(context) {
 <body>
 <a href="#main" class="skip-link">Перейти до вмісту</a>
 <header><nav>
-  <a href="/index.html" class="logo">АГРОНОМ</a>
-  <a href="/protection_schemes.html" class="nav-link">🌿 Порадник</a>
+  <a href="/" class="logo">АГРОНОМ</a>
+  <a href="/protection_schemes" class="nav-link">🌿 Порадник</a>
   <a href="/account.html" class="nav-link" id="nav-account-link">👤 Кабінет</a>
   <div class="nav-right">
     <a href="tel:+380634625206" data-site-phone class="nav-phone">м. Володимир<br><strong>063 462 52 06</strong></a>
@@ -601,7 +601,7 @@ async function renderProduct(context) {
 
   <!-- Хлібні крихти -->
   <nav class="breadcrumb" aria-label="Навігація" style="font-size:.83rem;color:#666;margin:12px 0 0;background:#fff;padding:4px 0;">
-    <a href="/index.html" style="color:#2d6a2d;text-decoration:none;">Каталог</a> ›
+    <a href="/" style="color:#2d6a2d;text-decoration:none;">Каталог</a> ›
     <a href="${esc(catUrl)}" style="color:#2d6a2d;text-decoration:none;">${esc(p.category || '')}</a> ›
     <span style="color:#666;">${esc(displayName)}</span>
   </nav>
@@ -661,8 +661,8 @@ async function renderProduct(context) {
             ? `<button class="btn" id="addbtn" onclick="addToCart()">🛒 Додати в кошик</button>`
             : `<div class="oos-badge">Немає в наявності</div>`}
           <div class="p-after" id="after-add">
-            <a href="/index.html#order" class="btn" style="text-decoration:none;">✅ Оформити замовлення</a>
-            <a href="/index.html#cart" class="go">🛒 До кошика →</a>
+            <a href="/#order" class="btn" style="text-decoration:none;">✅ Оформити замовлення</a>
+            <a href="/#cart" class="go">🛒 До кошика →</a>
           </div>
         </div>
       </div>
@@ -810,11 +810,11 @@ async function renderProduct(context) {
 </main>
 
 <nav class="bottom-nav" aria-label="Швидка навігація">
-  <a href="/index.html" class="bn-item"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
-  <a href="/index.html" class="bn-item"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
-  <a href="/index.html#cart" class="bn-item"><span class="bn-ico">🛒</span><span class="bn-lbl">Кошик</span></a>
+  <a href="/" class="bn-item"><span class="bn-ico">📦</span><span class="bn-lbl">Каталог</span></a>
+  <a href="/" class="bn-item"><span class="bn-ico">🔍</span><span class="bn-lbl">Пошук</span></a>
+  <a href="/#cart" class="bn-item"><span class="bn-ico">🛒</span><span class="bn-lbl">Кошик</span></a>
   <a href="/account.html" class="bn-item"><span class="bn-ico">👤</span><span class="bn-lbl">Кабінет</span></a>
-  <a href="/contacts.html" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
+  <a href="/contacts" class="bn-item"><span class="bn-ico">☎️</span><span class="bn-lbl">Контакти</span></a>
 </nav>
 <div id="site-footer"></div>
 

@@ -35,7 +35,7 @@
         if ((c.ga4_id || c.clarity_id) && !localStorage.getItem('agronom_cookie_ok')) {
             var bar = document.createElement('div');
             bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;background:#2d3a2d;color:#fff;padding:10px 14px;font-size:.85rem;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap';
-            bar.innerHTML = 'Ми використовуємо файли cookie для аналітики та зручності. <a href="/returns.html" style="color:#cfe3c0">Докладніше</a> <button style="background:#8bbf6a;border:0;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer">Зрозуміло</button>';
+            bar.innerHTML = 'Ми використовуємо файли cookie для аналітики та зручності. <a href="/returns" style="color:#cfe3c0">Докладніше</a> <button style="background:#8bbf6a;border:0;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer">Зрозуміло</button>';
             bar.querySelector('button').addEventListener('click', function () { localStorage.setItem('agronom_cookie_ok', '1'); bar.remove(); });
             document.body.appendChild(bar);
         }
@@ -74,9 +74,9 @@
       + '    </div>'
       + '    <div class="footer-col">'
       + '      <div class="footer-h">Інформація</div>'
-      + '      <a class="footer-line" href="/delivery.html">Доставка і оплата</a>'
-      + '      <a class="footer-line" href="/contacts.html">Контакти</a>'
-      + '      <a class="footer-line" href="/returns.html">Повернення та оферта</a>'
+      + '      <a class="footer-line" href="/delivery">Доставка і оплата</a>'
+      + '      <a class="footer-line" href="/contacts">Контакти</a>'
+      + '      <a class="footer-line" href="/returns">Повернення та оферта</a>'
       + '      <a class="footer-line" href="/katalog">Повний каталог товарів</a>'
       + '    </div>'
       + '  </div>'
