@@ -53,6 +53,17 @@ function mdToHtml(md) {
   return html;
 }
 
+// Прибирає markdown-розмітку для meta/og/JSON-LD, де потрібен простий текст.
+function mdToPlain(md) {
+  return String(md || '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/^#{1,3}\s+/gm, '')
+    .replace(/^\s*(?:-|\d+\.)\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function hierCategory(raw) {
   const v = (raw && String(raw).trim()) ? String(raw).trim() : '';
   if (!v) return undefined;
@@ -228,7 +239,7 @@ async function renderProduct(context) {
     ? `<span style="color:#999;text-decoration:line-through;font-size:1rem;font-weight:400;">${Number(p.price).toFixed(2)} грн</span> <span style="color:#c0392b;">${Number(p.sale_price).toFixed(2)} грн</span>${weight ? ' <small>/кг</small>' : ''} <span style="background:#ff7a00;color:#fff;border-radius:8px;padding:2px 9px;font-size:.72rem;font-weight:800;vertical-align:middle;white-space:nowrap;">🏷️ Акція${p.sale_until ? (' до ' + fmtD(p.sale_until)) : ''}</span>`
     : `${price} грн${weight ? ' <small>/кг</small>' : ''}`;
   const title = p.meta_title || (displayName + ' — ' + s_name + ', ' + s_city);
-  const desc = (p.meta_desc || p.annotation || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 300);
+  const desc = (p.meta_desc || mdToPlain(p.annotation) || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 300);
   const canonical = origin + '/p/' + p.slug;
   let catKey = '';
   try {
@@ -238,7 +249,7 @@ async function renderProduct(context) {
   const catUrl = catKey ? ('/category.html?cat=' + catKey) : '/index.html';
 
   const ldImages = imgList.map(toAbs).filter(u => u && u.startsWith('http'));
-  const ldDesc = (p.annotation || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
+  const ldDesc = (mdToPlain(p.annotation) || p.meta_desc || (displayName + '. Купити в інтернет-магазині ' + s_name + ', ' + s_city + '.')).slice(0, 500);
 
   const rawMpn = (p.sku && String(p.sku).trim()) ? String(p.sku).trim() : slug;
   const safeMpn = rawMpn ? rawMpn.slice(0, 70) : undefined;
