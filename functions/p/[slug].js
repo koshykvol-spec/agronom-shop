@@ -321,17 +321,36 @@ async function renderProduct(context) {
     const isSeed = /НАСІННЯ/i.test(String(p.category || ''));
     const firstWord = String(displayName || '').trim().split(/\s+/)[0].replace(/[%_]/g, '');
     const cultureLike = (isSeed && firstWord.length >= 3) ? (firstWord + ' %') : '';
-    related = (await env.DB.prepare(
+    // ВАЖЛИВО (D1 rows read): ORDER BY, що починається з CASE/LIKE-виразу, не може використати індекс —
+    // SQLite читав і сортував УСЮ категорію на кожен запит (≈1800 рядків × 5000 викликів = 9M/добу).
+    // Тому ORDER BY лишаємо строго по індексу idx_products_cat_stock_pid (category, in_stock DESC, pid),
+    // а «ту саму культуру» добираємо окремим запитом лише для насіння.
+    const relSql = (extraWhere, limit) =>
       `WITH picked AS (
          SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock
            FROM products pr JOIN product_content c ON c.pid=pr.pid
-          WHERE pr.category=? AND c.visible=1 AND pr.pid<>? AND (?='' OR c.group_id IS NULL OR c.group_id<>?)
-          ORDER BY CASE WHEN ?<>'' AND COALESCE(NULLIF(c.display_name,''),pr.name) LIKE ? THEN 0 ELSE 1 END,
-                   pr.in_stock DESC, pr.pid LIMIT 8
+          WHERE pr.category=? AND c.visible=1 AND pr.pid<>? AND (?='' OR c.group_id IS NULL OR c.group_id<>?)${extraWhere}
+          ORDER BY pr.in_stock DESC, pr.pid LIMIT ${limit}
        )
        SELECT picked.*, (SELECT path FROM product_images i WHERE i.pid=picked.pid ORDER BY sort LIMIT 1) AS img
-         FROM picked`
-    ).bind(p.category, p.pid, p.group_id||'', p.group_id||'', cultureLike, cultureLike).all()).results || [];
+         FROM picked`;
+    const baseBind = [p.category, p.pid, p.group_id||'', p.group_id||''];
+    if (cultureLike) {
+      const same = (await env.DB.prepare(
+        relSql(` AND COALESCE(NULLIF(c.display_name,''),pr.name) LIKE ?`, 8)
+      ).bind(...baseBind, cultureLike).all()).results || [];
+      related = same;
+      if (same.length < 8) {
+        const seen = new Set(same.map(r => r.pid));
+        const filler = (await env.DB.prepare(relSql('', 8)).bind(...baseBind).all()).results || [];
+        for (const r of filler) {
+          if (related.length >= 8) break;
+          if (!seen.has(r.pid)) related.push(r);
+        }
+      }
+    } else {
+      related = (await env.DB.prepare(relSql('', 8)).bind(...baseBind).all()).results || [];
+    }
   } catch(e){}
 
   let analogs = [];

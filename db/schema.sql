@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS products (
 );
 CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
 CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category);
+-- Для блоку «Схожі товари» (/p/[slug]): фільтр category + ORDER BY in_stock DESC, pid без сортування в пам'яті
+CREATE INDEX IF NOT EXISTS idx_products_cat_stock_pid ON products(category, in_stock DESC, pid);
 
 CREATE TABLE IF NOT EXISTS product_content (
   pid        INTEGER PRIMARY KEY REFERENCES products(pid) ON DELETE CASCADE,
