@@ -63,6 +63,12 @@ function applyCategorySeo(html, catKey, seo) {
 export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
+  // Технічний домен Pages не має віддавати контент: краулери ходять по ньому повз кеш/правила зони
+  // і б'ють по D1 (дублі /p/<slug>). Превʼю-деплої (<hash>.agronom1.pages.dev) не чіпаємо — лише точний хост.
+  // 308 зберігає метод і тіло запиту.
+  if (url.hostname === 'agronom1.pages.dev') {
+    return Response.redirect('https://agronom.pp.ua' + url.pathname + url.search, 308);
+  }
   const path = url.pathname;
   const isHome = path === '/' || path === '/index.html';
   const isCategory = path === '/category' || path === '/category.html';
