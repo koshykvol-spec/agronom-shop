@@ -103,6 +103,8 @@ async function cached(context, render, opts = {}) {
   if (!failed) {
     const store = useCache && res.status === 200;
     if (store) {
+      // ДІАГНОСТИКА джерела піків D1: кожен промах кешу = реальний рендер із запитами до D1. Видалити, коли причину встановлено.
+      console.log(JSON.stringify({ t: 'miss', host: url.hostname, path: url.pathname, ua: (request.headers.get('user-agent') || '').slice(0, 120), ip: request.headers.get('cf-connecting-ip'), asn: request.cf && request.cf.asn }));
       context.waitUntil(cache.put(key, res.clone()));
       const copy = res.clone();
       const h = new Headers(copy.headers);
@@ -323,8 +325,11 @@ async function renderProduct(context) {
     const cultureLike = (isSeed && firstWord.length >= 3) ? (firstWord + ' %') : '';
     // ВАЖЛИВО (D1 rows read): ORDER BY, що починається з CASE/LIKE-виразу, не може використати індекс —
     // SQLite читав і сортував УСЮ категорію на кожен запит (≈1800 рядків × 5000 викликів = 9M/добу).
-    // Тому ORDER BY лишаємо строго по індексу idx_products_cat_stock_pid (category, in_stock DESC, pid),
-    // а «ту саму культуру» добираємо окремим запитом лише для насіння.
+    // Тому ORDER BY лишаємо строго по індексу idx_products_cat_stock_pid (category, in_stock DESC, pid).
+    // УВАГА: окремий запит із `LIKE` у WHERE для насіння теж сканував усю категорію (≈1000 рядків на виклик,
+    // 733 виклики за ніч ≈ 760k рядків), тому «ту саму культуру» піднімаємо вгору вже в JS
+    // у вікні перших REL_WINDOW кандидатів (≈100-150 прочитаних рядків замість ≈1000).
+    const REL_WINDOW = 40;
     const relSql = (extraWhere, limit) =>
       `WITH picked AS (
          SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock
@@ -336,18 +341,11 @@ async function renderProduct(context) {
          FROM picked`;
     const baseBind = [p.category, p.pid, p.group_id||'', p.group_id||''];
     if (cultureLike) {
-      const same = (await env.DB.prepare(
-        relSql(` AND COALESCE(NULLIF(c.display_name,''),pr.name) LIKE ?`, 8)
-      ).bind(...baseBind, cultureLike).all()).results || [];
-      related = same;
-      if (same.length < 8) {
-        const seen = new Set(same.map(r => r.pid));
-        const filler = (await env.DB.prepare(relSql('', 8)).bind(...baseBind).all()).results || [];
-        for (const r of filler) {
-          if (related.length >= 8) break;
-          if (!seen.has(r.pid)) related.push(r);
-        }
-      }
+      const rows = (await env.DB.prepare(relSql('', REL_WINDOW)).bind(...baseBind).all()).results || [];
+      const cul = firstWord.toLowerCase() + ' ';
+      const same = [], other = [];
+      for (const r of rows) (String(r.name || '').toLowerCase().startsWith(cul) ? same : other).push(r);
+      related = same.concat(other).slice(0, 8);
     } else {
       related = (await env.DB.prepare(relSql('', 8)).bind(...baseBind).all()).results || [];
     }

@@ -67,6 +67,8 @@ export async function onRequest(context) {
   // і б'ють по D1 (дублі /p/<slug>). Превʼю-деплої (<hash>.agronom1.pages.dev) не чіпаємо — лише точний хост.
   // 308 зберігає метод і тіло запиту.
   if (url.hostname === 'agronom1.pages.dev') {
+    // ДІАГНОСТИКА джерела піків D1: хто ходить на технічний домен. Видалити, коли причину встановлено.
+    console.log(JSON.stringify({ t: 'pagesdev', path: url.pathname, ua: (request.headers.get('user-agent') || '').slice(0, 120), ip: request.headers.get('cf-connecting-ip'), asn: request.cf && request.cf.asn, country: request.cf && request.cf.country }));
     return Response.redirect('https://agronom.pp.ua' + url.pathname + url.search, 308);
   }
   const path = url.pathname;
