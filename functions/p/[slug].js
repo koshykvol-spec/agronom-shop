@@ -70,6 +70,28 @@ function hierCategory(raw) {
   return CATEGORY_HIERARCHY[v.toUpperCase()] || ('Агротовари > ' + v);
 }
 
+// Пул кандидатів «схожих товарів» для категорії насіння: [pid, name, slug, price, in_stock, group_id],
+// у порядку індексу (in_stock DESC, pid). Один скан категорії раз на REL_POOL_TTL (Cache API, окремо на кожен
+// дата-центр) замість скану на кожен перегляд сторінки; фільтрація й пріоритет культури — в JS.
+const REL_POOL_TTL = 21600; // 6 год
+async function relPool(env, category) {
+  const cache = caches.default;
+  const key = new Request('https://agronom.internal/rel-pool/' + encodeURIComponent(String(category || '')));
+  const hit = await cache.match(key);
+  if (hit) return await hit.json();
+  const rows = (await env.DB.prepare(
+    `SELECT pr.pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock, c.group_id
+       FROM products pr JOIN product_content c ON c.pid=pr.pid
+      WHERE pr.category=? AND c.visible=1
+      ORDER BY pr.in_stock DESC, pr.pid LIMIT 3000`
+  ).bind(category).all()).results || [];
+  const pool = rows.map(r => [r.pid, r.name, r.slug, r.price, r.in_stock, r.group_id]);
+  await cache.put(key, new Response(JSON.stringify(pool), {
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=' + REL_POOL_TTL }
+  }));
+  return pool;
+}
+
 // Кеш через Cache API + захист від збоїв D1.
 // Pages Function виконується ПЕРЕД CDN-кешем, тому самого Cache-Control недостатньо.
 //  - успішна відповідь кешується (TTL із заголовка) і ще раз як "запасна копія" на 7 днів;
@@ -327,9 +349,8 @@ async function renderProduct(context) {
     // SQLite читав і сортував УСЮ категорію на кожен запит (≈1800 рядків × 5000 викликів = 9M/добу).
     // Тому ORDER BY лишаємо строго по індексу idx_products_cat_stock_pid (category, in_stock DESC, pid).
     // УВАГА: окремий запит із `LIKE` у WHERE для насіння теж сканував усю категорію (≈1000 рядків на виклик,
-    // 733 виклики за ніч ≈ 760k рядків), тому «ту саму культуру» піднімаємо вгору вже в JS
-    // у вікні перших REL_WINDOW кандидатів (≈100-150 прочитаних рядків замість ≈1000).
-    const REL_WINDOW = 40;
+    // 733 виклики за ніч ≈ 760k рядків), а вікно перших N кандидатів без LIKE губило культуру (для томата
+    // показувались айстри). Тому для насіння — кешований пул категорії (relPool) і відбір у JS.
     const relSql = (extraWhere, limit) =>
       `WITH picked AS (
          SELECT pr.pid AS pid, COALESCE(NULLIF(c.display_name,''),pr.name) AS name, c.slug, pr.price, pr.in_stock
@@ -341,11 +362,24 @@ async function renderProduct(context) {
          FROM picked`;
     const baseBind = [p.category, p.pid, p.group_id||'', p.group_id||''];
     if (cultureLike) {
-      const rows = (await env.DB.prepare(relSql('', REL_WINDOW)).bind(...baseBind).all()).results || [];
+      const pool = await relPool(env, p.category);
+      const gid = p.group_id || '';
       const cul = firstWord.toLowerCase() + ' ';
       const same = [], other = [];
-      for (const r of rows) (String(r.name || '').toLowerCase().startsWith(cul) ? same : other).push(r);
-      related = same.concat(other).slice(0, 8);
+      for (const r of pool) {
+        if (r[0] === p.pid || (gid && r[5] === gid)) continue;   // не цей товар і не та сама група фасовок
+        if (String(r[1] || '').toLowerCase().startsWith(cul)) { same.push(r); if (same.length >= 8) break; }
+        else if (other.length < 8) other.push(r);
+      }
+      related = same.concat(other).slice(0, 8).map(r => ({ pid: r[0], name: r[1], slug: r[2], price: r[3], in_stock: r[4], img: null }));
+      if (related.length) {
+        const ph = related.map(() => '?').join(',');
+        const imgs = (await env.DB.prepare(`SELECT pid, path FROM product_images WHERE pid IN (${ph}) ORDER BY pid, sort, id`)
+          .bind(...related.map(r => r.pid)).all()).results || [];
+        const first = {};
+        for (const im of imgs) if (!(im.pid in first)) first[im.pid] = im.path;
+        for (const r of related) r.img = first[r.pid] || null;
+      }
     } else {
       related = (await env.DB.prepare(relSql('', 8)).bind(...baseBind).all()).results || [];
     }
