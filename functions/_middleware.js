@@ -60,9 +60,24 @@ function applyCategorySeo(html, catKey, seo) {
   return out;
 }
 
+// ДІАГНОСТИКА: максимум записів у host_hits на один ізолят (щоб хвиля ботів не розкачала D1 на запис).
+let hostHitBudget = 150;
+
 export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
+  // ДІАГНОСТИКА: хто ходить на хости, відмінні від основного (технічний *.pages.dev, превʼю-адреси).
+  // Журнал у D1 (таблиця host_hits, див. migration_host_hits.sql); логи Pages у Observability не збираються.
+  // Видалити цей блок і таблицю, коли причину піків встановлено.
+  if (url.hostname !== 'agronom.pp.ua' && url.hostname !== 'localhost' && env.DB && hostHitBudget > 0) {
+    hostHitBudget--;
+    try {
+      context.waitUntil(env.DB.prepare('INSERT INTO host_hits (host, path, ua, ip, asn, country) VALUES (?,?,?,?,?,?)')
+        .bind(url.hostname, url.pathname.slice(0, 200), (request.headers.get('user-agent') || '').slice(0, 200),
+          request.headers.get('cf-connecting-ip'), (request.cf && request.cf.asn) || null, (request.cf && request.cf.country) || null)
+        .run().catch(() => {}));
+    } catch (e) {}
+  }
   // Технічний домен Pages не має віддавати контент: краулери ходять по ньому повз кеш/правила зони
   // і б'ють по D1 (дублі /p/<slug>). Превʼю-деплої (<hash>.agronom1.pages.dev) не чіпаємо — лише точний хост.
   // 308 зберігає метод і тіло запиту.
