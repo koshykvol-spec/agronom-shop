@@ -86,12 +86,23 @@ async function renderProducts(context) {
         WHERE c.visible=1
         ORDER BY COALESCE(NULLIF(c.display_name,''), p.name)`).all();
 
+    // Агрегат справжніх відгуків (approved=1, оцінка 1–5) → rc/ra у картці каталогу.
+    // Один запит на весь каталог (результат кешується разом із відповіддю). Збій не ламає каталог.
+    const rv = new Map();
+    try {
+      const rr = await context.env.DB.prepare(
+        `SELECT pid, COUNT(*) AS cnt, AVG(rating) AS avg
+           FROM reviews WHERE approved=1 AND rating BETWEEN 1 AND 5 GROUP BY pid`).all();
+      for (const x of (rr.results || [])) rv.set(x.pid, { c: x.cnt, a: Math.round(x.avg * 10) / 10 });
+    } catch (e) { /* без рейтингів */ }
+
     const rows = (r.results || []).map(x => {
       const sale = (x.sp != null && x.sp > 0 && x.sp < x.pr && (!x.su || x.su >= today)) ? x.sp : undefined;
       const kw = (x.kw || '') + ((x.wn && x.wn !== x.n) ? ' ' + x.wn : '') + (x.ai ? ' ' + x.ai : '');
       const o = { pid: x.pid, n: x.n, p: x.pr, c: x.cat, b: x.br, img: x.img || '', inStock: x.ins !== 0, keywords: kw, slug: x.slug,
                   _gid: x.gid || null, _vl: x.vl || '', _eff: (sale != null ? sale : x.pr), _iok: x.iok };
       if (sale != null) { o.sale = sale; if (x.su) o.saleUntil = x.su; }
+      const rt = rv.get(x.pid); if (rt) { o.rc = rt.c; o.ra = rt.a; }
       return o;
     });
 
@@ -116,6 +127,9 @@ async function renderProducts(context) {
         keywords: ((prim.keywords || '') + ' ' + vs.map(v => v.n).join(' ')).trim(),
         slug: prim.slug
       });
+      // Рейтинг групи = відгуки головної фасовки: саме їх показує сторінка /p/<slug> цієї картки.
+      const rtp = rv.get(prim.pid);
+      if (rtp) { const g = groups[groups.length - 1]; g.rc = rtp.c; g.ra = rtp.a; }
     }
     for (const o of singles) { delete o._gid; delete o._vl; delete o._eff; }
     out = singles.concat(groups);

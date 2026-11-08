@@ -813,6 +813,10 @@ function render(arr) {
             "image": imgAbs || undefined,
             "brand": hasBrand ? {"@type": "Brand", "name": p.b} : undefined,
             "additionalProperty": identifierAdditionalProperty,
+            // Лише для товарів зі справжніми (схваленими) відгуками; інакше поле не виводиться взагалі.
+            "aggregateRating": (p.rc > 0 && p.ra >= 1 && p.ra <= 5)
+                ? {"@type": "AggregateRating", "ratingValue": p.ra, "reviewCount": p.rc}
+                : undefined,
             "offers": offer
         };
     })).replace(/</g, '\\u003c');
