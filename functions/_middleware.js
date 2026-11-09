@@ -60,6 +60,15 @@ function applyCategorySeo(html, catKey, seo) {
   return out;
 }
 
+// Pages публікує весь корінь репозиторію як статику. Службові файли (дампи БД, міграції, скрипти, логи, документація)
+// не мають бути публічними: віддаємо 404 до того, як запит дійде до статичних ресурсів.
+const PRIVATE_PATH = /^\/(db|docs|sample|cloudflare-worker|__pycache__|\.github|\.git|node_modules)(\/|$)|\.(sql|py|pyc|sh|log|csv|md|toml|bak|env|yml|yaml)$|^\/(deploy\.sh|post-to-facebook\.js|posted-log\.json|package(-lock)?\.json|h|\.gitignore|\.cf-secrets.*)$/i;
+function isPrivatePath(pathname) {
+  let p = pathname;
+  try { p = decodeURIComponent(pathname); } catch (e) {}
+  return PRIVATE_PATH.test(pathname) || PRIVATE_PATH.test(p) || /^\/ЧИТАЙ МЕНЕ/i.test(p);
+}
+
 // ДІАГНОСТИКА: максимум записів у host_hits на один ізолят (щоб хвиля ботів не розкачала D1 на запис).
 let hostHitBudget = 150;
 
@@ -87,6 +96,7 @@ export async function onRequest(context) {
     return Response.redirect('https://agronom.pp.ua' + url.pathname + url.search, 308);
   }
   const path = url.pathname;
+  if (isPrivatePath(path)) return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
   const isHome = path === '/' || path === '/index.html';
   const isCategory = path === '/category' || path === '/category.html';
   // Решта (статика, /api, /admin, /p, фото) — без накладних
