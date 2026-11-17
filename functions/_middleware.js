@@ -62,7 +62,7 @@ function applyCategorySeo(html, catKey, seo) {
 
 // Pages публікує весь корінь репозиторію як статику. Службові файли (дампи БД, міграції, скрипти, логи, документація)
 // не мають бути публічними: віддаємо 404 до того, як запит дійде до статичних ресурсів.
-const PRIVATE_PATH = /^\/(db|docs|sample|cloudflare-worker|__pycache__|\.github|\.git|node_modules)(\/|$)|\.(sql|py|pyc|sh|log|csv|md|toml|bak|env|yml|yaml)$|^\/(deploy\.sh|post-to-facebook\.js|posted-log\.json|package(-lock)?\.json|h|\.gitignore|\.cf-secrets.*)$/i;
+const PRIVATE_PATH = /^\/(db|docs|sample|tests|cloudflare-worker|__pycache__|\.github|\.git|node_modules)(\/|$)|\.(sql|py|pyc|sh|log|csv|md|toml|bak|env|yml|yaml)$|^\/(deploy\.sh|post-to-facebook\.js|posted-log\.json|package(-lock)?\.json|h|\.gitignore|\.cf-secrets.*)$/i;
 function isPrivatePath(pathname) {
   let p = pathname;
   try { p = decodeURIComponent(pathname); } catch (e) {}
