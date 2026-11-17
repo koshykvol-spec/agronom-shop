@@ -1,0 +1,465 @@
+{
+  "generatedAt": "2026-11-17T09:13:10.529Z",
+  "counts": {
+    "main": 17,
+    "products": 2528
+  },
+  "pages": {
+    "/": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Агроном — Інтернет-магазин агрохімікатів та насіння | м. Володимир",
+      "description": "Агроном — магазин у м. Володимир. Агрохімікати, насіння, крапельний полив, ґрунти, горщики. Замовлення через Telegram або Viber.",
+      "canonical": "https://agronom.pp.ua/",
+      "robots": "",
+      "h1": "Інтернет-магазин агротоварів у м. Володимир",
+      "h1Count": 1,
+      "ogTitle": "Агроном — Агрохімікати та насіння | м. Володимир",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": [
+        "WebSite"
+      ]
+    },
+    "/index.html": {
+      "status": 301,
+      "location": "/",
+      "xRobots": null
+    },
+    "/katalog": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Повний каталог товарів — Агроном, м. Володимир",
+      "description": "Повний перелік усіх товарів магазину Агроном: агрохімікати, насіння, добрива, полив.",
+      "canonical": "https://agronom.pp.ua/katalog",
+      "robots": "index,follow",
+      "h1": "Повний каталог товарів",
+      "h1Count": 1,
+      "ogTitle": null,
+      "ogImage": null,
+      "jsonLdTypes": []
+    },
+    "/protection_schemes": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Порадник: визначити хворобу рослини по фото + схеми захисту — Агроном",
+      "description": "Порадник Агроном визначає хворобу, шкідника чи бур'ян рослини по фото за допомогою ШІ та підбирає препарат. Також 54 готові схеми захисту для саду, городу й теплиці. Володимир.",
+      "canonical": "https://agronom.pp.ua/protection_schemes",
+      "robots": "",
+      "h1": "📋 Схеми захисту і вирощування",
+      "h1Count": 1,
+      "ogTitle": "Порадник по фото + схеми захисту рослин — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": [
+        "SoftwareApplication"
+      ]
+    },
+    "/delivery": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Доставка і оплата — Агроном, м. Володимир",
+      "description": "Умови доставки Новою Поштою та самовивозу, способи оплати в інтернет-магазині агротоварів Агроном (м. Володимир).",
+      "canonical": "https://agronom.pp.ua/delivery",
+      "robots": "",
+      "h1": "Доставка і оплата",
+      "h1Count": 1,
+      "ogTitle": null,
+      "ogImage": null,
+      "jsonLdTypes": []
+    },
+    "/contacts": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Контакти — Агроном, м. Володимир",
+      "description": "Контакти інтернет-магазину агротоварів Агроном: адреса, графік роботи, телефон, Viber, Telegram. м. Володимир.",
+      "canonical": "https://agronom.pp.ua/contacts",
+      "robots": "",
+      "h1": "Контакти",
+      "h1Count": 1,
+      "ogTitle": null,
+      "ogImage": null,
+      "jsonLdTypes": []
+    },
+    "/returns": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Повернення та публічна оферта — Агроном",
+      "description": "Умови повернення товару та публічна оферта інтернет-магазину Агроном.",
+      "canonical": "https://agronom.pp.ua/returns",
+      "robots": "",
+      "h1": "Повернення та публічна оферта",
+      "h1Count": 1,
+      "ogTitle": null,
+      "ogImage": null,
+      "jsonLdTypes": []
+    },
+    "/category?cat=chemicals": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Агрохімікати — Агроном",
+      "description": "Агрохімікати, добрива та засоби захисту рослин у Володимирі. Широкий вибір препаратів від перевірених виробників.",
+      "canonical": "https://agronom.pp.ua/category?cat=chemicals",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Агрохімікати — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=import": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Насіння Імпортне — Агроном",
+      "description": "Імпортне насіння овочів та квітів у магазині Агроном, м. Володимир. Якісні гібриди від провідних виробників.",
+      "canonical": "https://agronom.pp.ua/category?cat=import",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Насіння Імпортне — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=domestic": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Насіння Вітчизняне — Агроном",
+      "description": "Вітчизняне насіння овочів та квітів у м. Володимир. Перевірені сорти від українських виробників.",
+      "canonical": "https://agronom.pp.ua/category?cat=domestic",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Насіння Вітчизняне — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=weight": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Насіння Вагове — Агроном",
+      "description": "Вагове насіння на розвіс у магазині Агроном, м. Володимир. Продаємо від 5 г до кілограмів.",
+      "canonical": "https://agronom.pp.ua/category?cat=weight",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Насіння Вагове — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=materials": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Матеріали — Агроном",
+      "description": "Агроволокно, плівка, сітки та інші матеріали для городу та саду в магазині Агроном, м. Володимир.",
+      "canonical": "https://agronom.pp.ua/category?cat=materials",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Матеріали — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=drops": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Крапельне зрошування — Агроном",
+      "description": "Системи крапельного поливу: стрічки, фітинги, таймери у магазині Агроном, м. Володимир.",
+      "canonical": "https://agronom.pp.ua/category?cat=drops",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Крапельне зрошування — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=soil": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Ґрунти та субстрати — Агроном",
+      "description": "Ґрунти, субстрати, торф, дренаж для розсади та кімнатних рослин у магазині Агроном, м. Володимир.",
+      "canonical": "https://agronom.pp.ua/category?cat=soil",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Ґрунти та субстрати — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=pots": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Горщики та касети — Агроном",
+      "description": "Горщики, касети та піддони для вирощування розсади у магазині Агроном, м. Володимир.",
+      "canonical": "https://agronom.pp.ua/category?cat=pots",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Горщики та касети — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=insects": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Проти комах та гризунів — Агроном",
+      "description": "Засоби від комах, мурах, мишей та шкідників у магазині Агроном, м. Володимир. Ефективні інсектициди та родентициди.",
+      "canonical": "https://agronom.pp.ua/category?cat=insects",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Проти комах та гризунів — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=animals": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Для тварин — Агроном",
+      "description": "Ветеринарні препарати та товари для тварин у магазині Агроном, м. Володимир.",
+      "canonical": "https://agronom.pp.ua/category?cat=animals",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Для тварин — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/category?cat=sprouts": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Розсада — Агроном",
+      "description": "Розсада овочів, квітів та зелені у магазині Агроном, м. Володимир. Здорова розсада від перевірених виробників.",
+      "canonical": "https://agronom.pp.ua/category?cat=sprouts",
+      "robots": "",
+      "h1": "",
+      "h1Count": 1,
+      "ogTitle": "Розсада — Агроном",
+      "ogImage": "https://agronom.pp.ua/android-chrome-512x512.png",
+      "jsonLdTypes": []
+    },
+    "/p/kraspediia-solaris-0-1g-gl-seeds": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Краспедія Соларіс 0,1г (GL Seeds) — купити в Агроном, м. Володимир",
+      "description": "Насіння краспедії Соларіс 0,1г від GL Seeds. Екзотична квітка з золотисто-жовтими суцвіттями для флористичних композицій. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/kraspediia-solaris-0-1g-gl-seeds",
+      "robots": "",
+      "h1": "Краспедія Соларіс 0,1г (GL Seeds)",
+      "h1Count": 1,
+      "ogTitle": "Краспедія Соларіс 0,1г (GL Seeds)",
+      "ogImage": "https://agronom.pp.ua/IMG_N/%D0%9A%D1%80%D0%B0%D1%81%D0%BF%D0%B5%D0%B4%D1%96%D1%8F%20%D0%A1%D0%BE%D0%BB%D0%B0%D1%80%D1%96%D1%81%200%2C1%D0%B3%20(GL%20Seeds).webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/morkva-vita-longa-2-g-seedera": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Морква Віта Лонга 2 г SeedEra — купити в Агроном, м. Володимир",
+      "description": "Морква Віта Лонга від SeedEra — пізньостиглий сорт із довгими солодкими коренеплодами 150–200 г для зимового зберігання. Купити в Агроном.",
+      "canonical": "https://agronom.pp.ua/p/morkva-vita-longa-2-g-seedera",
+      "robots": "",
+      "h1": "Морква Віта Лонга 2 г SeedEra",
+      "h1Count": 1,
+      "ogTitle": "Морква Віта Лонга 2 г SeedEra",
+      "ogImage": "https://agronom.pp.ua/IMG_N1/%D0%9C%D0%BE%D1%80%D0%BA%D0%B2%D0%B0%20%D0%92%D1%96%D1%82%D0%B0%20%D0%9B%D0%BE%D0%BD%D0%B3%D0%B0%202%20%D0%B3%20SeedEra.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/chornobryvtsi-nyzki-velykokvitkova-sumish-0-5g-seedera-sht": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Чорнобривці низькі великоквіткова суміш 0,5г (SeedEra) (шт) — купити в Агроном, м. Володимир",
+      "description": "Чорнобривці великоквіткова суміш 0,5г від SeedEra — великі суцвіття різних відтінків на низьких кущах. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/chornobryvtsi-nyzki-velykokvitkova-sumish-0-5g-seedera-sht",
+      "robots": "",
+      "h1": "Чорнобривці низькі великоквіткова суміш 0,5г (SeedEra) (шт)",
+      "h1Count": 1,
+      "ogTitle": "Чорнобривці низькі великоквіткова суміш 0,5г (SeedEra) (шт)",
+      "ogImage": "https://agronom.pp.ua/IMG_N3/%D0%A7%D0%BE%D1%80%D0%BD%D0%BE%D0%B1%D1%80%D0%B8%D0%B2%D1%86%D1%96%20%D0%BD%D0%B8%D0%B7%D1%8C%D0%BA%D1%96%20%D0%B2%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%BA%D0%B2%D1%96%D1%82%D0%BA%D0%BE%D0%B2%D0%B0%20%D1%81%D1%83%D0%BC%D1%96%D1%88%200%2C5%D0%B3%20(SeedEra)%20(%D1%88%D1%82).webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/zero-gerbitsyd-100-ml": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Зеро, гербіцид, 100 мл — купити в Агроном, м. Володимир",
+      "description": "Зеро гербіцид 100 мл на основі гліфосату — суцільне знищення пирію, берізки, осоту й кропиви разом з коренем. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/zero-gerbitsyd-100-ml",
+      "robots": "",
+      "h1": "Зеро, гербіцид, 100 мл",
+      "h1Count": 1,
+      "ogTitle": "Зеро, гербіцид, 100 мл",
+      "ogImage": "https://agronom.pp.ua/IMG_A/%D0%97%D0%B5%D1%80%D0%BE%2C%20%D0%B3%D0%B5%D1%80%D0%B1%D1%96%D1%86%D0%B8%D0%B4%2C%20100%20%D0%BC%D0%BB.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/majster-dlia-tsytrusovyh-25-g": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Майстер, для цитрусових, 25 г — купити в Агроном, м. Володимир",
+      "description": "Майстер для цитрусових 25 г — хелатне залізо, марганець і цинк проти дефіциту мікроелементів у лимонів. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/majster-dlia-tsytrusovyh-25-g",
+      "robots": "",
+      "h1": "Майстер, для цитрусових, 25 г",
+      "h1Count": 1,
+      "ogTitle": "Майстер, для цитрусових, 25 г",
+      "ogImage": "https://agronom.pp.ua/IMG_A/%D0%9C%D0%B0%D0%B9%D1%81%D1%82%D0%B5%D1%80%2C%20%D0%B4%D0%BB%D1%8F%20%D1%86%D0%B8%D1%82%D1%80%D1%83%D1%81%D0%BE%D0%B2%D0%B8%D1%85%2C%2025%20%D0%B3.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/mavrik-grand-insektytsyd-20-ml-iarovyt-agroteh": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Маврік Гранд, інсектицид, 20 мл, Яровит АгроТех — купити в Агроном, м. Володимир",
+      "description": "Маврік Гранд інсектицид 20 мл, Яровит АгроТех — піретроїдний захист городніх і садових культур від шкідників. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/mavrik-grand-insektytsyd-20-ml-iarovyt-agroteh",
+      "robots": "",
+      "h1": "Маврік Гранд, інсектицид, 20 мл, Яровит АгроТех",
+      "h1Count": 1,
+      "ogTitle": "Маврік Гранд, інсектицид, 20 мл, Яровит АгроТех",
+      "ogImage": "https://agronom.pp.ua/IMG/mavrik-grand20.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/ogirok-tajger-f1-10-sht-taki-seeds": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Огірок Тайгер F1 10 шт Taki Seeds — купити в Агроном, м. Володимир",
+      "description": "Насіння огірка Тайгер F1 від Taki Seeds (10 шт.) — японський гібрид для відкритого ґрунту та теплиць з оригінальним виглядом. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/ogirok-tajger-f1-10-sht-taki-seeds",
+      "robots": "",
+      "h1": "Огірок Тайгер F1 10 шт Taki Seeds",
+      "h1Count": 1,
+      "ogTitle": "Огірок Тайгер F1 10 шт Taki Seeds",
+      "ogImage": "https://agronom.pp.ua/IMG_I/%D0%9E%D0%B3%D1%96%D1%80%D0%BE%D0%BA%20%D0%A2%D0%B0%D0%B9%D0%B3%D0%B5%D1%80%20F1%2010%20%D1%88%D1%82%20Taki%20Seeds.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/salat-snizhynka-5-g-nu-sht": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Салат Сніжинка 5 г (НУ) (шт) — купити в Агроном, м. Володимир",
+      "description": "Салат Сніжинка 5 г від Насіння України — великий пакет раннього соковитого листя для кількох черг. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/salat-snizhynka-5-g-nu-sht",
+      "robots": "",
+      "h1": "Салат Сніжинка 5 г (НУ) (шт)",
+      "h1Count": 1,
+      "ogTitle": "Салат Сніжинка 5 г (НУ) (шт)",
+      "ogImage": "https://agronom.pp.ua/IMG_U1/%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D0%A1%D0%BD%D1%96%D0%B6%D0%B8%D0%BD%D0%BA%D0%B0%205%20%D0%B3%20(%D0%9D%D0%A3)%20(%D1%88%D1%82).webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/sunytsia-regina-0-2g-prof-nas": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Суниця Регіна 0,2г (Проф.Нас) — купити в Агроном, м. Володимир",
+      "description": "Суниця Регіна від Професійного Насіння — ремонтантний безвусовий сорт із компактним кущем і солодкими червоними ягодами. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/sunytsia-regina-0-2g-prof-nas",
+      "robots": "",
+      "h1": "Суниця Регіна 0,2г (Проф.Нас)",
+      "h1Count": 1,
+      "ogTitle": "Суниця Регіна 0,2г (Проф.Нас)",
+      "ogImage": "https://agronom.pp.ua/IMG_N6/%D0%A1%D1%83%D0%BD%D0%B8%D1%86%D1%8F%20%D0%A0%D0%B5%D0%B3%D1%96%D0%BD%D0%B0%200%2C2%D0%B3%20(%D0%9F%D1%80%D0%BE%D1%84.%D0%9D%D0%B0%D1%81).webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/rozpushuvach-sadovyj-ruchka-derevo-45-419": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Розпушувач садовий ручка дерево, 45-419 — купити в Агроном, м. Володимир",
+      "description": "Ручний садовий розпушувач з дерев'яною ручкою 45-419 для розпушування поверхні ґнути навколо розсади на грядках та у квітниках. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/rozpushuvach-sadovyj-ruchka-derevo-45-419",
+      "robots": "",
+      "h1": "Розпушувач садовий ручка дерево, 45-419",
+      "h1Count": 1,
+      "ogTitle": "Розпушувач садовий ручка дерево, 45-419",
+      "ogImage": "https://agronom.pp.ua/IMG_M/%D0%A0%D0%BE%D0%B7%D0%BF%D1%83%D1%88%D1%83%D0%B2%D0%B0%D1%87%20%D1%81%D0%B0%D0%B4%D0%BE%D0%B2%D0%B8%D0%B9%20%D1%80%D1%83%D1%87%D0%BA%D0%B0%20%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%BE%2C%2045-419.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/sprej-protyparaz-vitomaks-eko-koty-150-ml-klishchi": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Спрей протипараз. Вітомакс Еко коти 150 мл + кліщі — Агроном, м. Володимир",
+      "description": "Спрей Вітомакс Еко для котів — захист від бліх, вошей і кліщів на екологічній основі. Безпечний для тварини, 150 мл. Купити в магазині Агроном.",
+      "canonical": "https://agronom.pp.ua/p/sprej-protyparaz-vitomaks-eko-koty-150-ml-klishchi",
+      "robots": "",
+      "h1": "Спрей протипараз. Вітомакс Еко коти/собаки 150 мл + кліщі",
+      "h1Count": 1,
+      "ogTitle": "Спрей протипараз. Вітомакс Еко коти/собаки 150 мл + кліщі",
+      "ogImage": "https://agronom.pp.ua/up/2473-1782320658851-285c60f7.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/poroshok-proty-murah-bros-insektytsyd-10-g": {
+      "status": 200,
+      "location": null,
+      "xRobots": null,
+      "title": "Порошок проти мурах BROS, інсектицид, 10 г — Агроном, м. Володимир",
+      "description": "Порошок проти мурах BROS, 10 г — інсектицид для боротьби з мурахами в домі, на дачі та на ділянці. Купити в магазині Агроном у Володимирі.",
+      "canonical": "https://agronom.pp.ua/p/poroshok-proty-murah-bros-insektytsyd-10-g",
+      "robots": "",
+      "h1": "Порошок проти мурах BROS, інсектицид, 10 г",
+      "h1Count": 1,
+      "ogTitle": "Порошок проти мурах BROS, інсектицид, 10 г",
+      "ogImage": "https://agronom.pp.ua/up/2703-1794862592613-07ce6a5a.webp",
+      "jsonLdTypes": [
+        "BreadcrumbList",
+        "Product"
+      ]
+    },
+    "/p/__nonexistent__": {
+      "status": 404,
+      "location": null,
+      "xRobots": null
+    }
+  }
+}

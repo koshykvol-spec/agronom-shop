@@ -45,7 +45,8 @@ describe('live: ключові сторінки', opts, () => {
   it('/index.html → 301 на /', async () => {
     const res = await get('/index.html');
     assert.equal(res.status, 301);
-    assert.equal(res.headers.get('location'), `${CANON}/`);
+    // Cloudflare віддає Location відносним ('/'), локальний імітатор — абсолютним; обидва варіанти еквівалентні
+    assert.equal(new URL(res.headers.get('location'), CANON).href, `${CANON}/`);
   });
 
   for (const [p, canon] of [['/protection_schemes', '/protection_schemes'], ['/delivery', '/delivery'], ['/contacts', '/contacts'], ['/returns', '/returns'], ['/katalog', '/katalog']]) {
