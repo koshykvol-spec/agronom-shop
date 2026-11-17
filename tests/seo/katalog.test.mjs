@@ -1,7 +1,6 @@
 // Регресія HTML-карти каталогу /katalog (functions/katalog.js): вона ж — вхід для краулу всіх товарних /p/ сторінок.
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { knownGap } from './helpers/known-gap.mjs';
 import { loadFn, installCaches, makeDB, ctx, read, ORIGIN } from './helpers/runtime.mjs';
 import { titles, h1s, metaContent, linkHrefs, htmlLang, anchorHrefs } from './helpers/html.mjs';
 
@@ -67,7 +66,7 @@ describe('/katalog', () => {
     for (const h of anchorHrefs(html)) assert.ok(h.startsWith('/') && !/\.html(\?|$)/.test(h), h);
   });
 
-  knownGap('вихідний код: коментар-заголовок не суперечить фактичному meta robots', 'шапка functions/katalog.js каже "noindex,follow", а код віддає "index,follow"', () => {
+  it('вихідний код: коментар-шапка не суперечить фактичному meta robots', () => {
     const src = read('functions/katalog.js');
     const header = /noindex,follow/.test(src.split('\n').slice(0, 5).join('\n'));
     const actual = /<meta name="robots" content="([^"]+)"/.exec(src)[1];

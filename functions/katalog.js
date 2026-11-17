@@ -1,6 +1,6 @@
 // HTML-карта каталогу: усі товари живими <a href="/p/…> для краулу Googlebot.
 // PDP — JS-рендер, тому без цієї сторінки товари «сироти» (видимі лише через sitemap).
-// noindex,follow — сама карта не в індексі, але передає краул на товарні сторінки.
+// index,follow — сторінка є в sitemap, тож не може бути noindex; водночас передає краул на товарні сторінки.
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // Кеш через Cache API + захист від збоїв D1.

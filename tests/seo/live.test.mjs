@@ -167,9 +167,16 @@ describe('live: категорії, закриті шляхи, технічни�
       const fp = fingerprint(await res.text());
       assert.equal(fp.canonical, u);
       assert.ok(fp.title && fp.title.length > 3, u);
+      assert.ok(fp.h1 && fp.h1.length > 1, `порожній <h1> у сирому HTML: ${u}`);
+      assert.equal(fp.h1Count, 1, u);
       seen.add(fp.canonical);
     }
     assert.equal(seen.size, main.length);
+  });
+
+  it('невідомий ?cat= → 404', async () => {
+    const res = await get('/category?cat=zzz-not-exist-' + Date.now());
+    assert.equal(res.status, 404);
   });
 
   for (const p of ['/db/schema.sql', '/deploy.sh', '/package.json', '/.git/config', '/prerender.py', '/docs/ux-refactor-plan.md', '/tests/seo/helpers/runtime.mjs']) {

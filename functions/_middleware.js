@@ -31,12 +31,19 @@ async function freshCategorySeo(env, catKey) {
   const cache = caches.default;
   const key = new Request('https://agronom.internal/cat-seo/' + encodeURIComponent(catKey));
   const hit = await cache.match(key);
-  if (hit) return await hit.json();
+  if (hit) { const j = await hit.json(); return j && j.__missing ? null : j; }
 
   const row = await env.DB.prepare(
-    `SELECT seo_title, h1, seo_desc FROM categories WHERE key = ?`
+    `SELECT seo_title, h1, seo_desc, nav_label FROM categories WHERE key = ?`
   ).bind(catKey).first();
-  if (!row) return null;
+  // Немає рядка → категорії не існує. Це відрізняється від збою D1 (тоді prepare/first кидає виняток).
+  // Негативний результат кешуємо коротко, щоб боти з випадковими ?cat= не били по D1 щоразу.
+  if (!row) {
+    await cache.put(key, new Response(JSON.stringify({ __missing: true }), {
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=300' }
+    }));
+    return null;
+  }
 
   await cache.put(key, new Response(JSON.stringify(row), {
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600' }
@@ -56,6 +63,11 @@ function applyCategorySeo(html, catKey, seo) {
   }
   if (seo?.seo_desc) {
     out = out.replace(/(<meta name="description" id="page-desc" content=")[^"]*(")/, `$1${esc(seo.seo_desc)}$2`);
+  }
+  // <h1> у статичному category.html порожній і заповнюється лише JS — для краулера без рендеру підставляємо на сервері.
+  const h1 = (seo?.h1 || seo?.nav_label || '').trim();
+  if (h1) {
+    out = out.replace(/(<h1 id="page-h1"[^>]*>)\s*(<\/h1>)/, `$1${esc(h1)}$2`);
   }
   return out;
 }
@@ -131,8 +143,16 @@ export async function onRequest(context) {
     // isCategory
     const catKey = url.searchParams.get('cat') || '';
     if (!catKey) return new Response(html, res);   // /category без ?cat= — canonical лишається як є
-    let seo = null;
-    try { seo = await freshCategorySeo(env, catKey); } catch (e) { seo = null; }
+    let seo = null, dbOk = true;
+    try { seo = await freshCategorySeo(env, catKey); } catch (e) { seo = null; dbOk = false; }
+    // Невідомий ?cat= (D1 відповіла, а рядка немає) → справжній 404, а не 200 із самореферентним canonical (soft-404/дублі).
+    // При збої D1 категорію НЕ вважаємо неіснуючою: віддаємо 200, як раніше.
+    if (dbOk && !seo) {
+      const h = new Headers(res.headers);
+      h.set('Cache-Control', 'public, max-age=300');
+      h.delete('ETag');
+      return new Response(html, { status: 404, headers: h });
+    }
     const out = applyCategorySeo(html, catKey, seo);   // canonical правиться навіть якщо D1 недоступний
     return new Response(out, { status: res.status, headers: new Headers(res.headers) });
   } catch (e) {

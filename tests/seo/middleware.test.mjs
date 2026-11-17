@@ -2,11 +2,10 @@
 // серверний canonical/title/description для /category?cat=…, свіжий noscript-список категорій на головній.
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { knownGap } from './helpers/known-gap.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadFn, installCaches, makeDB, ctx, read, exists, ROOT, ORIGIN } from './helpers/runtime.mjs';
-import { titles, metaContent, linkHrefs, anchorHrefs } from './helpers/html.mjs';
+import { titles, h1s, metaContent, linkHrefs, anchorHrefs } from './helpers/html.mjs';
 
 let onRequest;
 beforeEach(async () => {
@@ -110,7 +109,10 @@ describe('middleware: службові файли не віддаються пу
 
 describe('middleware: /category — серверні canonical/title/description', () => {
   const CATEGORY_HTML = read('category.html');
-  const dbWith = row => ({ DB: makeDB(sql => (sql.includes('FROM categories WHERE key = ?') ? (row ? [row] : []) : [])) });
+  // dbWith(row): категорія ІСНУЄ в D1 (row = її SEO-поля, null → порожні поля). dbMissing: D1 відповідає, але такого cat немає. dbDown: збій D1.
+  const dbWith = row => ({ DB: makeDB(sql => (sql.includes('FROM categories WHERE key = ?') ? [row || {}] : [])) });
+  const dbMissing = () => ({ DB: makeDB(() => []) });
+  const dbDown = () => ({ DB: makeDB(() => { throw new Error('D1_ERROR'); }) });
   const run = async (url, env) => {
     const res = await onRequest(ctx(url, { env, next: htmlNext(CATEGORY_HTML) }));
     return { res, html: await res.text() };
@@ -174,11 +176,46 @@ describe('middleware: /category — серверні canonical/title/description
     assert.equal(await res.text(), '{"a":1}');
   });
 
-  // Відомий пробіл (не блокує набір): невідома категорія віддає 200 із самореферентним canonical.
-  knownGap('невідомий ?cat= не має індексуватися як окрема сторінка (404 або canonical на /category)', 'зараз 200 + canonical /category?cat=<будь-що> → потенційні soft-404/дублі', async () => {
-    const { res, html } = await run(`${ORIGIN}/category?cat=zzz-not-exist`, dbWith(null));
-    const canon = linkHrefs(html, 'canonical')[0];
-    assert.ok(res.status === 404 || canon === `${ORIGIN}/category`, `status=${res.status}, canonical=${canon}`);
+  it('невідомий ?cat= → справжній 404 (не 200 із самореферентним canonical), з коротким кешем', async () => {
+    const { res } = await run(`${ORIGIN}/category?cat=zzz-not-exist`, dbMissing());
+    assert.equal(res.status, 404);
+    assert.match(res.headers.get('cache-control') || '', /max-age=\d+/);
+  });
+
+  it('збій D1 НЕ перетворює існуючі категорії на 404 (лише відсутній рядок = 404)', async () => {
+    const { res, html } = await run(`${ORIGIN}/category?cat=chemicals`, dbDown());
+    assert.equal(res.status, 200);
+    assert.deepEqual(linkHrefs(html, 'canonical'), [`${ORIGIN}/category?cat=chemicals`]);
+  });
+
+  it('відсутня категорія кешується коротко: повторні запити не б’ють по D1', async () => {
+    let queries = 0;
+    const env = { DB: makeDB(sql => { if (sql.includes('FROM categories WHERE key = ?')) queries++; return []; }) };
+    for (let i = 0; i < 3; i++) assert.equal((await run(`${ORIGIN}/category?cat=bot-probe`, env)).res.status, 404);
+    assert.equal(queries, 1);
+  });
+
+  it('?cat= порожній (/category?cat=) і без параметра не дає 404', async () => {
+    for (const u of ['/category', '/category?cat=']) {
+      const { res } = await run(ORIGIN + u, dbMissing());
+      assert.equal(res.status, 200, u);
+    }
+  });
+
+  it('<h1> наповнюється на сервері: h1 з D1, запасний варіант — nav_label; рівно один, з екрануванням', async () => {
+    const a = await run(`${ORIGIN}/category?cat=chemicals`, dbWith({ h1: 'Агрохімікати у Володимирі', nav_label: 'АГРОХІМІКАТИ' }));
+    assert.deepEqual(h1s(a.html), ['Агрохімікати у Володимирі']);
+    const b = await run(`${ORIGIN}/category?cat=soil`, dbWith({ h1: '', nav_label: 'ГРУНТ' }));   // окремий ключ: категорія кешується на 1 год
+    assert.deepEqual(h1s(b.html), ['ГРУНТ']);
+    const c = await run(`${ORIGIN}/category?cat=x`, dbWith({ h1: 'A & <b>"q"' }));
+    assert.deepEqual(h1s(c.html), ['A & <b>"q"']);
+    assert.ok(!c.html.includes('<b>"q"</b>'));
+  });
+
+  it('якщо ні h1, ні nav_label немає — h1 лишається порожнім (без «undefined»), сторінка не ламається', async () => {
+    const { res, html } = await run(`${ORIGIN}/category?cat=chemicals`, dbWith(null));
+    assert.equal(res.status, 200);
+    assert.ok(!/undefined|null/.test(h1s(html)[0] ?? ''));
   });
 });
 

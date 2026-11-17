@@ -1,7 +1,6 @@
 // Регресія SEO статичних сторінок репозиторію (сирий HTML, до виконання JS — те, що бачить краулер першим).
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { knownGap } from './helpers/known-gap.mjs';
 import { read, exists, ORIGIN } from './helpers/runtime.mjs';
 import { titles, h1s, metaContent, linkHrefs, htmlLang, jsonLd, anchorHrefs, findTags } from './helpers/html.mjs';
 
@@ -72,9 +71,8 @@ describe('індексовані сторінки: базові теги', () =>
     assert.ok(h1.length >= 10 && /агротовар|агрохім|насіння/i.test(h1), h1);
   });
 
-  knownGap('category.html: h1 наповнений уже в сирому HTML (а не лише JS-ом)', 'h1 порожній до виконання JS: <h1 id="page-h1"></h1>; middleware міг би підставляти seo.h1', () => {
-    const [h1] = h1s(html['category.html']);
-    assert.ok(h1 && h1.length > 0, 'порожній <h1>');
+  it('category.html: є плейсхолдер <h1 id="page-h1"></h1>, який middleware наповнює на сервері (див. middleware.test.mjs)', () => {
+    assert.match(html['category.html'], /<h1 id="page-h1"[^>]*>\s*<\/h1>/, 'розмітка h1 змінилась — серверна підстановка в middleware більше не спрацює');
   });
 });
 
