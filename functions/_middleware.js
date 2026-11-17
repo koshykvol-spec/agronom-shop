@@ -69,6 +69,9 @@ function isPrivatePath(pathname) {
   return PRIVATE_PATH.test(pathname) || PRIVATE_PATH.test(p) || /^\/ЧИТАЙ МЕНЕ/i.test(p);
 }
 
+// Шляхи з X-Robots-Tag: noindex — усі *.json (products.json, img-map.json, recipes.json, protection_schemes.json) і /api/*.
+const NOINDEX_PATH = /\.json$|^\/api(\/|$)/i;
+
 // ДІАГНОСТИКА: максимум записів у host_hits на один ізолят (щоб хвиля ботів не розкачала D1 на запис).
 let hostHitBudget = 150;
 
@@ -99,7 +102,15 @@ export async function onRequest(context) {
   if (isPrivatePath(path)) return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
   const isHome = path === '/' || path === '/index.html';
   const isCategory = path === '/category' || path === '/category.html';
-  // Решта (статика, /api, /admin, /p, фото) — без накладних
+  // Технічні дані (JSON каталогу, /api/*) не мають потрапляти в індекс: Googlebot їх читає для рендеру,
+  // тому не Disallow у robots.txt, а саме X-Robots-Tag: noindex у відповіді.
+  if (NOINDEX_PATH.test(path)) {
+    const r = await next();
+    const h = new Headers(r.headers);
+    h.set('X-Robots-Tag', 'noindex');
+    return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+  }
+  // Решта (статика, /admin, /p, фото) — без накладних
   if (!isHome && !isCategory) return next();
 
   const res = await next();

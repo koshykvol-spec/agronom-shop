@@ -1,7 +1,6 @@
 // Регресія robots.txt, _redirects, _headers та відсутності випадкового noindex у публічних шаблонах.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { knownGap } from './helpers/known-gap.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { read, ROOT, ORIGIN } from './helpers/runtime.mjs';
@@ -50,10 +49,40 @@ describe('robots.txt', () => {
     for (const ua of ['SemrushBot', 'AhrefsBot']) assert.equal(isAllowed(robots, '/p/x', ua), false, ua);
   });
 
-  knownGap('технічні JSON не мають індексуватися (X-Robots-Tag: noindex у _headers та у відповіді products.json)', 'GSC раніше скаржився на скановані технічні JSON; у robots.txt/_headers правил немає. Саме noindex-заголовок, а не Disallow: JSON потрібні Googlebot для рендеру каталогу', () => {
-    const headers = read('_headers');
-    assert.match(headers, /\*\.json[\s\S]{0,120}X-Robots-Tag:\s*noindex/i, '_headers без X-Robots-Tag для *.json');
-    assert.match(read('functions/products.json.js'), /x-robots-tag/i, 'products.json без X-Robots-Tag');
+  it('технічні JSON та /api/* віддаються з X-Robots-Tag: noindex (але не заблоковані в robots.txt — Googlebot читає їх для рендеру)', async () => {
+    const { loadFn, installCaches, makeDB, ctx } = await import('./helpers/runtime.mjs');
+    installCaches();
+    const { onRequest } = await loadFn('functions/_middleware.js');
+    const env = { DB: makeDB(() => []) };
+    for (const p of ['/products.json', '/img-map.json', '/recipes.json', '/protection_schemes.json', '/api/products', '/api/categories', '/api']) {
+      const res = await onRequest(ctx(`${ORIGIN}${p}`, { env, next: async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }) }));
+      assert.equal(res.headers.get('x-robots-tag'), 'noindex', p);
+      assert.equal(await res.text(), '{}', 'тіло відповіді не змінилось: ' + p);
+      assert.equal(isAllowed(robots, p, 'Googlebot'), true, `${p} не має бути в Disallow`);
+    }
+  });
+
+  it('noindex-заголовок НЕ додається до HTML, sitemap, фото та інших сторінок', async () => {
+    const { loadFn, installCaches, makeDB, ctx } = await import('./helpers/runtime.mjs');
+    installCaches();
+    const { onRequest } = await loadFn('functions/_middleware.js');
+    const env = { DB: makeDB(() => []) };
+    for (const p of ['/p/some-slug', '/katalog', '/sitemap.xml', '/sitemap-products.xml', '/robots.txt', '/style.css', '/app.js', '/IMG/a.webp', '/delivery', '/site.webmanifest', '/apijson', '/feed/google.xml']) {
+      const res = await onRequest(ctx(`${ORIGIN}${p}`, { env }));
+      assert.equal(res.headers.get('x-robots-tag'), null, p);
+    }
+  });
+
+  it('статус і тіло відповіді JSON зберігаються (404/503 не маскуються)', async () => {
+    const { loadFn, installCaches, makeDB, ctx } = await import('./helpers/runtime.mjs');
+    installCaches();
+    const { onRequest } = await loadFn('functions/_middleware.js');
+    const env = { DB: makeDB(() => []) };
+    for (const status of [404, 503]) {
+      const res = await onRequest(ctx(`${ORIGIN}/products.json`, { env, next: async () => new Response('err', { status }) }));
+      assert.equal(res.status, status);
+      assert.equal(res.headers.get('x-robots-tag'), 'noindex');
+    }
   });
 });
 
@@ -106,7 +135,11 @@ describe('публічні шаблони не віддають noindex випа
     it(`${f}: немає <meta robots noindex> / X-Robots-Tag: noindex у коді відповіді`, () => {
       const src = read(f);
       assert.ok(!/<meta name="robots" content="[^"]*noindex/i.test(src), 'meta robots noindex');
-      assert.ok(!/x-robots-tag['"]?\s*[:,]\s*['"]?[^'"\n]*noindex/i.test(src), 'X-Robots-Tag noindex');
+      const code = src.replace(/(^|[^:])\/\/.*$/gm, '$1');            // без рядкових коментарів
+      const hits = (code.match(/x-robots-tag['"]?\s*[:,]\s*['"]?[^'"\n]*noindex/gi) || []).length;
+      // єдиний дозволений виняток: middleware ставить заголовок технічним JSON/API (див. NOINDEX_PATH)
+      const allowed = f === 'functions/_middleware.js' ? 1 : 0;
+      assert.equal(hits, allowed, `X-Robots-Tag noindex: знайдено ${hits}, дозволено ${allowed}`);
     });
   }
 

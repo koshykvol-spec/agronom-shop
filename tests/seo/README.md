@@ -42,7 +42,6 @@ SEO_BASE_URL=https://agronom.pp.ua node tests/seo/snapshot.mjs            # пі
 
 - `category.html`: `<h1>` порожній у сирому HTML (заповнюється JS).
 - невідомий `?cat=` віддає 200 із самореферентним canonical.
-- технічні JSON (`products.json` тощо) без `X-Robots-Tag: noindex`.
 - шапка `functions/katalog.js` каже `noindex,follow`, а код віддає `index,follow`.
 
 ## Нова перевірка

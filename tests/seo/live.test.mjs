@@ -143,6 +143,13 @@ describe('live: robots.txt і sitemap', opts, () => {
     });
   });
 
+  it('products.json віддається з X-Robots-Tag: noindex, а HTML-сторінки — ні', async () => {
+    const j = await get('/products.json');
+    assert.equal(j.headers.get('x-robots-tag'), 'noindex', 'products.json без noindex');
+    const h = await get('/');
+    assert.ok(!/noindex/i.test(h.headers.get('x-robots-tag') || ''));
+  });
+
   it('невідомий slug → справжній 404', async () => {
     const res = await get('/p/this-slug-does-not-exist-' + Date.now());
     assert.equal(res.status, 404);
