@@ -153,7 +153,16 @@ export async function onRequest(context) {
       h.delete('ETag');
       return new Response(html, { status: 404, headers: h });
     }
-    const out = applyCategorySeo(html, catKey, seo);   // canonical правиться навіть якщо D1 недоступний
+    let out = applyCategorySeo(html, catKey, seo);   // canonical правиться навіть якщо D1 недоступний
+    // Сітку товарів малює app.js, тож у сирому HTML немає посилань на /p/. Додаємо видиме для всіх посилання
+    // на серверний список розділу (functions/katalog/[cat].js) — краулер без JS отримує вхід до товарів.
+    // Лише для підтвердженої категорії (seo != null), щоб не плодити посилання на довільні ?cat=.
+    if (seo) {
+      out = out.replace(
+        '<div id="catalog-pager" class="catalog-pager"></div>',
+        m => m + `\n    <p class="seo-list-link" style="margin:18px 0;font-size:.9rem;"><a href="/katalog/${encodeURIComponent(catKey)}" style="color:var(--green);font-weight:700;">Усі товари розділу списком →</a></p>`
+      );
+    }
     return new Response(out, { status: res.status, headers: new Headers(res.headers) });
   } catch (e) {
     return res;                                   // будь-яка помилка → оригінал, сайт не ламається

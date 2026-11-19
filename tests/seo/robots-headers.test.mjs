@@ -130,7 +130,7 @@ describe('_headers', () => {
 });
 
 describe('публічні шаблони не віддають noindex випадково', () => {
-  const PUBLIC_TEMPLATES = ['functions/p/[slug].js', 'functions/_middleware.js', 'functions/katalog.js', 'functions/sitemap.xml.js', 'functions/sitemap-main.xml.js', 'functions/sitemap-products.xml.js'];
+  const PUBLIC_TEMPLATES = ['functions/p/[slug].js', 'functions/_middleware.js', 'functions/katalog.js', 'functions/katalog/[cat].js', 'functions/sitemap.xml.js', 'functions/sitemap-main.xml.js', 'functions/sitemap-products.xml.js'];
   for (const f of PUBLIC_TEMPLATES) {
     it(`${f}: немає <meta robots noindex> / X-Robots-Tag: noindex у коді відповіді`, () => {
       const src = read(f);

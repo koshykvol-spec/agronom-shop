@@ -28,6 +28,11 @@ export function fixtureDB() {
     if (sql.includes('FROM categories WHERE key = ?')) return CATS.filter(c => c.key === binds[0]);
     if (sql.includes('FROM categories ORDER BY sort')) return CATS;
     if (sql.includes('SELECT slug FROM product_content')) return PRODUCTS.map(p => ({ slug: p.slug }));
+    if (sql.includes('SELECT COUNT(*) AS n FROM products p JOIN product_content c')) return [{ n: PRODUCTS.filter(p => p.category === binds[0] && p.visible !== 0).length }];
+    if (sql.includes('ORDER BY p.in_stock DESC, p.pid LIMIT ? OFFSET ?')) {
+      return PRODUCTS.filter(p => p.category === binds[0] && p.visible !== 0).sort((a, b) => (b.in_stock - a.in_stock) || (a.pid - b.pid))
+        .slice(binds[2], binds[2] + binds[1]).map(p => ({ slug: p.slug, name: p.name, price: p.price, ins: p.in_stock }));
+    }
     if (sql.includes('COALESCE(NULLIF(c.display_name') && sql.includes('AS cat')) return PRODUCTS.map(p => ({ slug: p.slug, name: p.name, cat: p.category }));
     return [];
   });
@@ -39,6 +44,7 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': '
 const FUNCTION_ROUTES = [
   [/^\/p\/([^/]+)$/, 'functions/p/[slug].js', m => ({ slug: decodeURIComponent(m[1]) })],
   [/^\/katalog$/, 'functions/katalog.js'],
+  [/^\/katalog\/([^/]+)$/, 'functions/katalog/[cat].js', m => ({ cat: decodeURIComponent(m[1]) })],
   [/^\/sitemap\.xml$/, 'functions/sitemap.xml.js'],
   [/^\/sitemap-v2\.xml$/, 'functions/sitemap-v2.xml.js'],
   [/^\/sitemap-main\.xml$/, 'functions/sitemap-main.xml.js'],
