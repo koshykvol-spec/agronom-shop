@@ -23,6 +23,7 @@ PowerShell: `$env:SEO_BASE_URL="https://agronom.pp.ua"; node tests/seo/run.mjs`
 | `katalog.test.mjs` | `/katalog`: живі посилання на всі `/p/`, не noindex, не кешує порожню карту |
 | `static-pages.test.mjs` | сирий HTML: title/description/canonical/h1, noindex лише на службових, JSON-LD, збіг списків категорій у `index.html` / `sitemap-main` / `prerender.py`, битi посилання, посилання на `*.html` |
 | `robots-headers.test.mjs` | robots.txt (правила Google з `*`/`$`), `_redirects`, `_headers`, відсутність випадкового noindex |
+| `admin-newproducts.test.mjs` | `/admin/newproducts`: експорт нових товарів, заливка «лише порожні поля» (на справжньому SQLite, Node ≥ 22.5; інакше SQL-тести пропускаються), CSRF/Basic Auth, плитка в адмінці, синтаксис клієнтського скрипта |
 | `live.test.mjs` | ті самі інваріанти через реальні HTTP-запити (200/301/308/404, sitemap → вибірка товарів, категорії) |
 
 Функції з `functions/` виконуються **справжні** (з підробленою D1 у `helpers/runtime.mjs`), тож тест ловить зміни логіки, а не копії.
