@@ -71,7 +71,8 @@ function navGrid() {
       ['/admin/search', '🔍', 'Пошук'], ['/admin/checkout', '🚚', 'Доставка й оплата'],
       ['/admin/keys', '🔑', 'Ключі'], ['/admin/np-sender', '📦', 'Відправник НП'] ] },
     { h: '🛠 Каталог', items: [
-      ['/admin/import', '⬆️', 'Імпорт 1С'], ['/admin/anno', '✍️', 'Анотації (масово)'],
+      ['/admin/import', '⬆️', 'Імпорт 1С'], ['/admin/newproducts', '🆕', 'Нові товари (опис + ключові + SEO)'],
+      ['/admin/anno', '✍️', 'Анотації (масово)'],
       ['/admin/reviews-bulk', '💬', 'Відгуки (масово)'],
       ['/admin/dedup', '🔀', 'Дублі SKU'], ['/admin/merge', '🔗', 'Злити товари (колізії)'],
       ['/admin/groups', '📦', 'Групування фасовок'], ['/admin/ingredients', '🧪', 'Діючі речовини'],
