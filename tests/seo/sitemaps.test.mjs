@@ -60,6 +60,7 @@ describe('sitemap-main.xml (статичні сторінки + категорі
     assert.deepEqual(locs(xml), [
       `${ORIGIN}/`, `${ORIGIN}/katalog`, `${ORIGIN}/protection_schemes`, `${ORIGIN}/delivery`, `${ORIGIN}/contacts`, `${ORIGIN}/returns`,
       `${ORIGIN}/category?cat=chemicals`, `${ORIGIN}/category?cat=soil`, `${ORIGIN}/category?cat=new-cat`,
+      `${ORIGIN}/katalog/chemicals`, `${ORIGIN}/katalog/soil`, `${ORIGIN}/katalog/new-cat`,
     ].map(u => u.replace(/&/g, '&amp;')));
   });
 
@@ -67,6 +68,7 @@ describe('sitemap-main.xml (статичні сторінки + категорі
     const env = { DB: makeDB(() => { throw new Error('D1_ERROR'); }) };
     const xml = await (await call(fns.main, '/sitemap-main.xml', env)).text();
     assert.equal(locs(xml).filter(u => u.includes('/category?cat=')).length, 11);
+    assert.equal(locs(xml).filter(u => u.includes('/katalog/')).length, 11);
   });
 
   it('усі URL — на основному домені, без дублів, без службових сторінок', async () => {

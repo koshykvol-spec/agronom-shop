@@ -90,6 +90,21 @@ async function renderKatalog(context) {
     rows = r.results || [];
   } catch (e) { degraded = true; /* порожня карта краще за 500, але її не кешуємо */ }
 
+  // Розділи каталогу: посилання на серверні списки /katalog/<key> (хаби для краулу товарів).
+  // Окремий запит (11 рядків); збій не псує основну сторінку.
+  let catNav = '';
+  try {
+    const cr = await db.prepare(`SELECT key, db_name, nav_label FROM categories ORDER BY sort`).all();
+    const counts = new Map();
+    for (const x of rows) counts.set(x.cat, (counts.get(x.cat) || 0) + 1);
+    const cats = (cr.results || []).filter(c => c.key && counts.get(c.db_name));
+    if (cats.length) {
+      catNav = `<nav aria-label="Розділи каталогу"><h2>Розділи каталогу</h2>\n<ul>` +
+        cats.map(c => `<li><a href="/katalog/${esc(encodeURIComponent(c.key))}">${esc(c.nav_label || c.db_name)}</a> <span style="color:#888">(${counts.get(c.db_name)})</span></li>`).join('') +
+        `</ul></nav>\n`;
+    }
+  } catch (e) { /* без блоку розділів */ }
+
   // Групуємо за категорією
   const byCat = new Map();
   for (const x of rows) {
@@ -120,6 +135,7 @@ async function renderKatalog(context) {
 <main class="container">
   <h1 class="page-h1">Повний каталог товарів</h1>
   <p style="color:#555;margin-bottom:18px;">Усі ${rows.length} товарів магазину. Оберіть категорію або товар нижче.</p>
+  ${catNav}
   ${body}
   <p style="margin-top:24px;"><a href="/" style="color:var(--green);font-weight:700;">← На головну</a></p>
 </main>

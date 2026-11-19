@@ -195,6 +195,20 @@ describe('middleware: /category — серверні canonical/title/description
     assert.equal(queries, 1);
   });
 
+  it('сторінка категорії має в сирому HTML посилання на серверний список /katalog/<key> (вхід до товарів для краулера без JS)', async () => {
+    const { html } = await run(`${ORIGIN}/category?cat=chemicals`, dbWith(null));
+    assert.ok(anchorHrefs(html).includes('/katalog/chemicals'), anchorHrefs(html).join(','));
+    const odd = await run(`${ORIGIN}/category?cat=${encodeURIComponent('a&b')}`, dbWith(null));
+    assert.ok(anchorHrefs(odd.html).includes('/katalog/a%26b'));
+  });
+
+  it('невідома категорія (404) і порожній ?cat= не отримують посилання на /katalog/<key>', async () => {
+    const missing = await run(`${ORIGIN}/category?cat=zzz`, dbMissing());
+    assert.ok(!anchorHrefs(missing.html).some(h => h.startsWith('/katalog/')));
+    const none = await run(`${ORIGIN}/category`, dbMissing());
+    assert.ok(!anchorHrefs(none.html).some(h => h.startsWith('/katalog/')));
+  });
+
   it('?cat= порожній (/category?cat=) і без параметра не дає 404', async () => {
     for (const u of ['/category', '/category?cat=']) {
       const { res } = await run(ORIGIN + u, dbMissing());
