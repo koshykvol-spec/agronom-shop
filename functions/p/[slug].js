@@ -540,6 +540,18 @@ async function renderProduct(context) {
 .p-thumbs  { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .p-thumbs img { width:64px; height:64px; object-fit:contain; background:#f6f6f6; border:2px solid #ddd; border-radius:8px; cursor:pointer; transition:border-color .15s; }
 .p-thumbs img.active { border-color:var(--green); }
+#pmain { cursor:zoom-in; }
+/* Лайтбокс: збільшення фото по кліку */
+.lb { position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.88); display:flex; align-items:center; justify-content:center; touch-action:pinch-zoom; overflow:hidden; }
+.lb[hidden] { display:none; }
+.lb-img { max-width:94vw; max-height:88vh; object-fit:contain; border-radius:6px; background:#fff; cursor:zoom-in; transition:transform .2s; user-select:none; -webkit-user-drag:none; }
+.lb-img.zoomed { transform:scale(2.2); cursor:zoom-out; }
+.lb button { position:absolute; border:0; background:rgba(255,255,255,.18); color:#fff; font-size:1.7rem; width:46px; height:46px; border-radius:50%; cursor:pointer; line-height:1; padding:0; }
+.lb button:hover, .lb button:focus-visible { background:rgba(255,255,255,.34); }
+.lb-close { top:14px; right:14px; }
+.lb-prev { left:14px; top:50%; transform:translateY(-50%); }
+.lb-next { right:14px; top:50%; transform:translateY(-50%); }
+.lb-count { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); color:#fff; font-size:.9rem; }
 
 .p-info    { display:flex; flex-direction:column; gap:0; }
 .p-brand   { text-transform:uppercase; color:#aaa; font-size:.75rem; letter-spacing:.08em; margin-bottom:4px; }
@@ -877,6 +889,61 @@ function setThumb(el, src){
   document.querySelectorAll('.p-thumbs img').forEach(function(t){ t.classList.remove('active'); });
   el.classList.add('active');
 }
+
+// ── Збільшення фото по кліку (лайтбокс) ──
+(function(){
+  var main=document.getElementById('pmain'); if(!main) return;
+  var lb=null, im, cnt, prev, next, list=[], idx=0, opener=null;
+  function srcs(){
+    var t=document.querySelectorAll('.p-thumbs img'), a=[];
+    for(var i=0;i<t.length;i++) a.push(t[i].src);
+    return a.length?a:[main.src];
+  }
+  function origin(x,y){
+    var ox=Math.max(0,Math.min(100,(x-im.offsetLeft)/im.offsetWidth*100));
+    var oy=Math.max(0,Math.min(100,(y-im.offsetTop)/im.offsetHeight*100));
+    im.style.transformOrigin=ox+'% '+oy+'%';
+  }
+  function show(){
+    im.classList.remove('zoomed'); im.style.transformOrigin='';
+    im.src=list[idx]; im.alt=main.alt||'';
+    cnt.textContent=list.length>1?(idx+1)+' / '+list.length:'';
+    prev.style.display=next.style.display=list.length>1?'':'none';
+  }
+  function go(d){ idx=(idx+d+list.length)%list.length; show(); }
+  function close(){ lb.hidden=true; document.body.style.overflow=''; if(opener&&opener.focus) opener.focus(); }
+  function build(){
+    lb=document.createElement('div'); lb.className='lb'; lb.hidden=true;
+    lb.setAttribute('role','dialog'); lb.setAttribute('aria-modal','true'); lb.setAttribute('aria-label','Збільшене фото');
+    lb.innerHTML='<button type="button" class="lb-close" aria-label="Закрити">×</button><button type="button" class="lb-prev" aria-label="Попереднє фото">‹</button><img class="lb-img" alt=""><button type="button" class="lb-next" aria-label="Наступне фото">›</button><div class="lb-count"></div>';
+    document.body.appendChild(lb);
+    im=lb.querySelector('.lb-img'); cnt=lb.querySelector('.lb-count'); prev=lb.querySelector('.lb-prev'); next=lb.querySelector('.lb-next');
+    lb.querySelector('.lb-close').onclick=close;
+    prev.onclick=function(e){ e.stopPropagation(); go(-1); };
+    next.onclick=function(e){ e.stopPropagation(); go(1); };
+    lb.onclick=function(e){ if(e.target===lb) close(); };
+    im.onclick=function(e){ e.stopPropagation(); if(im.classList.toggle('zoomed')) origin(e.clientX,e.clientY); };
+    im.onmousemove=function(e){ if(im.classList.contains('zoomed')) origin(e.clientX,e.clientY); };
+    var x0=null;
+    lb.addEventListener('touchstart',function(e){ x0=(e.touches.length===1&&!im.classList.contains('zoomed'))?e.touches[0].clientX:null; },{passive:true});
+    lb.addEventListener('touchend',function(e){ if(x0===null) return; var dx=e.changedTouches[0].clientX-x0; x0=null; if(Math.abs(dx)>50&&list.length>1) go(dx<0?1:-1); },{passive:true});
+  }
+  function open(){
+    if(!lb) build();
+    list=srcs(); idx=Math.max(0,list.indexOf(main.src)); opener=document.activeElement;
+    show(); lb.hidden=false; document.body.style.overflow='hidden';
+    lb.querySelector('.lb-close').focus();
+  }
+  document.addEventListener('keydown',function(e){
+    if(!lb||lb.hidden) return;
+    if(e.key==='Escape') close();
+    else if(e.key==='ArrowLeft'&&list.length>1) go(-1);
+    else if(e.key==='ArrowRight'&&list.length>1) go(1);
+  });
+  main.setAttribute('role','button'); main.setAttribute('tabindex','0'); main.setAttribute('title','Натисніть, щоб збільшити');
+  main.addEventListener('click',open);
+  main.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } });
+})();
 
 // ── Поділитися ──
 function shareProduct(e){ e.preventDefault();
