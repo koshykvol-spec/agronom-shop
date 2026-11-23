@@ -182,7 +182,7 @@ export async function onRequestGet(context) {
     const ingSel = await productIngredientIds(db, pid); // обрані для цього товару
     const hid = ['cat', 'q', 'noa', 'noimg', 'nodosage', 'noai', 'nokw', 'noseo', 'norev', 'ps', 'page'].map(k => `<input type="hidden" name="${k}" value="${esc(url.searchParams.get(k) || '')}">`).join('');
     const gallery = `<div class="row" style="margin-top:12px">
-      <b>📷 Фото товару (${imgs.length})</b>${imgs.length > 1 ? ' <span class="muted">🖐 перетягуйте для зміни порядку (перше = головне)</span> <span id="ph-status" style="font-size:.78rem"></span>' : ''}
+      <b>📷 Фото товару (${imgs.length})</b>${imgs.length > 1 ? ' <span class="muted">🖐 перетягуйте для зміни порядку (перше = головне) · 🔍 клік по фото — переглянути</span> <span id="ph-status" style="font-size:.78rem"></span>' : ''}
       <div id="photo-grid" data-pid="${pid}" style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0">
         ${imgs.length ? imgs.map((im, i) => `<div class="ph-card" draggable="true" data-id="${im.id}" style="border:2px solid ${i === 0 ? '#2d6a2d' : '#ddd'};border-radius:8px;padding:6px;width:130px;text-align:center;box-sizing:border-box;cursor:grab;background:#fff">
             <img src="/${esc(im.path)}" loading="lazy" draggable="false" style="width:100%;height:90px;object-fit:contain;background:#f6f6f6;border-radius:4px;pointer-events:none" onerror="this.style.opacity=.25;this.alt='нема файлу'">
@@ -255,6 +255,62 @@ export async function onRequestGet(context) {
         c.addEventListener('dragover',function(e){e.preventDefault();if(!dragEl||dragEl===c)return;
           var r=c.getBoundingClientRect(); var before=(e.clientX-r.left)<r.width/2;
           grid.insertBefore(dragEl, before? c : c.nextSibling);});
+        c.title='Клік — переглянути, перетягніть — змінити порядок';
+      });
+
+      // ── Перегляд фото (збільшення по кліку) ──
+      var pv=null, list=[], idx=0, prevOv='';
+      function btn(cls,txt,label,pos){
+        var b=document.createElement('button'); b.type='button'; b.className=cls; b.textContent=txt; b.setAttribute('aria-label',label);
+        b.style.cssText='position:absolute;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:1.7rem;width:46px;height:46px;border-radius:50%;cursor:pointer;line-height:1;padding:0;'+pos;
+        return b;
+      }
+      function build(){
+        pv=document.createElement('div'); pv.hidden=true;
+        pv.setAttribute('role','dialog'); pv.setAttribute('aria-modal','true'); pv.setAttribute('aria-label','Перегляд фото');
+        pv.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;touch-action:pinch-zoom';
+        var im=document.createElement('img'); im.className='pv-img'; im.alt='';
+        im.style.cssText='max-width:94vw;max-height:84vh;object-fit:contain;border-radius:6px;background:#fff';
+        var bar=document.createElement('div'); bar.style.cssText='position:absolute;bottom:14px;left:0;right:0;display:flex;gap:16px;justify-content:center;align-items:center;color:#fff;font-size:.88rem';
+        bar.innerHTML='<span class="pv-count"></span><span class="pv-main"></span><a class="pv-open" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">Відкрити оригінал ↗</a>';
+        var x=btn('pv-close','×','Закрити','top:14px;right:14px'), pr=btn('pv-prev','‹','Попереднє фото','left:14px;top:50%;transform:translateY(-50%)'), nx=btn('pv-next','›','Наступне фото','right:14px;top:50%;transform:translateY(-50%)');
+        pv.appendChild(x); pv.appendChild(pr); pv.appendChild(im); pv.appendChild(nx); pv.appendChild(bar);
+        document.body.appendChild(pv);
+        x.addEventListener('click',close);
+        pr.addEventListener('click',function(e){e.stopPropagation();go(-1);});
+        nx.addEventListener('click',function(e){e.stopPropagation();go(1);});
+        pv.addEventListener('click',function(e){if(e.target===pv) close();});
+        var x0=null;
+        pv.addEventListener('touchstart',function(e){x0=e.touches.length===1?e.touches[0].clientX:null;},{passive:true});
+        pv.addEventListener('touchend',function(e){if(x0===null) return; var dx=e.changedTouches[0].clientX-x0; x0=null; if(Math.abs(dx)>50&&list.length>1) go(dx<0?1:-1);},{passive:true});
+        document.addEventListener('keydown',function(e){
+          if(!pv||pv.hidden) return;
+          if(e.key==='Escape') close();
+          else if(e.key==='ArrowLeft'&&list.length>1) go(-1);
+          else if(e.key==='ArrowRight'&&list.length>1) go(1);
+        });
+      }
+      function show(){
+        var it=list[idx];
+        pv.querySelector('.pv-img').src=it.url;
+        pv.querySelector('.pv-count').textContent=list.length>1?(idx+1)+' / '+list.length:'';
+        pv.querySelector('.pv-main').textContent=it.primary?'★ головне фото':'';
+        pv.querySelector('.pv-open').href=it.url;
+        pv.querySelector('.pv-prev').style.display=pv.querySelector('.pv-next').style.display=list.length>1?'':'none';
+      }
+      function go(d){idx=(idx+d+list.length)%list.length; show();}
+      function close(){pv.hidden=true; pv.style.display='none'; document.body.style.overflow=prevOv;}
+      cards().forEach(function(c){
+        c.addEventListener('click',function(e){
+          if(e.target.closest('a')) return;
+          var all=cards();   // порядок беремо з DOM: після перетягування він міг змінитись
+          list=all.map(function(el,i){return {url:el.querySelector('img').getAttribute('src'), primary:i===0};});
+          idx=Math.max(0,all.indexOf(c));
+          if(!pv) build();
+          show(); pv.hidden=false; pv.style.display='flex';
+          prevOv=document.body.style.overflow; document.body.style.overflow='hidden';
+          pv.querySelector('.pv-close').focus();
+        });
       });
     })();</script>`;
     const body = `<div class="nav"><a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }))}">← до списку</a></div>
