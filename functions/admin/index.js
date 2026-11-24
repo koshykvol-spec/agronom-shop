@@ -275,11 +275,12 @@ export async function onRequestGet(context) {
         var im=document.createElement('img'); im.className='pv-img'; im.alt='';
         im.style.cssText='max-width:94vw;max-height:84vh;object-fit:contain;border-radius:6px;background:#fff';
         var bar=document.createElement('div'); bar.style.cssText='position:absolute;bottom:14px;left:0;right:0;display:flex;gap:16px;justify-content:center;align-items:center;color:#fff;font-size:.88rem';
-        bar.innerHTML='<span class="pv-count"></span><span class="pv-main"></span><a class="pv-open" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">Відкрити оригінал ↗</a>';
+        bar.innerHTML='<span class="pv-count"></span><span class="pv-main"></span><a class="pv-open" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">Відкрити оригінал ↗</a><button type="button" class="pv-edit" style="border:0;border-radius:8px;padding:7px 14px;cursor:pointer;background:#ff9800;color:#fff;font-size:.88rem">✏️ Редагувати</button>';
         var x=btn('pv-close','×','Закрити','top:14px;right:14px'), pr=btn('pv-prev','‹','Попереднє фото','left:14px;top:50%;transform:translateY(-50%)'), nx=btn('pv-next','›','Наступне фото','right:14px;top:50%;transform:translateY(-50%)');
         pv.appendChild(x); pv.appendChild(pr); pv.appendChild(im); pv.appendChild(nx); pv.appendChild(bar);
         document.body.appendChild(pv);
         x.addEventListener('click',close);
+        bar.querySelector('.pv-edit').addEventListener('click',function(e){e.stopPropagation(); openEditor(list[idx]);});
         pr.addEventListener('click',function(e){e.stopPropagation();go(-1);});
         nx.addEventListener('click',function(e){e.stopPropagation();go(1);});
         pv.addEventListener('click',function(e){if(e.target===pv) close();});
@@ -307,7 +308,7 @@ export async function onRequestGet(context) {
         c.addEventListener('click',function(e){
           if(e.target.closest('a')) return;
           var all=cards();   // порядок беремо з DOM: після перетягування він міг змінитись
-          list=all.map(function(el,i){return {url:el.querySelector('img').getAttribute('src'), primary:i===0};});
+          list=all.map(function(el,i){return {id:el.getAttribute('data-id'), url:el.querySelector('img').getAttribute('src'), primary:i===0};});
           idx=Math.max(0,all.indexOf(c));
           if(!pv) build();
           show(); pv.hidden=false; pv.style.display='flex';
@@ -315,6 +316,133 @@ export async function onRequestGet(context) {
           pv.querySelector('.pv-close').focus();
         });
       });
+
+      // ── Редактор фото: поворот, відзеркалення, обрізка, замальовування, яскравість/контраст ──
+      var ed=null;
+      function edBtn(txt,title,fn,extra){
+        var b=document.createElement('button'); b.type='button'; b.textContent=txt; b.title=title||'';
+        b.style.cssText='border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:.9rem;background:#fff;color:#222;'+(extra||'');
+        b.addEventListener('click',fn); return b;
+      }
+      function edClose(){ if(ed){ ed.remove(); ed=null; } }
+      function openEditor(it){
+        edClose();
+        var pid=grid.getAttribute('data-pid');
+        var src=new Image();
+        src.onload=function(){ start(src); };
+        src.onerror=function(){ alert('Не вдалося завантажити фото для редагування'); };
+        src.src=it.url;
+        function cnv(w,h){var c=document.createElement('canvas'); c.width=w; c.height=h; return c;}
+        function start(img){
+          var CAP=2000, k=Math.min(1,CAP/Math.max(img.naturalWidth,img.naturalHeight));
+          var work=cnv(Math.round(img.naturalWidth*k),Math.round(img.naturalHeight*k));
+          work.getContext('2d').drawImage(img,0,0,work.width,work.height);
+          var hist=[], mode='crop', rect=null, bright=100, contr=100, s=1;
+          ed=document.createElement('div');
+          ed.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px;box-sizing:border-box';
+          ed.setAttribute('role','dialog'); ed.setAttribute('aria-modal','true'); ed.setAttribute('aria-label','Редагування фото');
+          var dc=document.createElement('canvas'); dc.style.cssText='touch-action:none;cursor:crosshair;background:#fff;border-radius:4px;max-width:96vw';
+          var tools=document.createElement('div'); tools.style.cssText='display:flex;flex-wrap:wrap;gap:6px;justify-content:center';
+          var sl=document.createElement('div'); sl.style.cssText='display:flex;flex-wrap:wrap;gap:14px;justify-content:center;color:#fff;font-size:.82rem;align-items:center';
+          var acts=document.createElement('div'); acts.style.cssText='display:flex;flex-wrap:wrap;gap:8px;justify-content:center';
+          var msg=document.createElement('div'); msg.style.cssText='color:#ddd;font-size:.8rem;min-height:1.1em;text-align:center'; 
+          function say(t){msg.textContent=t||'';}
+          function push(){ var c=cnv(work.width,work.height); c.getContext('2d').drawImage(work,0,0); hist.push(c); if(hist.length>12) hist.shift(); }
+          function layout(){
+            var maxW=Math.min(window.innerWidth*0.94,1100), maxH=window.innerHeight-250;
+            s=Math.min(1,maxW/work.width,maxH/work.height);
+            dc.width=Math.max(1,Math.round(work.width*s)); dc.height=Math.max(1,Math.round(work.height*s));
+            draw();
+          }
+          function draw(){
+            var g=dc.getContext('2d'); g.clearRect(0,0,dc.width,dc.height); g.drawImage(work,0,0,dc.width,dc.height);
+            dc.style.filter='brightness('+bright+'%) contrast('+contr+'%)';
+            if(rect){
+              g.save(); g.fillStyle='rgba(0,0,0,.45)';
+              if(mode==='crop'){
+                g.fillRect(0,0,dc.width,rect.y); g.fillRect(0,rect.y+rect.h,dc.width,dc.height-rect.y-rect.h);
+                g.fillRect(0,rect.y,rect.x,rect.h); g.fillRect(rect.x+rect.w,rect.y,dc.width-rect.x-rect.w,rect.h);
+              }
+              g.strokeStyle=mode==='crop'?'#4caf50':'#ff9800'; g.lineWidth=2; g.setLineDash([6,4]); g.strokeRect(rect.x+1,rect.y+1,rect.w-2,rect.h-2);
+              g.restore();
+            }
+          }
+          function setWork(c){ work=c; rect=null; layout(); }
+          function rotate(dir){
+            push(); var c=cnv(work.height,work.width), g=c.getContext('2d');
+            g.translate(c.width/2,c.height/2); g.rotate(dir*Math.PI/2); g.drawImage(work,-work.width/2,-work.height/2); setWork(c);
+          }
+          function flip(){ push(); var c=cnv(work.width,work.height), g=c.getContext('2d'); g.translate(c.width,0); g.scale(-1,1); g.drawImage(work,0,0); setWork(c); }
+          function undo(){ if(!hist.length){ say('Немає що скасовувати'); return; } setWork(hist.pop()); say(''); }
+          function reset(){ push(); var c=cnv(Math.round(img.naturalWidth*k),Math.round(img.naturalHeight*k)); c.getContext('2d').drawImage(img,0,0,c.width,c.height); bright=100; contr=100; bs.value=100; cs.value=100; setWork(c); say('Скинуто до оригіналу'); }
+          function applyRect(){
+            if(!rect||rect.w<4||rect.h<4){ say('Спочатку виділіть ділянку мишею/пальцем'); return; }
+            var rx=Math.round(rect.x/s), ry=Math.round(rect.y/s), rw=Math.round(rect.w/s), rh=Math.round(rect.h/s);
+            rx=Math.max(0,rx); ry=Math.max(0,ry); rw=Math.min(rw,work.width-rx); rh=Math.min(rh,work.height-ry);
+            push();
+            if(mode==='crop'){
+              var c=cnv(rw,rh); c.getContext('2d').drawImage(work,rx,ry,rw,rh,0,0,rw,rh); setWork(c);
+            } else {
+              // замальовування: колір = середній по смузі 6px навколо ділянки (для написів на однотонному тлі)
+              var g=work.getContext('2d'), P=6, x0=Math.max(0,rx-P), y0=Math.max(0,ry-P), x1=Math.min(work.width,rx+rw+P), y1=Math.min(work.height,ry+rh+P);
+              var d=g.getImageData(x0,y0,x1-x0,y1-y0), w=d.width, sr=0,sg=0,sb=0,n=0;
+              for(var y=0;y<d.height;y++) for(var x=0;x<w;x++){
+                var ax=x0+x, ay=y0+y; if(ax>=rx&&ax<rx+rw&&ay>=ry&&ay<ry+rh) continue;
+                var i=(y*w+x)*4; sr+=d.data[i]; sg+=d.data[i+1]; sb+=d.data[i+2]; n++;
+              }
+              if(n){ g.fillStyle='rgb('+Math.round(sr/n)+','+Math.round(sg/n)+','+Math.round(sb/n)+')'; g.fillRect(rx,ry,rw,rh); }
+              rect=null; layout();
+            }
+            say('');
+          }
+          // виділення ділянки
+          var drag=null;
+          function pt(e){ var r=dc.getBoundingClientRect(); return {x:Math.max(0,Math.min(dc.width,(e.clientX-r.left)*dc.width/r.width)), y:Math.max(0,Math.min(dc.height,(e.clientY-r.top)*dc.height/r.height))}; }
+          dc.addEventListener('pointerdown',function(e){ drag=pt(e); rect={x:drag.x,y:drag.y,w:0,h:0}; try{dc.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
+          dc.addEventListener('pointermove',function(e){ if(!drag) return; var p=pt(e); rect={x:Math.min(drag.x,p.x),y:Math.min(drag.y,p.y),w:Math.abs(p.x-drag.x),h:Math.abs(p.y-drag.y)}; draw(); });
+          dc.addEventListener('pointerup',function(){ drag=null; if(rect&&(rect.w<4||rect.h<4)){ rect=null; draw(); } });
+          // панель
+          var bCrop=edBtn('✂️ Обрізка','Виділіть ділянку, що залишиться',function(){mode='crop';mark();draw();}), bFill=edBtn('🩹 Замалювати','Виділіть напис на однотонному тлі — заливається кольором навколо',function(){mode='fill';mark();draw();});
+          function mark(){ bCrop.style.background=mode==='crop'?'#4caf50':'#fff'; bCrop.style.color=mode==='crop'?'#fff':'#222'; bFill.style.background=mode==='fill'?'#ff9800':'#fff'; bFill.style.color=mode==='fill'?'#fff':'#222'; }
+          tools.appendChild(edBtn('⟲','Повернути вліво',function(){rotate(-1);})); tools.appendChild(edBtn('⟳','Повернути вправо',function(){rotate(1);}));
+          tools.appendChild(edBtn('⇋','Відзеркалити',flip)); tools.appendChild(bCrop); tools.appendChild(bFill);
+          tools.appendChild(edBtn('✔ Застосувати до ділянки','Обрізати / замалювати виділене',applyRect,'background:#2d6a2d;color:#fff'));
+          tools.appendChild(edBtn('↶ Скасувати крок','',undo)); tools.appendChild(edBtn('⟲⟲ До оригіналу','',reset));
+          function slider(label,val,cb){ var l=document.createElement('label'); l.style.cssText='display:flex;gap:6px;align-items:center'; l.appendChild(document.createTextNode(label)); var r=document.createElement('input'); r.type='range'; r.min=50; r.max=150; r.value=val; r.style.cssText='width:140px;padding:0'; r.addEventListener('input',function(){cb(+r.value);}); l.appendChild(r); sl.appendChild(l); return r; }
+          var bs=slider('Яскравість',100,function(v){bright=v;draw();}), cs=slider('Контраст',100,function(v){contr=v;draw();});
+          // збереження
+          function out(maxSide){
+            var f=Math.min(1,maxSide/Math.max(work.width,work.height)), c=cnv(Math.max(1,Math.round(work.width*f)),Math.max(1,Math.round(work.height*f))), g=c.getContext('2d');
+            g.drawImage(work,0,0,c.width,c.height);
+            if(bright!==100||contr!==100){
+              var d=g.getImageData(0,0,c.width,c.height), b=bright/100, ct=contr/100, a=d.data;
+              for(var i=0;i<a.length;i+=4) for(var j=0;j<3;j++){ var v=a[i+j]*b; v=(v-128)*ct+128; a[i+j]=v<0?0:v>255?255:v; }
+              g.putImageData(d,0,0);
+            }
+            return c;
+          }
+          function blobOf(c,q){ return new Promise(function(res){ c.toBlob(res,'image/webp',q); }); }
+          async function save(replace){
+            say('⏳ Збереження…'); [].forEach.call(acts.querySelectorAll('button'),function(b){b.disabled=true;});
+            try{
+              var main=await blobOf(out(1200),0.88), th=await blobOf(out(400),0.8);
+              if(!main) throw new Error('браузер не зміг зберегти зображення');
+              var fd=new FormData(); fd.set('photo',main,'edited.webp'); if(th) fd.set('thumb',th,'thumb.webp');
+              if(replace) fd.set('id',it.id); else fd.set('pid',pid);
+              var r=await fetch(replace?'/admin/imgreplace':'/admin/upload',{method:'POST',body:fd,redirect:'follow'});
+              if(!r.ok) throw new Error('сервер відповів '+r.status);
+              location.href='/admin?pid='+pid;
+            }catch(e){ say('Помилка: '+(e&&e.message||e)); [].forEach.call(acts.querySelectorAll('button'),function(b){b.disabled=false;}); }
+          }
+          acts.appendChild(edBtn('💾 Замінити це фото','Файл буде замінено, місце в списку збережеться',function(){save(true);},'background:#2d6a2d;color:#fff'));
+          acts.appendChild(edBtn('➕ Зберегти як нове','Додати як окреме фото, оригінал лишається',function(){save(false);},'background:#1565c0;color:#fff'));
+          acts.appendChild(edBtn('Скасувати','',edClose,'background:#777;color:#fff'));
+          ed.appendChild(tools); ed.appendChild(dc); ed.appendChild(sl); ed.appendChild(acts); ed.appendChild(msg);
+          document.body.appendChild(ed); mark(); layout();
+          say('Виділіть ділянку на фото: «Обрізка» залишить її, «Замалювати» зафарбує кольором навколо');
+        }
+      }
+      document.addEventListener('keydown',function(e){ if(ed&&e.key==='Escape'){ e.stopPropagation(); edClose(); } },true);
     })();</script>`;
     const body = `<div class="nav"><a href="${esc(listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }))}">← до списку</a></div>
     <h1>${esc(p.name)}</h1>
