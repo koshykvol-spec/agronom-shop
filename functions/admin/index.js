@@ -54,7 +54,7 @@ td,th{padding:7px 10px;border-bottom:1px solid #eee;text-align:left;font-size:.8
 .muted{color:#999;font-size:.8rem} .ok{color:#2d6a2d} .no{color:#c0392b}
 .cats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .cat{background:#fff;border:1.5px solid #c8e0c8;color:#2d6a2d;padding:6px 12px;border-radius:18px;text-decoration:none;font-size:.85rem;font-weight:600}
-.cat.active{background:#2d6a2d;color:#fff} .cat b{opacity:.6;font-weight:400}
+.cat.active{background:#2d6a2d;color:#fff} .subcats{margin:-2px 0 10px;padding-left:10px;border-left:3px solid #c8e0c8} .subcats .cat{font-size:.8rem;padding:4px 10px} .cat b{opacity:.6;font-weight:400}
 .pager{display:flex;gap:10px;align-items:center;margin:14px 0}
 </style><link rel="stylesheet" href="/admin-ui.css"></head><body>${body}${GROUP_COMBO_ASSETS}${INGREDIENT_PICKER_ASSETS}</body></html>`;
 
@@ -88,6 +88,7 @@ function navGrid() {
 function fparams(o) {
   const u = new URLSearchParams();
   if (o.cat) u.set('cat', o.cat);
+  if (o.cat && o.sub) u.set('sub', o.sub);
   if (o.q) u.set('q', o.q);
   if (o.noa) u.set('noa', '1');
   if (o.noimg) u.set('noimg', '1');
@@ -100,6 +101,7 @@ function fparams(o) {
   if (o.page && o.page > 1) u.set('page', o.page);
   return u.toString();
 }
+const NONE_SUB = '__none';
 const listUrl = o => { const f = fparams(o); return '/admin' + (f ? '?' + f : ''); };
 
 // image_ok = чи існує файл головного (з найменшим sort) фото товару
@@ -118,6 +120,7 @@ export async function onRequestGet(context) {
   const db = env.DB;
   const pid = url.searchParams.get('pid');
   const cat = url.searchParams.get('cat') || '';
+  const sub = cat ? (url.searchParams.get('sub') || '') : '';   // підгрупа всередині категорії (products.brand: Гербіциди, Фунгіциди…); NONE_SUB = без підгрупи
   const q = (url.searchParams.get('q') || '').trim();
   const noa = url.searchParams.get('noa') === '1';
   const noimg = url.searchParams.get('noimg') === '1';
@@ -129,13 +132,13 @@ export async function onRequestGet(context) {
   let ps = parseInt(url.searchParams.get('ps') || '', 10);
   if (!PAGE_SIZES.includes(ps)) ps = DEFAULT_PAGE_SIZE;
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
-  const fp = fparams({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page });
+  const fp = fparams({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page });
 
   // ── швидкі дії зі списку (перемикання показу в каталозі / масове приховування) ──
   const toggle = url.searchParams.get('toggle');
   if (toggle) {
     await db.prepare(`UPDATE product_content SET visible = CASE WHEN visible=1 THEN 0 ELSE 1 END WHERE pid=?`).bind(toggle).run();
-    return Response.redirect(new URL(listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }), request.url).toString(), 303);
+    return Response.redirect(new URL(listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }), request.url).toString(), 303);
   }
   if (url.searchParams.get('bulk') === 'hide-nophoto') {
     await db.prepare(`UPDATE product_content SET visible=0 WHERE image_ok=0`).run();
@@ -313,7 +316,7 @@ export async function onRequestGet(context) {
         });
       });
     })();</script>`;
-    const body = `<div class="nav"><a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }))}">← до списку</a></div>
+    const body = `<div class="nav"><a href="${esc(listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }))}">← до списку</a></div>
     <h1>${esc(p.name)}</h1>
     <div class="muted">SKU ${esc(p.sku)} · ${esc(p.category||'')} · ${p.price} грн · ${p.in_stock?'<span class="ok">в наявності</span>':'<span class="no">немає</span>'} · <a href="/p/${esc(p.slug)}" target="_blank">/p/${esc(p.slug)} ↗</a></div>
     <form class="box" method="POST" action="/admin/save" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
@@ -432,6 +435,18 @@ export async function onRequestGet(context) {
 
   // ── категорії (тепер із кешу, а не наживо на кожен запит) ──
   const { catRows, totalC, noRevTotal } = await getStats(db);
+  // Підгрупи вибраної категорії (рядок під головними чипами): «Усі» + products.brand у межах категорії
+  let subNav = '';
+  if (cat && !q && !noa && !noimg && !nodosage && !noai && !nokw && !noseo && !norev) {
+    const subRows = (await db.prepare(`SELECT COALESCE(brand,'') b, COUNT(*) n FROM products WHERE category=? GROUP BY COALESCE(brand,'') ORDER BY n DESC, b`).bind(cat).all()).results || [];
+    if (subRows.length > 1 || (subRows.length === 1 && subRows[0].b)) {
+      const tot = subRows.reduce((a, r) => a + r.n, 0);
+      subNav = '<div class="cats subcats">' +
+        `<a class="cat${!sub ? ' active' : ''}" href="${esc(listUrl({ cat, ps }))}">Усі <b>${tot}</b></a>` +
+        subRows.map(r => { const v = r.b || NONE_SUB; return `<a class="cat${sub === v ? ' active' : ''}" href="${esc(listUrl({ cat, sub: v, ps }))}">${esc(r.b || 'Без підгрупи')} <b>${r.n}</b></a>`; }).join('') +
+        '</div>';
+    }
+  }
   const catNav = '<div class="cats">' +
     `<a class="cat${!cat&&!q&&!noa&&!noimg&&!noseo&&!norev?' active':''}" href="/admin">Усі <b>${totalC.n}</b></a>` +
     `<a class="cat${noa?' active':''}" href="/admin?noa=1">Без опису <b>${totalC.noa}</b></a>` +
@@ -442,7 +457,7 @@ export async function onRequestGet(context) {
     `<a class="cat${noseo?' active':''}" href="/admin?noseo=1">🔎 Без SEO <b>${totalC.noseo}</b></a>` +
     `<a class="cat${norev?' active':''}" href="/admin?norev=1">💬 Без відгуків <b>${noRevTotal}</b></a>` +
     (catRows.results||[]).map(r => `<a class="cat${cat===r.c?' active':''}" href="/admin?cat=${encodeURIComponent(r.c||'')}">${esc(r.c||'—')} <b>${r.n}</b></a>`).join('') +
-    '</div>';
+    '</div>' + subNav;
 
   // ── вибірка ──
   let where = '0', binds = [];
@@ -456,7 +471,11 @@ export async function onRequestGet(context) {
   else if (nokw) { where = "(c.keywords IS NULL OR c.keywords='')"; }
   else if (noseo) { where = "(COALESCE(c.meta_title,'')='' OR COALESCE(c.meta_desc,'')='')"; }
   else if (norev) { where = "NOT EXISTS (SELECT 1 FROM reviews r WHERE r.pid=p.pid)"; }
-  else if (cat) { where = 'p.category=?'; binds = [cat]; }
+  else if (cat) {
+    where = 'p.category=?'; binds = [cat];
+    if (sub === NONE_SUB) where += " AND COALESCE(p.brand,'')=''";
+    else if (sub) { where += ' AND p.brand=?'; binds.push(sub); }
+  }
 
   // ── smart-пошук (аналог app.js: normS + fuzzy + ранжування) ──
   function normS(s) {
@@ -559,15 +578,15 @@ export async function onRequestGet(context) {
   }).join('');
   const pages = Math.ceil(total / ps);
   const pager = pages > 1 ? `<div class="pager">
-     ${page>1?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,nodosage,noai,nokw,noseo,norev,ps,page:page-1}))}">← Назад</a>`:''}
+     ${page>1?`<a class="btn" href="${esc(listUrl({cat,sub,q,noa,noimg,nodosage,noai,nokw,noseo,norev,ps,page:page-1}))}">← Назад</a>`:''}
      <span class="muted">Стор. ${page} / ${pages} (${total})</span>
-     ${page<pages?`<a class="btn" href="${esc(listUrl({cat,q,noa,noimg,nodosage,noai,nokw,noseo,norev,ps,page:page+1}))}">Далі →</a>`:''}
+     ${page<pages?`<a class="btn" href="${esc(listUrl({cat,sub,q,noa,noimg,nodosage,noai,nokw,noseo,norev,ps,page:page+1}))}">Далі →</a>`:''}
    </div>` : (total ? `<div class="muted" style="margin:10px 0">Знайдено: ${total}</div>` : '');
 
   const psBar = (where !== '0' && total) ? `<div class="muted" style="margin:8px 0">На сторінці: ` +
      PAGE_SIZES.map(n => n === ps
        ? `<b style="color:#2d6a2d">${n}</b>`
-       : `<a href="${esc(listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps: n, page: 1 }))}">${n}</a>`).join(' · ') +
+       : `<a href="${esc(listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps: n, page: 1 }))}">${n}</a>`).join(' · ') +
      `</div>` : '';
 
   const bulkBar = (noimg && total) ? `<div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap">
@@ -579,7 +598,7 @@ export async function onRequestGet(context) {
 
   // Панель групування фасовок: познач кілька товарів → обери групу → «Згрупувати» (B)
   const grpListB = rows.length ? await existingGroups(db) : [];
-  const backUrl = listUrl({ cat, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page });
+  const backUrl = listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page });
   const grpBar = rows.length ? `<div style="margin:10px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#eef5ee;padding:8px 10px;border-radius:8px">
       📦 Познач фасовки галочками → у групу: ${groupComboHTML('gid', grpListB, '__new__')}
       <button class="btn" type="submit" style="padding:7px 12px">Згрупувати обрані</button>
