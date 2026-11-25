@@ -196,41 +196,56 @@ export async function onRequestGet(context) {
       </div>
       <form method="POST" action="/admin/upload" enctype="multipart/form-data" onsubmit="return shrinkUpload(this,event)" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input type="hidden" name="pid" value="${pid}">${hid}
-        <label class="btn" style="background:#555;margin:0;cursor:pointer">📂 Виберіть фото<input type="file" name="photo" accept="image/*" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="var s=this.closest('form').querySelector('.fname');if(s)s.textContent=this.files&&this.files[0]?this.files[0].name:'Файл не вибрано'"></label>
-        <span class="fname muted" style="flex:1;min-width:120px">Файл не вибрано</span>
-        <button class="btn" type="submit">⬆️ Завантажити фото</button>
+        <label class="btn" style="background:#555;margin:0;cursor:pointer">📂 Виберіть фото<input type="file" name="photo" accept="image/*" multiple style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="phPicked(this)"></label>
+        <span class="fname muted" style="flex:1;min-width:120px">Оберіть одне чи кілька фото — завантажаться одразу</span>
+        <button class="btn" type="submit" style="display:none">⬆️ Завантажити фото</button>
       </form>
       <div class="muted" style="margin-top:6px">Перше (★ головне) показується в каталозі. Фото автоматично стискається (макс 800px, webp) + створюється мініатюра для каталогу (400px). Формати: webp/jpg/png.</div>
       <script>
       // Автостиснення фото в браузері перед завантаженням (макс 800px, webp q82) — без сторонніх сервісів
-      async function shrinkUpload(form, ev){
-        var inp = form.querySelector('input[name=photo]');
-        var file = inp.files && inp.files[0];
-        if(!file || !/^image\\//.test(file.type)) return true;   // нема фото / не зображення → звичайний сабміт
-        ev.preventDefault();
-        var btn = form.querySelector('button[type=submit]'); btn.disabled=true; btn.textContent='⏳ Стиснення…';
-        try {
+      function phPicked(inp){
+        var form=inp.form||inp.closest('form');
+        if(!inp.files||!inp.files.length) return;
+        var s=form.querySelector('.fname'); if(s) s.textContent='⏳ Завантаження: '+inp.files.length+' фото…';
+        if(form.requestSubmit) form.requestSubmit(); else form.querySelector('button[type=submit]').click();   // сабміт одразу після вибору
+      }
+      // стискаємо одне фото в браузері (макс 800px, webp q82) + мініатюра 400px; помилка → повертаємо null (залити оригінал)
+      async function phPrepare(file){
+        try{
           var bmp = await createImageBitmap(file);
           var MAX=800, scale=Math.min(1, MAX/Math.max(bmp.width,bmp.height));
           var w=Math.round(bmp.width*scale), h=Math.round(bmp.height*scale);
           var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
           cv.getContext('2d').drawImage(bmp,0,0,w,h);
           var blob = await new Promise(function(res){ cv.toBlob(res,'image/webp',0.82); });
-          if(!blob || blob.size>file.size) throw 0;             // не вийшло менше → залив оригінал
-          var fd = new FormData(form);
-          fd.set('photo', blob, (file.name.replace(/\\.[^.]+$/,'')||'photo')+'.webp');
-          // Мініатюра для каталогу (макс 400px) — лише якщо оригінал більший; сервер кладе її в thumb/up/...
+          if(!blob || blob.size>file.size) return null;           // не вийшло менше → залити оригінал
+          var out={photo:blob, name:(file.name.replace(/\\.[^.]+$/,'')||'photo')+'.webp', thumb:null};
           var TMAX=400;
           if(Math.max(bmp.width,bmp.height)>TMAX){
             var ts=TMAX/Math.max(bmp.width,bmp.height), tw=Math.round(bmp.width*ts), th=Math.round(bmp.height*ts);
             var tcv=document.createElement('canvas'); tcv.width=tw; tcv.height=th;
             tcv.getContext('2d').drawImage(bmp,0,0,tw,th);
-            var tblob = await new Promise(function(res){ tcv.toBlob(res,'image/webp',0.8); });
-            if(tblob) fd.set('thumb', tblob, 'thumb.webp');
+            out.thumb = await new Promise(function(res){ tcv.toBlob(res,'image/webp',0.8); });
           }
-          var r = await fetch(form.action, {method:'POST', body:fd, redirect:'follow'});
-          location.href = r.url || location.href;
-        } catch(e){ btn.disabled=false; form.onsubmit=null; form.submit(); }  // fallback — звичайний сабміт оригіналу
+          return out;
+        }catch(e){ return null; }
+      }
+      async function shrinkUpload(form, ev){
+        var inp = form.querySelector('input[name=photo]');
+        var files = inp.files ? [].slice.call(inp.files).filter(function(f){return /^image\\//.test(f.type);}) : [];
+        if(!files.length) return true;                            // нема фото / не зображення → звичайний сабміт
+        ev.preventDefault();
+        var st=form.querySelector('.fname'), fails=0;
+        for(var n=0;n<files.length;n++){
+          if(st) st.textContent='⏳ Завантаження '+(n+1)+' / '+files.length+'…';
+          var f=files[n], prep=await phPrepare(f);
+          var fd=new FormData(form); fd.delete('photo'); fd.delete('thumb');
+          if(prep){ fd.set('photo',prep.photo,prep.name); if(prep.thumb) fd.set('thumb',prep.thumb,'thumb.webp'); }
+          else fd.set('photo',f,f.name);                          // оригінал як є
+          try{ var r=await fetch(form.action,{method:'POST',body:fd,redirect:'follow'}); if(!r.ok) fails++; }catch(e){ fails++; }
+        }
+        if(fails && st){ st.textContent='⚠️ Не вдалося завантажити: '+fails+' з '+files.length; setTimeout(function(){location.reload();},1800); }
+        else location.reload();
         return false;
       }
       </script>
@@ -447,6 +462,7 @@ export async function onRequestGet(context) {
     const body = `<div class="nav"><a href="${esc(listUrl({ cat, sub, q, noa, noimg, nodosage, noai, nokw, noseo, norev, ps, page }))}">← до списку</a></div>
     <h1>${esc(p.name)}</h1>
     <div class="muted">SKU ${esc(p.sku)} · ${esc(p.category||'')} · ${p.price} грн · ${p.in_stock?'<span class="ok">в наявності</span>':'<span class="no">немає</span>'} · <a href="/p/${esc(p.slug)}" target="_blank">/p/${esc(p.slug)} ↗</a></div>
+    ${gallery}
     <form class="box" method="POST" action="/admin/save" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
       <input type="hidden" name="pid" value="${p.pid}">${hid}
       <div style="background:#fff8e1;border:1px solid #f0d98a;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:.82rem;color:#7a5d00">⚠️ Поля з 1С (назва, ціна, категорія, бренд, наявність) <b>перезапишуться при наступному імпорті 1С</b>. Для постійної знижки користуйтесь блоком «Акція».</div>
@@ -556,8 +572,7 @@ export async function onRequestGet(context) {
       <div><label>SEO description</label><input name="meta_desc" value="${esc(p.meta_desc)}"></div>
       <label><input type="checkbox" name="visible" value="1" ${p.visible?'checked':''} style="width:auto"> Показувати на сайті</label>
       <div style="margin-top:14px"><button class="btn">💾 Зберегти</button></div>
-    </form>
-    ${gallery}`;
+    </form>`;
     return new Response(PAGE('Редагування: ' + p.name, body), { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
 

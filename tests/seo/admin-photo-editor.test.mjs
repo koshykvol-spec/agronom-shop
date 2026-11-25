@@ -112,3 +112,24 @@ describe('/admin?pid=…: редактор фото (клієнт)', { skip }, (
     assert.match(h, /draggable="true"/); assert.match(h, /imgdel=/); assert.match(h, /imgprimary=/); assert.match(h, /shrinkUpload/);
   });
 });
+
+describe('/admin?pid=…: блок фото нагорі, завантаження одразу', { skip }, () => {
+  const page = async () => { const { env } = makeEnv(); const res = await index.onRequestGet({ request: new Request(`${ORIGIN}/admin?pid=1`), env }); return res.text(); };
+  it('блок «Фото товару» стоїть вище за форму полів і лише один раз', async () => {
+    const h = await page();
+    const g = h.indexOf('id="photo-grid"'), f = h.indexOf('action="/admin/save"');
+    assert.ok(g > 0 && f > 0 && g < f, 'фото мають бути перед формою збереження');
+    assert.equal((h.match(/id="photo-grid"/g) || []).length, 1);
+    assert.ok(h.indexOf('📷 Фото товару') < h.indexOf('name="sku"'));
+  });
+  it('вибір файлів → одразу завантаження (multiple, onchange, кнопка прихована); завантажується по одному, з стисненням', async () => {
+    const h = await page();
+    assert.match(h, /<input type="file" name="photo" accept="image\/\*" multiple[^>]*onchange="phPicked\(this\)"/);
+    assert.match(h, /<button class="btn" type="submit" style="display:none">⬆️ Завантажити фото<\/button>/);
+    for (const k of ['function phPicked', 'requestSubmit', 'async function phPrepare', 'async function shrinkUpload', 'for(var n=0;n<files.length;n++)', "fd.set('photo',f,f.name)", 'location.reload()']) assert.ok(h.includes(k), k);
+    const scripts = [...h.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    for (const sc of scripts) assert.doesNotThrow(() => new Function(sc));
+    // регулярки в шаблонному рядку не втратили слеші
+    assert.ok(h.includes('/^image\\//.test(f.type)') || h.includes('/^image\//.test(f.type)'));
+  });
+});
