@@ -104,7 +104,7 @@ describe('/admin?pid=…: редактор фото (клієнт)', { skip }, (
   });
   it('редактор: поворот/відзеркалення/обрізка/замальовування/яскравість, збереження «замінити» і «як нове», Esc лише закриває редактор', async () => {
     const { html: h } = await html(); const s = scripts(h).find(x => x.includes('Редактор фото')); assert.ok(s);
-    for (const k of ['function openEditor', 'rotate(-1)', 'rotate(1)', 'function flip', 'function applyRect', "mode==='fill'", 'brightness(', "'/admin/imgreplace'", "'/admin/upload'", "fd.set('id',it.id)", "fd.set('thumb'", "'Escape'", 'stopPropagation', 'setPointerCapture', "id:el.getAttribute('data-id')"]) assert.ok(s.includes(k), k);
+    for (const k of ['function openEditor', 'rotate(-1)', 'rotate(1)', 'function flip', 'function applyRect', "mode==='fill'", 'brightness(', "'/admin/imgreplace'", "'/admin/upload'", "fd.set('id',it.id)", "fd.set('thumb'", "'Escape'", 'stopPropagation', 'setPointerCapture', "id:el.getAttribute('data-id')", 'function edInpaint', 'function applyErase', "mode==='erase'", 'Лише тонкий напис', 'Пензель']) assert.ok(s.includes(k), k);
     assert.ok(!/https?:\/\//.test(s), 'редактор не ходить на зовнішні адреси');
   });
   it('наявні функції не зламані: перетягування, видалення, «зробити головним», завантаження', async () => {

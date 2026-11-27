@@ -333,6 +333,88 @@ export async function onRequestGet(context) {
       });
 
       // ── Редактор фото: поворот, відзеркалення, обрізка, замальовування, яскравість/контраст ──
+      // Заповнення ділянки за сусідніми фрагментами фото (для «Ластика»)
+// Заповнення виділеної ділянки за сусідніми фрагментами фото (exemplar-based, спрощений Criminisi).
+      // inpaint(rgba: Uint8ClampedArray, w, h, mask: Uint8Array(1 = стерти)) → змінює rgba на місці, повертає кількість заповнених пікселів.
+      function edInpaint(rgba, w, h, mask) {
+        var r = 4, S = 2 * r + 1, n = w * h, R0 = 40;
+        var m = new Uint8Array(mask), conf = new Float32Array(n), i, x, y;
+        var left = 0;
+        for (i = 0; i < n; i++) { if (m[i]) left++; else conf[i] = 1; }
+        var total = left;
+        // інтегральна маска → швидка перевірка «у фрагменті немає невідомих пікселів»
+        var W1 = w + 1, ii = new Int32Array(W1 * (h + 1));
+        function buildII() {
+          for (y = 0; y < h; y++) { var row = 0; for (x = 0; x < w; x++) { row += m[y * w + x]; ii[(y + 1) * W1 + x + 1] = ii[y * W1 + x + 1] + row; } }
+        }
+        function maskSum(x0, y0, x1, y1) { return ii[(y1 + 1) * W1 + x1 + 1] - ii[y0 * W1 + x1 + 1] - ii[(y1 + 1) * W1 + x0] + ii[y0 * W1 + x0]; }
+        buildII();
+        // для ефективності перебудовуємо інтегральну маску не щоразу, а раз на кілька заповнень
+        var sinceII = 0;
+        var front = [];
+        function isFront(p) {
+          if (!m[p]) return false; var px = p % w, py = (p / w) | 0;
+          return (px > 0 && !m[p - 1]) || (px < w - 1 && !m[p + 1]) || (py > 0 && !m[p - w]) || (py < h - 1 && !m[p + w]);
+        }
+        for (i = 0; i < n; i++) if (isFront(i)) front.push(i);
+        var guard = 0;
+        while (left > 0 && guard++ < total + 50) {
+          // пріоритет: середня «достовірність» у фрагменті (заповнюємо від країв всередину)
+          var best = -1, bp = -1;
+          for (var f = 0; f < front.length; f++) {
+            var p = front[f]; if (!m[p]) continue;
+            var px = p % w, py = (p / w) | 0, s = 0, c = 0;
+            for (var dy = -r; dy <= r; dy++) { var yy = py + dy; if (yy < 0 || yy >= h) continue; for (var dx = -r; dx <= r; dx++) { var xx = px + dx; if (xx < 0 || xx >= w) continue; s += conf[yy * w + xx]; c++; } }
+            var pr = s / (S * S);
+            if (pr > best) { best = pr; bp = p; }
+          }
+          if (bp < 0) break;
+          var tx = bp % w, ty = (bp / w) | 0;
+          if (sinceII >= 40) { buildII(); sinceII = 0; }
+          // пошук найкращого фрагмента у вікні навколо; розширюємо вікно, якщо джерел немає
+          var bestD = 1e18, bsx = -1, bsy = -1, R = R0;
+          for (var tries = 0; tries < 4 && bsx < 0; tries++, R *= 2) {
+            var x0 = Math.max(r, tx - R), x1 = Math.min(w - 1 - r, tx + R), y0 = Math.max(r, ty - R), y1 = Math.min(h - 1 - r, ty + R);
+            for (var sy = y0; sy <= y1; sy++) for (var sx = x0; sx <= x1; sx++) {
+              if (maskSum(sx - r, sy - r, sx + r, sy + r) - 0 > 0) continue;   // джерело — лише повністю відомі фрагменти (інтегральна маска трохи застаріла, але лише в бік «обережніше»)
+              var d = 0, k = 0;
+              for (dy = -r; dy <= r && d < bestD; dy++) {
+                var ty2 = ty + dy; if (ty2 < 0 || ty2 >= h) continue;
+                for (dx = -r; dx <= r; dx++) {
+                  var tx2 = tx + dx; if (tx2 < 0 || tx2 >= w) continue;
+                  var q = ty2 * w + tx2; if (m[q]) continue;
+                  var a = q * 4, b = ((sy + dy) * w + sx + dx) * 4;
+                  var e0 = rgba[a] - rgba[b], e1 = rgba[a + 1] - rgba[b + 1], e2 = rgba[a + 2] - rgba[b + 2];
+                  d += e0 * e0 + e1 * e1 + e2 * e2;
+                }
+              }
+              if (d < bestD) { bestD = d; bsx = sx; bsy = sy; }
+            }
+          }
+          if (bsx < 0) { // зовсім немає джерел — беремо середній колір відомих сусідів
+            var qa = bp * 4; rgba[qa] = rgba[qa + 1] = rgba[qa + 2] = 128; m[bp] = 0; conf[bp] = 0.1; left--; continue;
+          }
+          var cval = best;
+          for (dy = -r; dy <= r; dy++) {
+            var yy2 = ty + dy; if (yy2 < 0 || yy2 >= h) continue;
+            for (dx = -r; dx <= r; dx++) {
+              var xx2 = tx + dx; if (xx2 < 0 || xx2 >= w) continue;
+              var q2 = yy2 * w + xx2; if (!m[q2]) continue;
+              var a2 = q2 * 4, b2 = ((bsy + dy) * w + bsx + dx) * 4;
+              rgba[a2] = rgba[b2]; rgba[a2 + 1] = rgba[b2 + 1]; rgba[a2 + 2] = rgba[b2 + 2];
+              m[q2] = 0; conf[q2] = cval; left--;
+              // нові пікселі фронту
+              if (xx2 > 0 && m[q2 - 1]) front.push(q2 - 1); if (xx2 < w - 1 && m[q2 + 1]) front.push(q2 + 1);
+              if (yy2 > 0 && m[q2 - w]) front.push(q2 - w); if (yy2 < h - 1 && m[q2 + w]) front.push(q2 + w);
+            }
+          }
+          sinceII++;
+          if (front.length > 4 * n) front = front.filter(function (p) { return m[p]; });
+          else if (guard % 50 === 0) front = front.filter(function (p) { return m[p]; });
+        }
+        return total - left;
+      }
+
       var ed=null;
       function edBtn(txt,title,fn,extra){
         var b=document.createElement('button'); b.type='button'; b.textContent=txt; b.title=title||'';
@@ -352,7 +434,7 @@ export async function onRequestGet(context) {
           var CAP=2000, k=Math.min(1,CAP/Math.max(img.naturalWidth,img.naturalHeight));
           var work=cnv(Math.round(img.naturalWidth*k),Math.round(img.naturalHeight*k));
           work.getContext('2d').drawImage(img,0,0,work.width,work.height);
-          var hist=[], mode='crop', rect=null, bright=100, contr=100, s=1;
+          var hist=[], mode='crop', rect=null, bright=100, contr=100, s=1, brush=24, thin=true, mk=cnv(1,1), lastp=null;
           ed=document.createElement('div');
           ed.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px;box-sizing:border-box';
           ed.setAttribute('role','dialog'); ed.setAttribute('aria-modal','true'); ed.setAttribute('aria-label','Редагування фото');
@@ -367,11 +449,13 @@ export async function onRequestGet(context) {
             var maxW=Math.min(window.innerWidth*0.94,1100), maxH=window.innerHeight-250;
             s=Math.min(1,maxW/work.width,maxH/work.height);
             dc.width=Math.max(1,Math.round(work.width*s)); dc.height=Math.max(1,Math.round(work.height*s));
+            mk.width=dc.width; mk.height=dc.height;   // шар зафарбованого (скидається при зміні картинки)
             draw();
           }
           function draw(){
             var g=dc.getContext('2d'); g.clearRect(0,0,dc.width,dc.height); g.drawImage(work,0,0,dc.width,dc.height);
             dc.style.filter='brightness('+bright+'%) contrast('+contr+'%)';
+            if(mode==='erase'){ g.save(); g.globalAlpha=0.5; g.drawImage(mk,0,0); g.restore(); }
             if(rect){
               g.save(); g.fillStyle='rgba(0,0,0,.45)';
               if(mode==='crop'){
@@ -391,6 +475,7 @@ export async function onRequestGet(context) {
           function undo(){ if(!hist.length){ say('Немає що скасовувати'); return; } setWork(hist.pop()); say(''); }
           function reset(){ push(); var c=cnv(Math.round(img.naturalWidth*k),Math.round(img.naturalHeight*k)); c.getContext('2d').drawImage(img,0,0,c.width,c.height); bright=100; contr=100; bs.value=100; cs.value=100; setWork(c); say('Скинуто до оригіналу'); }
           function applyRect(){
+            if(mode==='erase'){ applyErase(); return; }
             if(!rect||rect.w<4||rect.h<4){ say('Спочатку виділіть ділянку мишею/пальцем'); return; }
             var rx=Math.round(rect.x/s), ry=Math.round(rect.y/s), rw=Math.round(rect.w/s), rh=Math.round(rect.h/s);
             rx=Math.max(0,rx); ry=Math.max(0,ry); rw=Math.min(rw,work.width-rx); rh=Math.min(rh,work.height-ry);
@@ -412,19 +497,72 @@ export async function onRequestGet(context) {
           }
           // виділення ділянки
           var drag=null;
+          function setBusy(on){ [].forEach.call(acts.querySelectorAll('button'),function(b){b.disabled=on;}); }
+    function applyErase() {
+      var W = work.width, H = work.height, n = W * H, i, x, y;
+      var mc = cnv(W, H), mg = mc.getContext('2d'); mg.drawImage(mk, 0, 0, W, H);
+      var md = mg.getImageData(0, 0, W, H).data, m = new Uint8Array(n), cnt = 0;
+      for (i = 0; i < n; i++) if (md[i * 4 + 3] > 64) { m[i] = 1; cnt++; }
+      if (!cnt) { say('Зафарбуйте напис пензлем, потім натисніть «Застосувати»'); return; }
+      var id = work.getContext('2d').getImageData(0, 0, W, H), d = id.data;
+      var fin = m;
+      if (thin) {
+        // лише тонкі штрихи (текст) всередині зафарбованого: піксель помітно відрізняється від середнього в околі 11x11
+        var gr = new Float32Array(n);
+        for (i = 0; i < n; i++) gr[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+        var t = new Uint8Array(n), c2 = 0;
+        for (y = 5; y < H - 5; y++) for (x = 5; x < W - 5; x++) {
+          var p = y * W + x; if (!m[p]) continue;
+          var sm = 0; for (var dy = -5; dy <= 5; dy++) for (var dx = -5; dx <= 5; dx++) sm += gr[p + dy * W + dx];
+          var df = gr[p] - sm / 121; if (df > 2.2 || df < -2.2) { t[p] = 1; c2++; }
+        }
+        if (c2 > 20) {
+          fin = new Uint8Array(n); cnt = 0;
+          for (y = 2; y < H - 2; y++) for (x = 2; x < W - 2; x++) {
+            var q = y * W + x; if (!m[q]) continue;
+            var hit = 0; for (dy = -2; dy <= 2 && !hit; dy++) for (dx = -2; dx <= 2; dx++) if (t[q + dy * W + dx]) { hit = 1; break; }
+            if (hit) { fin[q] = 1; cnt++; }
+          }
+        } else say('Тонких штрихів не знайдено — стираю все зафарбоване');
+      }
+      if (cnt > 70000) { say('Ділянка завелика (' + cnt + ' px) — зафарбуйте менше за раз'); return; }
+      say('⏳ Стираю…'); setBusy(true);
+      setTimeout(function () {
+        try {
+          push(); edInpaint(d, W, H, fin);
+          var c = cnv(W, H); c.getContext('2d').putImageData(id, 0, 0); setWork(c);
+          say('Готово. Можна зафарбувати ще або скасувати крок');
+        } catch (e) { hist.pop(); say('Помилка: ' + (e && e.message || e)); }
+        setBusy(false);
+      }, 30);
+    }
+          function stroke(a,b){
+            var g=mk.getContext('2d'); g.strokeStyle='#ff1744'; g.fillStyle='#ff1744'; g.lineWidth=brush; g.lineCap='round'; g.lineJoin='round';
+            g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke(); draw();
+          }
           function pt(e){ var r=dc.getBoundingClientRect(); return {x:Math.max(0,Math.min(dc.width,(e.clientX-r.left)*dc.width/r.width)), y:Math.max(0,Math.min(dc.height,(e.clientY-r.top)*dc.height/r.height))}; }
-          dc.addEventListener('pointerdown',function(e){ drag=pt(e); rect={x:drag.x,y:drag.y,w:0,h:0}; try{dc.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
-          dc.addEventListener('pointermove',function(e){ if(!drag) return; var p=pt(e); rect={x:Math.min(drag.x,p.x),y:Math.min(drag.y,p.y),w:Math.abs(p.x-drag.x),h:Math.abs(p.y-drag.y)}; draw(); });
-          dc.addEventListener('pointerup',function(){ drag=null; if(rect&&(rect.w<4||rect.h<4)){ rect=null; draw(); } });
+          dc.addEventListener('pointerdown',function(e){ if(mode==='erase'){ lastp=pt(e); stroke(lastp,lastp); try{dc.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); return; } drag=pt(e); rect={x:drag.x,y:drag.y,w:0,h:0}; try{dc.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
+          dc.addEventListener('pointermove',function(e){ if(mode==='erase'){ if(lastp){ var np=pt(e); stroke(lastp,np); lastp=np; } return; } if(!drag) return; var p=pt(e); rect={x:Math.min(drag.x,p.x),y:Math.min(drag.y,p.y),w:Math.abs(p.x-drag.x),h:Math.abs(p.y-drag.y)}; draw(); });
+          dc.addEventListener('pointerup',function(){ lastp=null; drag=null; if(rect&&(rect.w<4||rect.h<4)){ rect=null; draw(); } });
           // панель
-          var bCrop=edBtn('✂️ Обрізка','Виділіть ділянку, що залишиться',function(){mode='crop';mark();draw();}), bFill=edBtn('🩹 Замалювати','Виділіть напис на однотонному тлі — заливається кольором навколо',function(){mode='fill';mark();draw();});
-          function mark(){ bCrop.style.background=mode==='crop'?'#4caf50':'#fff'; bCrop.style.color=mode==='crop'?'#fff':'#222'; bFill.style.background=mode==='fill'?'#ff9800':'#fff'; bFill.style.color=mode==='fill'?'#fff':'#222'; }
+          var bCrop=edBtn('✂️ Обрізка','Виділіть ділянку, що залишиться',function(){mode='crop';mark();draw();}), bErase=edBtn('🪄 Ластик','Зафарбуйте напис пензлем — він зникне, а фон добудується з сусідніх ділянок',function(){mode='erase';rect=null;mark();draw();say('Зафарбуйте напис пензлем, потім натисніть «Застосувати»');}), bFill=edBtn('🩹 Замалювати','Виділіть напис на однотонному тлі — заливається кольором навколо',function(){mode='fill';mark();draw();});
+          function mark(){ bCrop.style.background=mode==='crop'?'#4caf50':'#fff'; bCrop.style.color=mode==='crop'?'#fff':'#222'; bFill.style.background=mode==='fill'?'#ff9800':'#fff'; bFill.style.color=mode==='fill'?'#fff':'#222'; bErase.style.background=mode==='erase'?'#9c27b0':'#fff'; bErase.style.color=mode==='erase'?'#fff':'#222'; dc.style.cursor=mode==='erase'?'cell':'crosshair'; }
           tools.appendChild(edBtn('⟲','Повернути вліво',function(){rotate(-1);})); tools.appendChild(edBtn('⟳','Повернути вправо',function(){rotate(1);}));
-          tools.appendChild(edBtn('⇋','Відзеркалити',flip)); tools.appendChild(bCrop); tools.appendChild(bFill);
-          tools.appendChild(edBtn('✔ Застосувати до ділянки','Обрізати / замалювати виділене',applyRect,'background:#2d6a2d;color:#fff'));
+          tools.appendChild(edBtn('⇋','Відзеркалити',flip)); tools.appendChild(bCrop); tools.appendChild(bFill); tools.appendChild(bErase);
+          tools.appendChild(edBtn('✔ Застосувати','Обрізати / замалювати виділене / стерти зафарбоване',applyRect,'background:#2d6a2d;color:#fff'));
           tools.appendChild(edBtn('↶ Скасувати крок','',undo)); tools.appendChild(edBtn('⟲⟲ До оригіналу','',reset));
           function slider(label,val,cb){ var l=document.createElement('label'); l.style.cssText='display:flex;gap:6px;align-items:center'; l.appendChild(document.createTextNode(label)); var r=document.createElement('input'); r.type='range'; r.min=50; r.max=150; r.value=val; r.style.cssText='width:140px;padding:0'; r.addEventListener('input',function(){cb(+r.value);}); l.appendChild(r); sl.appendChild(l); return r; }
           var bs=slider('Яскравість',100,function(v){bright=v;draw();}), cs=slider('Контраст',100,function(v){contr=v;draw();});
+          (function(){
+            var l=document.createElement('label'); l.style.cssText='display:flex;gap:6px;align-items:center';
+            l.appendChild(document.createTextNode('Пензель'));
+            var r=document.createElement('input'); r.type='range'; r.min=6; r.max=80; r.value=brush; r.style.cssText='width:120px;padding:0';
+            r.addEventListener('input',function(){brush=+r.value;}); l.appendChild(r); sl.appendChild(l);
+            var l2=document.createElement('label'); l2.style.cssText='display:flex;gap:6px;align-items:center;cursor:pointer';
+            var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.style.cssText='width:auto;margin:0';
+            cb.addEventListener('change',function(){thin=cb.checked;});
+            l2.appendChild(cb); l2.appendChild(document.createTextNode('Лише тонкий напис')); l2.title='Стирати тільки тонкі штрихи тексту всередині зафарбованого, а не все'; sl.appendChild(l2);
+          })();
           // збереження
           function out(maxSide){
             var f=Math.min(1,maxSide/Math.max(work.width,work.height)), c=cnv(Math.max(1,Math.round(work.width*f)),Math.max(1,Math.round(work.height*f))), g=c.getContext('2d');
@@ -454,7 +592,7 @@ export async function onRequestGet(context) {
           acts.appendChild(edBtn('Скасувати','',edClose,'background:#777;color:#fff'));
           ed.appendChild(tools); ed.appendChild(dc); ed.appendChild(sl); ed.appendChild(acts); ed.appendChild(msg);
           document.body.appendChild(ed); mark(); layout();
-          say('Виділіть ділянку на фото: «Обрізка» залишить її, «Замалювати» зафарбує кольором навколо');
+          say('«Обрізка»/«Замалювати» — виділіть ділянку; «Ластик» — зафарбуйте напис пензлем');
         }
       }
       document.addEventListener('keydown',function(e){ if(ed&&e.key==='Escape'){ e.stopPropagation(); edClose(); } },true);
