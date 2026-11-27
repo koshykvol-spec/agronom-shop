@@ -549,17 +549,24 @@ export async function onRequestGet(context) {
           function mark(){ bCrop.style.background=mode==='crop'?'#4caf50':'#fff'; bCrop.style.color=mode==='crop'?'#fff':'#222'; bFill.style.background=mode==='fill'?'#ff9800':'#fff'; bFill.style.color=mode==='fill'?'#fff':'#222'; bErase.style.background=mode==='erase'?'#9c27b0':'#fff'; bErase.style.color=mode==='erase'?'#fff':'#222'; dc.style.cursor=mode==='erase'?'cell':'crosshair'; }
           tools.appendChild(edBtn('⟲','Повернути вліво',function(){rotate(-1);})); tools.appendChild(edBtn('⟳','Повернути вправо',function(){rotate(1);}));
           tools.appendChild(edBtn('⇋','Відзеркалити',flip)); tools.appendChild(bCrop); tools.appendChild(bFill); tools.appendChild(bErase);
-          var aiBusy=false;
+          var aiBusy=false, AI_PROMPT="Remove ONLY the semi-transparent watermark text or logo that a third-party website has overlaid on this product photo (for example a website address, a shop name or a faint repeated caption). Do NOT change anything else: keep the product, the packaging and ALL printed text and logos that are part of the packaging exactly as they are, keep the colors, lighting, composition, framing and aspect ratio identical. Reconstruct the background under the watermark naturally. Return the full image.";
+          function blobB64(blob){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){ res(String(fr.result).split(',')[1]||''); }; fr.onerror=function(){ rej(new Error('не вдалося прочитати фото')); }; fr.readAsDataURL(blob); }); }
           async function aiClean(){
             if(aiBusy) return; aiBusy=true; say('⏳ Gemini прибирає напис (до хвилини)…');
             try{
               var blob=await new Promise(function(res){ out(1536).toBlob(res,'image/jpeg',0.9); });
               if(!blob) throw new Error('браузер не зміг підготувати фото');
-              var r=await fetch('/admin/geminiclean',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob}), j=await r.json();
-              if(!j.ok) throw new Error(j.error||'помилка сервера');
-              var im=await new Promise(function(res,rej){ var x=new Image(); x.onload=function(){res(x);}; x.onerror=function(){rej(new Error('не вдалося прочитати результат'));}; x.src='data:'+j.mime+';base64,'+j.image; });
-              push(); var c=cnv(im.naturalWidth,im.naturalHeight); c.getContext('2d').drawImage(im,0,0);
-              bright=100; contr=100; bs.value=100; cs.value=100; setWork(c);
+              var b64=await blobB64(blob);
+              var r=await fetch('/admin/geminiclean',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:AI_PROMPT},{inline_data:{mime_type:'image/jpeg',data:b64}}]}],generationConfig:{responseModalities:['IMAGE']}})});
+              var t=await r.text(), j=null; try{ j=JSON.parse(t); }catch(_){}
+              if(!j) throw new Error('сервер відповів HTTP '+r.status+': '+t.replace(/<[^>]*>/g,' ').replace(/ +/g,' ').trim().slice(0,160));
+              if(!r.ok||j.ok===false) throw new Error((j.error&&j.error.message)||('HTTP '+r.status));
+              var c=j.candidates&&j.candidates[0], parts=(c&&c.content&&c.content.parts)||[], d=null;
+              for(var q=0;q<parts.length;q++){ var x=parts[q].inlineData||parts[q].inline_data; if(x&&x.data){ d=x; break; } }
+              if(!d){ var why=(j.promptFeedback&&j.promptFeedback.blockReason)||(c&&c.finishReason)||''; throw new Error('Gemini не повернув зображення'+(why?' ('+why+')':'')); }
+              var im=await new Promise(function(res,rej){ var x2=new Image(); x2.onload=function(){res(x2);}; x2.onerror=function(){rej(new Error('не вдалося прочитати результат'));}; x2.src='data:'+(d.mimeType||d.mime_type||'image/png')+';base64,'+d.data; });
+              push(); var c2=cnv(im.naturalWidth,im.naturalHeight); c2.getContext('2d').drawImage(im,0,0);
+              bright=100; contr=100; bs.value=100; cs.value=100; setWork(c2);
               say('✨ Готово. ПЕРЕВІРТЕ текст на упаковці й логотип — ШІ міг щось спотворити. Не подобається — «Скасувати крок».');
             }catch(e){ say('Помилка: '+(e&&e.message||e)); }
             aiBusy=false;
