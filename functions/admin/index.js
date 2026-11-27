@@ -549,6 +549,22 @@ export async function onRequestGet(context) {
           function mark(){ bCrop.style.background=mode==='crop'?'#4caf50':'#fff'; bCrop.style.color=mode==='crop'?'#fff':'#222'; bFill.style.background=mode==='fill'?'#ff9800':'#fff'; bFill.style.color=mode==='fill'?'#fff':'#222'; bErase.style.background=mode==='erase'?'#9c27b0':'#fff'; bErase.style.color=mode==='erase'?'#fff':'#222'; dc.style.cursor=mode==='erase'?'cell':'crosshair'; }
           tools.appendChild(edBtn('⟲','Повернути вліво',function(){rotate(-1);})); tools.appendChild(edBtn('⟳','Повернути вправо',function(){rotate(1);}));
           tools.appendChild(edBtn('⇋','Відзеркалити',flip)); tools.appendChild(bCrop); tools.appendChild(bFill); tools.appendChild(bErase);
+          var aiBusy=false;
+          async function aiClean(){
+            if(aiBusy) return; aiBusy=true; say('⏳ Gemini прибирає напис (до хвилини)…');
+            try{
+              var blob=await new Promise(function(res){ out(1536).toBlob(res,'image/jpeg',0.9); });
+              if(!blob) throw new Error('браузер не зміг підготувати фото');
+              var r=await fetch('/admin/geminiclean',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob}), j=await r.json();
+              if(!j.ok) throw new Error(j.error||'помилка сервера');
+              var im=await new Promise(function(res,rej){ var x=new Image(); x.onload=function(){res(x);}; x.onerror=function(){rej(new Error('не вдалося прочитати результат'));}; x.src='data:'+j.mime+';base64,'+j.image; });
+              push(); var c=cnv(im.naturalWidth,im.naturalHeight); c.getContext('2d').drawImage(im,0,0);
+              bright=100; contr=100; bs.value=100; cs.value=100; setWork(c);
+              say('✨ Готово. ПЕРЕВІРТЕ текст на упаковці й логотип — ШІ міг щось спотворити. Не подобається — «Скасувати крок».');
+            }catch(e){ say('Помилка: '+(e&&e.message||e)); }
+            aiBusy=false;
+          }
+          tools.appendChild(edBtn('✨ Gemini','ШІ (Nano Banana 2) прибирає водяний знак. Платно; завжди перевіряйте результат',aiClean,'background:#6a1b9a;color:#fff'));
           tools.appendChild(edBtn('✔ Застосувати','Обрізати / замалювати виділене / стерти зафарбоване',applyRect,'background:#2d6a2d;color:#fff'));
           tools.appendChild(edBtn('↶ Скасувати крок','',undo)); tools.appendChild(edBtn('⟲⟲ До оригіналу','',reset));
           function slider(label,val,cb){ var l=document.createElement('label'); l.style.cssText='display:flex;gap:6px;align-items:center'; l.appendChild(document.createTextNode(label)); var r=document.createElement('input'); r.type='range'; r.min=50; r.max=150; r.value=val; r.style.cssText='width:140px;padding:0'; r.addEventListener('input',function(){cb(+r.value);}); l.appendChild(r); sl.appendChild(l); return r; }
