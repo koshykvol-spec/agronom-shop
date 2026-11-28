@@ -119,6 +119,12 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const db = env.DB;
   const pid = url.searchParams.get('pid');
+  // /admin?slug=<slug> → картка товару (для списків «що міняти», де є лише slug із /p/<slug>)
+  const slugQ = (url.searchParams.get('slug') || '').trim();
+  if (slugQ) {
+    const hit = await db.prepare('SELECT pid FROM product_content WHERE slug=?').bind(slugQ).first();
+    if (hit) return Response.redirect(new URL('/admin?pid=' + hit.pid, url).toString(), 302);
+  }
   const cat = url.searchParams.get('cat') || '';
   const sub = cat ? (url.searchParams.get('sub') || '') : '';   // підгрупа всередині категорії (products.brand: Гербіциди, Фунгіциди…); NONE_SUB = без підгрупи
   const q = (url.searchParams.get('q') || '').trim();
